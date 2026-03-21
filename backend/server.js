@@ -128,6 +128,7 @@ async function initDb() {
   try { db.run(`ALTER TABLE family_events ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE expense_concepts ADD COLUMN owner_id INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_profile ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   
   try {
     const pragma = db.exec("PRAGMA table_info(user_profile)");
@@ -171,6 +172,22 @@ async function initDb() {
       ('servicios', 0, 'Servicios'),
       ('ocio', 0, 'Ocio'),
       ('otros', 0, 'Otros')
+  `);
+  
+  db.run(`
+    CREATE TABLE IF NOT EXISTS notification_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER,
+      email_enabled INTEGER DEFAULT 0,
+      email_to TEXT,
+      smtp_host TEXT DEFAULT 'smtp.gmail.com',
+      smtp_port INTEGER DEFAULT 587,
+      smtp_user TEXT,
+      smtp_password TEXT,
+      notify_time TEXT DEFAULT '22:00',
+      notify_day_before INTEGER DEFAULT 1,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
   `);
   
   saveDb();
@@ -2126,7 +2143,11 @@ async function runDailyNotification() {
 }
 
 app.get('/api/notifications/settings', (req, res) => {
-  const stmt = db.prepare('SELECT email_enabled, email_to, smtp_host, smtp_port, smtp_user, notify_time, notify_day_before FROM notification_settings WHERE id = 1');
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const stmt = db.prepare('SELECT email_enabled, email_to, smtp_host, smtp_port, smtp_user, notify_time, notify_day_before FROM notification_settings WHERE owner_id = ?');
+  stmt.bind([userId]);
   let settings = null;
   if (stmt.step()) settings = stmt.getAsObject();
   stmt.free();
@@ -2134,49 +2155,86 @@ app.get('/api/notifications/settings', (req, res) => {
 });
 
 app.post('/api/notifications/settings', (req, res) => {
-  const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before } = req.body || {};
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
 
-  const currentStmt = db.prepare('SELECT smtp_password FROM notification_settings WHERE id = 1');
-  let current = null;
-  if (currentStmt.step()) current = currentStmt.getAsObject();
-  currentStmt.free();
+  try {
+    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before } = req.body || {};
 
-  const password = smtp_password || current?.smtp_password || '';
+    const currentStmt = db.prepare('SELECT smtp_password FROM notification_settings WHERE owner_id = ?');
+    currentStmt.bind([userId]);
+    let current = null;
+    if (currentStmt.step()) current = currentStmt.getAsObject();
+    currentStmt.free();
 
-  const stmt = db.prepare(`
-    UPDATE notification_settings SET 
-      email_enabled = ?,
-      email_to = ?,
-      smtp_host = ?,
-      smtp_port = ?,
-      smtp_user = ?,
-      smtp_password = ?,
-      notify_time = ?,
-      notify_day_before = ?,
-      updated_at = CURRENT_TIMESTAMP
-    WHERE id = 1
-  `);
-  stmt.run([
-    email_enabled ? 1 : 0,
-    email_to || null,
-    smtp_host || 'smtp.gmail.com',
-    smtp_port || 587,
-    smtp_user || null,
-    password,
-    notify_time || '22:00',
-    notify_day_before ? 1 : 0
-  ]);
-  stmt.free();
-  saveDb();
+    const password = smtp_password || current?.smtp_password || '';
 
-  if (notify_time) {
-    scheduleNotification(notify_time);
+    const checkStmt = db.prepare('SELECT id FROM notification_settings WHERE owner_id = ?');
+    checkStmt.bind([userId]);
+    const exists = checkStmt.step();
+    checkStmt.free();
+
+    if (exists) {
+      const stmt = db.prepare(`
+        UPDATE notification_settings SET 
+          email_enabled = ?,
+          email_to = ?,
+          smtp_host = ?,
+          smtp_port = ?,
+          smtp_user = ?,
+          smtp_password = ?,
+          notify_time = ?,
+          notify_day_before = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE owner_id = ?
+      `);
+      stmt.run([
+        email_enabled ? 1 : 0,
+        email_to || null,
+        smtp_host || 'smtp.gmail.com',
+        smtp_port || 587,
+        smtp_user || null,
+        password,
+        notify_time || '22:00',
+        notify_day_before ? 1 : 0,
+        userId
+      ]);
+      stmt.free();
+    } else {
+      const stmt = db.prepare(`
+        INSERT INTO notification_settings (owner_id, email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run([
+        userId,
+        email_enabled ? 1 : 0,
+        email_to || null,
+        smtp_host || 'smtp.gmail.com',
+        smtp_port || 587,
+        smtp_user || null,
+        password,
+        notify_time || '22:00',
+        notify_day_before ? 1 : 0
+      ]);
+      stmt.free();
+    }
+    saveDb();
+
+    if (notify_time) {
+      scheduleNotification(notify_time);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving notification settings:', error);
+    res.status(500).json({ error: 'Error guardando configuración' });
   }
-
-  res.json({ success: true });
 });
 
 app.post('/api/notifications/test', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
   const { email_to, smtp_host, smtp_port, smtp_user, smtp_password } = req.body || {};
 
   if (!email_to || !smtp_user || !smtp_password) {
