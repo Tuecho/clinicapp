@@ -2093,7 +2093,25 @@ function expandRecurringEvents(events, startDate, endDate) {
 
 async function runDailyNotification() {
   try {
-    const settingsStmt = db.prepare('SELECT * FROM notification_settings WHERE id = 1');
+    const usersStmt = db.prepare('SELECT owner_id FROM notification_settings WHERE email_enabled = 1');
+    const users = [];
+    while (usersStmt.step()) {
+      users.push(usersStmt.getAsObject().owner_id);
+    }
+    usersStmt.free();
+
+    for (const userId of users) {
+      await sendUserNotification(userId);
+    }
+  } catch (error) {
+    console.error('Error in daily notification:', error);
+  }
+}
+
+async function sendUserNotification(userId) {
+  try {
+    const settingsStmt = db.prepare('SELECT * FROM notification_settings WHERE owner_id = ?');
+    settingsStmt.bind([userId]);
     let settings = null;
     if (settingsStmt.step()) settings = settingsStmt.getAsObject();
     settingsStmt.free();
@@ -2109,8 +2127,8 @@ async function runDailyNotification() {
     nextWeek.setDate(nextWeek.getDate() + 7);
     const nextWeekStr = nextWeek.toISOString().split('T')[0];
 
-    const eventsStmt = db.prepare('SELECT * FROM family_events WHERE (date >= ? AND date <= ?) OR recurrence = ? ORDER BY date ASC, start_time ASC');
-    eventsStmt.bind([todayStr, nextWeekStr, 'weekly']);
+    const eventsStmt = db.prepare('SELECT * FROM family_events WHERE owner_id = ? AND ((date >= ? AND date <= ?) OR recurrence = ?) ORDER BY date ASC, start_time ASC');
+    eventsStmt.bind([userId, todayStr, nextWeekStr, 'weekly']);
     const events = [];
     while (eventsStmt.step()) {
       events.push(eventsStmt.getAsObject());
@@ -2126,24 +2144,26 @@ async function runDailyNotification() {
     const budgetsStmt = db.prepare(`
       SELECT b.*, COALESCE(SUM(CASE WHEN t.type = 'expense' AND t.date LIKE ? THEN t.amount ELSE 0 END), 0) as spent
       FROM budgets b
-      LEFT JOIN transactions t ON t.concept = b.concept_key
+      LEFT JOIN transactions t ON t.concept = b.concept_key AND t.owner_id = b.owner_id
+      WHERE b.owner_id = ?
       GROUP BY b.id
     `);
-    budgetsStmt.bind([`${year}-${monthStr}%`]);
+    budgetsStmt.bind([`${year}-${monthStr}%`, userId]);
     const budgets = [];
     while (budgetsStmt.step()) {
       budgets.push(budgetsStmt.getAsObject());
     }
     budgetsStmt.free();
 
-    const profileStmt = db.prepare('SELECT * FROM user_profile WHERE id = 1');
-    let profile = { name: 'Familia' };
+    const profileStmt = db.prepare('SELECT * FROM user_profile WHERE owner_id = ?');
+    profileStmt.bind([userId]);
+    let profile = { name: 'Usuario', family_name: 'Mi Familia' };
     if (profileStmt.step()) profile = profileStmt.getAsObject();
     profileStmt.free();
 
     await sendNotificationEmail(settings, expandedEvents, budgets, profile);
   } catch (error) {
-    console.error('Error in daily notification:', error);
+    console.error('Error sending notification to user', userId, error);
   }
 }
 

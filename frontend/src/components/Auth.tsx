@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { Lock, Eye, EyeOff, User, UserPlus, X, Check, Clock, Shield } from 'lucide-react';
 
 const STORAGE_KEY = 'family_agent_auth';
@@ -424,8 +424,6 @@ export function AdminUsers() {
     </div>
   );
 }
-
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface AuthContextType {
   isAuthenticated: boolean;
