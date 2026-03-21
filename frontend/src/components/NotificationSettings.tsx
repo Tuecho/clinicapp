@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, Mail, Clock, Send, Loader2, Check, X } from 'lucide-react';
+import { Bell, Mail, Clock, Send, Loader2, Check, X, Globe } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -11,7 +11,21 @@ interface NotificationSettings {
   smtp_port: number;
   smtp_user: string;
   notify_time: string;
+  notify_timezone: string;
 }
+
+const TIMEZONES = [
+  { value: 'Europe/Madrid', label: 'España (CET/CEST)' },
+  { value: 'Europe/London', label: 'Reino Unido (GMT/BST)' },
+  { value: 'Europe/Paris', label: 'Francia (CET/CEST)' },
+  { value: 'Europe/Berlin', label: 'Alemania (CET/CEST)' },
+  { value: 'America/New_York', label: 'EE.UU. Este (EST/EDT)' },
+  { value: 'America/Los_Angeles', label: 'EE.UU. Oeste (PST/PDT)' },
+  { value: 'America/Mexico_City', label: 'México (CST/CDT)' },
+  { value: 'America/Buenos_Aires', label: 'Argentina (ART)' },
+  { value: 'Europe/Rome', label: 'Italia (CET/CEST)' },
+  { value: 'Europe/Lisbon', label: 'Portugal (WET/WEST)' },
+];
 
 export function NotificationSettings() {
   const [settings, setSettings] = useState<NotificationSettings>({
@@ -20,7 +34,8 @@ export function NotificationSettings() {
     smtp_host: 'smtp.gmail.com',
     smtp_port: 587,
     smtp_user: '',
-    notify_time: '22:00'
+    notify_time: '22:00',
+    notify_timezone: 'Europe/Madrid'
   });
   const [smtpPassword, setSmtpPassword] = useState('');
   const [savedPassword, setSavedPassword] = useState('');
@@ -43,7 +58,8 @@ export function NotificationSettings() {
         smtp_host: data.smtp_host || 'smtp.gmail.com',
         smtp_port: data.smtp_port || 587,
         smtp_user: data.smtp_user || '',
-        notify_time: data.notify_time || '22:00'
+        notify_time: data.notify_time || '22:00',
+        notify_timezone: data.notify_timezone || 'Europe/Madrid'
       });
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -222,11 +238,30 @@ export function NotificationSettings() {
                         className="w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Te envía un email con los eventos del día siguiente
-                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Zona horaria
+                    </label>
+                    <div className="relative">
+                      <Globe size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <select
+                        value={settings.notify_timezone}
+                        onChange={(e) => setSettings({ ...settings, notify_timezone: e.target.value })}
+                        className="w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      >
+                        {TIMEZONES.map((tz) => (
+                          <option key={tz.value} value={tz.value}>{tz.label}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
+
+                <p className="text-xs text-gray-500 mt-2">
+                  Te envía un email a las {settings.notify_time} ({settings.notify_timezone}) con los eventos del día siguiente
+                </p>
               </div>
 
               <div className="bg-blue-50 rounded-lg p-4">

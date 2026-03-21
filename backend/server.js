@@ -130,6 +130,7 @@ async function initDb() {
   try { db.run(`ALTER TABLE expense_concepts ADD COLUMN owner_id INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_profile ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_timezone TEXT DEFAULT 'Europe/Madrid'`); } catch(e) {}
   
   try {
     const pragma = db.exec("PRAGMA table_info(user_profile)");
@@ -186,6 +187,7 @@ async function initDb() {
       smtp_user TEXT,
       smtp_password TEXT,
       notify_time TEXT DEFAULT '22:00',
+      notify_timezone TEXT DEFAULT 'Europe/Madrid',
       notify_day_before INTEGER DEFAULT 1,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
@@ -2184,15 +2186,16 @@ app.post('/api/notifications/settings', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
 
   try {
-    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before } = req.body || {};
+    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before } = req.body || {};
 
-    const currentStmt = db.prepare('SELECT smtp_password FROM notification_settings WHERE owner_id = ?');
+    const currentStmt = db.prepare('SELECT smtp_password, notify_timezone FROM notification_settings WHERE owner_id = ?');
     currentStmt.bind([userId]);
     let current = null;
     if (currentStmt.step()) current = currentStmt.getAsObject();
     currentStmt.free();
 
     const password = smtp_password || current?.smtp_password || '';
+    const timezone = notify_timezone || current?.notify_timezone || 'Europe/Madrid';
 
     const checkStmt = db.prepare('SELECT id FROM notification_settings WHERE owner_id = ?');
     checkStmt.bind([userId]);
@@ -2209,6 +2212,7 @@ app.post('/api/notifications/settings', (req, res) => {
           smtp_user = ?,
           smtp_password = ?,
           notify_time = ?,
+          notify_timezone = ?,
           notify_day_before = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE owner_id = ?
@@ -2221,14 +2225,15 @@ app.post('/api/notifications/settings', (req, res) => {
         smtp_user || null,
         password,
         notify_time || '22:00',
+        timezone,
         notify_day_before ? 1 : 0,
         userId
       ]);
       stmt.free();
     } else {
       const stmt = db.prepare(`
-        INSERT INTO notification_settings (owner_id, email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO notification_settings (owner_id, email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run([
         userId,
@@ -2239,6 +2244,7 @@ app.post('/api/notifications/settings', (req, res) => {
         smtp_user || null,
         password,
         notify_time || '22:00',
+        timezone,
         notify_day_before ? 1 : 0
       ]);
       stmt.free();
@@ -2246,7 +2252,7 @@ app.post('/api/notifications/settings', (req, res) => {
     saveDb();
 
     if (notify_time) {
-      scheduleNotification(notify_time);
+      scheduleNotification(notify_time, timezone);
     }
 
     res.json({ success: true });
@@ -2286,7 +2292,7 @@ app.post('/api/notifications/test', async (req, res) => {
 
 let notificationTask = null;
 
-function scheduleNotification(timeStr) {
+function scheduleNotification(timeStr, timezone = 'Europe/Madrid') {
   const [hours, minutes] = timeStr.split(':');
   const cronExpr = `${minutes} ${hours} * * *`;
   
@@ -2294,11 +2300,17 @@ function scheduleNotification(timeStr) {
     notificationTask.stop();
   }
   
-  notificationTask = cron.schedule(cronExpr, async () => {
-    console.log('Running daily notification job...');
-    await runDailyNotification();
-  });
-  console.log(`Notification scheduled for ${timeStr}`);
+  try {
+    notificationTask = cron.schedule(cronExpr, async () => {
+      console.log('Running daily notification job...');
+      await runDailyNotification();
+    }, {
+      timezone: timezone
+    });
+    console.log(`Notification scheduled for ${timeStr} (${timezone})`);
+  } catch (e) {
+    console.error('Error scheduling notification:', e);
+  }
 }
 
 await initDb();
