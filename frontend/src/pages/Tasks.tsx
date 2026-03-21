@@ -51,10 +51,15 @@ export function Tasks() {
 
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      const dataToSend = {
-        ...formData,
-        priority: modalType === 'task' ? (formData.priority || 'medium') : 'normal'
-      };
+      let dataToSend: any = { ...formData };
+      
+      if (modalType === 'shopping') {
+        dataToSend.priority = 'normal';
+        dataToSend.due_date = '';
+      } else {
+        dataToSend.priority = formData.priority || 'medium';
+      }
+      
       await fetch(`${API_URL}/api/tasks`, {
         method: 'POST',
         headers,
