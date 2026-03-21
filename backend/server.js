@@ -141,10 +141,12 @@ async function initDb() {
       completed INTEGER DEFAULT 0,
       due_date TEXT,
       priority TEXT DEFAULT 'normal',
+      is_family_task INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
   try { db.run(`ALTER TABLE family_tasks ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE family_tasks ADD COLUMN is_family_task INTEGER DEFAULT 0`); } catch(e) {}
 
   saveDb();
 }
@@ -1230,14 +1232,14 @@ app.post('/api/tasks', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { title, description, due_date, priority } = req.body;
+  const { title, description, due_date, priority, is_family_task } = req.body;
   
   if (!title) {
     return res.status(400).json({ error: 'El título es obligatorio' });
   }
   
-  const stmt = db.prepare('INSERT INTO family_tasks (owner_id, title, description, due_date, priority) VALUES (?, ?, ?, ?, ?)');
-  stmt.run([userId, title, description || null, due_date || null, priority || 'normal']);
+  const stmt = db.prepare('INSERT INTO family_tasks (owner_id, title, description, due_date, priority, is_family_task) VALUES (?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, title, description || null, due_date || null, priority || 'normal', is_family_task ? 1 : 0]);
   stmt.free();
   saveDb();
   

@@ -12,6 +12,7 @@ interface Task {
   completed: number;
   due_date: string | null;
   priority: string;
+  is_family_task: number;
   created_at: string;
 }
 
@@ -51,14 +52,13 @@ export function Tasks() {
 
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      let dataToSend: any = { ...formData };
-      
-      if (modalType === 'shopping') {
-        dataToSend.priority = 'normal';
-        dataToSend.due_date = '';
-      } else {
-        dataToSend.priority = formData.priority || 'medium';
-      }
+      const dataToSend = {
+        title: formData.title,
+        description: formData.description,
+        due_date: modalType === 'shopping' ? '' : formData.due_date,
+        priority: modalType === 'shopping' ? 'normal' : (formData.priority || 'medium'),
+        is_family_task: modalType === 'task' ? 1 : 0
+      };
       
       await fetch(`${API_URL}/api/tasks`, {
         method: 'POST',
@@ -122,13 +122,8 @@ export function Tasks() {
     fetchTasks();
   };
 
-  const shoppingItems = tasks.filter(t => !t.due_date && t.priority === 'normal');
-  const familyTasks = tasks.filter(t => t.due_date || t.priority !== 'normal');
-  
-  const getTaskType = (task: Task) => {
-    if (task.due_date || task.priority !== 'normal') return 'family';
-    return 'shopping';
-  };
+  const shoppingItems = tasks.filter(t => !t.is_family_task);
+  const familyTasks = tasks.filter(t => t.is_family_task);
   
   const pendingShopping = shoppingItems.filter(t => !t.completed);
   const completedShopping = shoppingItems.filter(t => t.completed);
