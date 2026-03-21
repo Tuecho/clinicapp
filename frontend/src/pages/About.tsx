@@ -1,4 +1,4 @@
-import { Heart, Star, Share2, ExternalLink, Github, Coffee } from 'lucide-react';
+import { Heart, Star, Share2, Mail, ExternalLink, Github, Coffee } from 'lucide-react';
 
 const version = '1.0.0';
 const features = [
