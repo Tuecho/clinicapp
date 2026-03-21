@@ -1216,15 +1216,29 @@ app.put('/api/profile', (req, res) => {
   
   const { name, avatar, email, phone, family_name, currency } = req.body;
   
-  const stmt = db.prepare(`
-    UPDATE user_profile 
-    SET name = ?, avatar = ?, email = ?, phone = ?, family_name = ?, currency = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE owner_id = ?
-  `);
-  
   try {
-    stmt.run([name, avatar || null, email || null, phone || null, family_name || 'Mi Familia', currency || 'EUR', userId]);
-    stmt.free();
+    const checkStmt = db.prepare('SELECT id FROM user_profile WHERE owner_id = ?');
+    checkStmt.bind([userId]);
+    const exists = checkStmt.step();
+    checkStmt.free();
+    
+    if (exists) {
+      const stmt = db.prepare(`
+        UPDATE user_profile 
+        SET name = ?, avatar = ?, email = ?, phone = ?, family_name = ?, currency = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE owner_id = ?
+      `);
+      stmt.run([name, avatar || null, email || null, phone || null, family_name || 'Mi Familia', currency || 'EUR', userId]);
+      stmt.free();
+    } else {
+      const stmt = db.prepare(`
+        INSERT INTO user_profile (owner_id, name, avatar, email, phone, family_name, currency)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run([userId, name || 'Usuario', avatar || null, email || null, phone || null, family_name || 'Mi Familia', currency || 'EUR']);
+      stmt.free();
+    }
+    
     saveDb();
     
     const updatedStmt = db.prepare('SELECT * FROM user_profile WHERE owner_id = ?');
