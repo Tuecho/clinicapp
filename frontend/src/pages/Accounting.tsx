@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, Pencil } from 'lucide-react';
+import { Plus, Trash2, Loader2, Pencil, Filter, X } from 'lucide-react';
 import { useStore } from '../store';
 import type { Transaction } from '../types';
 import { formatDateEs, formatMoneyEs } from '../utils/format';
@@ -9,6 +9,8 @@ export function Accounting() {
   const { transactions, concepts, fetchConcepts, addTransaction, updateTransaction, deleteTransaction, getMonthlyTransactions, fetchTransactions, loading, selectedMonth, selectedYear } = useStore();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [filterConcept, setFilterConcept] = useState<string>('all');
+  const [filterType, setFilterType] = useState<string>('all');
 
   useEffect(() => {
     fetchConcepts();
@@ -23,9 +25,24 @@ export function Accounting() {
     date: new Date().toISOString().split('T')[0]
   });
 
-  const monthlyTransactions = getMonthlyTransactions().sort(
+  let monthlyTransactions = getMonthlyTransactions().sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
+  
+  if (filterConcept !== 'all') {
+    monthlyTransactions = monthlyTransactions.filter(t => t.concept === filterConcept);
+  }
+  
+  if (filterType !== 'all') {
+    monthlyTransactions = monthlyTransactions.filter(t => t.type === filterType);
+  }
+
+  const hasFilters = filterConcept !== 'all' || filterType !== 'all';
+
+  const clearFilters = () => {
+    setFilterConcept('all');
+    setFilterType('all');
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +121,45 @@ export function Accounting() {
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 bg-gray-50 border-b border-gray-200">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2 text-gray-600">
+              <Filter size={18} />
+              <span className="text-sm font-medium">Filtrar:</span>
+            </div>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+              <option value="all">Todos los tipos</option>
+              <option value="expense">Gastos</option>
+              <option value="income">Ingresos</option>
+            </select>
+            <select
+              value={filterConcept}
+              onChange={(e) => setFilterConcept(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+              <option value="all">Todos los conceptos</option>
+              {concepts.map((c) => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </select>
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-expense hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <X size={16} />
+                Limpiar
+              </button>
+            )}
+            <span className="ml-auto text-sm text-gray-500">
+              {monthlyTransactions.length} {monthlyTransactions.length === 1 ? 'transacción' : 'transacciones'}
+            </span>
+          </div>
+        </div>
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>

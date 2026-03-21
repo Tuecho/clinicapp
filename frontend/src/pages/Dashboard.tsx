@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home } from 'lucide-react';
 import { useStore } from '../store';
 import { formatMoneyEs } from '../utils/format';
+import { getAuthHeaders } from '../utils/auth';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
+
+interface Profile {
+  family_name: string;
+  name: string;
+}
 
 function DonutChart({ 
   income, 
@@ -372,11 +380,24 @@ export function Dashboard() {
     concepts 
   } = useStore();
   
+  const [profile, setProfile] = useState<Profile>({ family_name: 'Mi Familia', name: 'Usuario' });
+  
   useEffect(() => {
     fetchTransactions({ month: selectedMonth, year: selectedYear });
     fetchBudgets();
     fetchMonthlyData();
+    fetchProfile();
   }, [fetchTransactions, fetchBudgets, fetchMonthlyData, selectedMonth, selectedYear]);
+
+  const fetchProfile = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() });
+      const data = await res.json();
+      if (data.family_name) {
+        setProfile({ family_name: data.family_name, name: data.name || 'Usuario' });
+      }
+    } catch (e) {}
+  };
 
   const totals = getTotals();
   const monthlyTransactions = getMonthlyTransactions();
@@ -528,6 +549,38 @@ export function Dashboard() {
         </div>
         <MonthlyChart data={monthlyData} />
       </div>
+
+      <div className="mt-12 mb-8">
+        <div className="text-center py-8">
+          <div className="inline-flex items-center gap-3 bg-gradient-to-r from-primary/10 via-pink-50 to-primary/10 rounded-2xl px-8 py-4 shadow-sm">
+            <Heart className="text-pink-500 animate-pulse" size={32} />
+            <div>
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
+                🏠 {profile.family_name}
+              </h2>
+              <p className="text-gray-500 mt-1 flex items-center justify-center gap-2">
+                <span className="text-lg">💰</span>
+                Gestionando las finanzas familiares con <span className="font-semibold text-primary">Family Agent</span>
+                <span className="text-lg">💖</span>
+              </p>
+            </div>
+            <Heart className="text-pink-500 animate-pulse" size={32} />
+          </div>
+        </div>
+      </div>
+
+      <footer className="mt-12 pt-8 border-t border-gray-200">
+        <div className="text-center text-gray-500 text-sm">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Home size={16} className="text-primary" />
+            <span className="font-semibold text-gray-700">Family Agent</span>
+          </div>
+          <p className="mb-1">© {new Date().getFullYear()} {profile.family_name}. Todos los derechos reservados.</p>
+          <p className="text-xs text-gray-400">
+            Hecho con <span className="text-red-500">❤</span> para las familias
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

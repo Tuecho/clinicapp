@@ -450,7 +450,7 @@ export function useAuth() {
   };
 
   const logout = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ authenticated: false, isAdmin: false }));
+    localStorage.removeItem(STORAGE_KEY);
     setIsAuthenticated(false);
     setIsAdmin(false);
   };

@@ -207,15 +207,8 @@ export function Profile() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Perfil</h2>
-        <button
-          onClick={logout}
-          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <LogOut size={18} />
-          <span className="text-sm font-medium">Cerrar sesión</span>
-        </button>
       </div>
 
       <div className="max-w-2xl">
@@ -247,9 +240,20 @@ export function Profile() {
                 className="hidden"
               />
             </div>
-            <div>
-              <h3 className="text-xl font-semibold text-gray-800">{profile.name || 'Usuario'}</h3>
-              <p className="text-gray-500">{profile.family_name}</p>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-800">{profile.name || 'Usuario'}</h3>
+                  <p className="text-gray-500">{profile.family_name}</p>
+                </div>
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <LogOut size={18} />
+                  <span className="text-sm font-medium">Cerrar sesión</span>
+                </button>
+              </div>
             </div>
           </div>
 
