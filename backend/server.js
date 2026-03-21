@@ -51,7 +51,7 @@ async function initDb() {
   
   db.run(`
     CREATE TABLE IF NOT EXISTS user_profile (
-      id INTEGER PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       owner_id INTEGER,
       name TEXT DEFAULT 'Usuario',
       avatar TEXT,
@@ -382,6 +382,99 @@ app.get('/api/auth/admin/users', (req, res) => {
   usersStmt.free();
 
   return res.json(users);
+});
+
+app.post('/api/auth/admin/user/create', (req, res) => {
+  const { username, password } = req.headers || {};
+  const { username: newUsername, password: newPassword } = req.body;
+
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+
+  if (!newUsername || newUsername.length < 3) {
+    return res.status(400).json({ error: 'El nombre de usuario debe tener al menos 3 caracteres' });
+  }
+  if (!newPassword || newPassword.length < 4) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres' });
+  }
+
+  const checkStmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
+  checkStmt.bind([newUsername]);
+  if (checkStmt.step()) {
+    checkStmt.free();
+    return res.status(409).json({ error: 'El nombre de usuario ya existe' });
+  }
+  checkStmt.free();
+
+  try {
+    const salt = Math.random().toString(36).substring(2);
+    const hash = hashPassword(newPassword, salt);
+    const insertStmt = db.prepare('INSERT INTO auth_user (username, password_hash, salt, is_admin, status) VALUES (?, ?, ?, 0, "approved")');
+    insertStmt.run([newUsername, hash, salt]);
+    insertStmt.free();
+    
+    const lastId = db.exec('SELECT last_insert_rowid()')[0].values[0][0];
+    
+    const profileStmt = db.prepare('INSERT INTO user_profile (owner_id, name) VALUES (?, ?)');
+    profileStmt.run([lastId, 'Usuario']);
+    profileStmt.free();
+    
+    saveDb();
+    return res.json({ success: true, userId: lastId });
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return res.status(500).json({ error: 'Error creando usuario' });
+  }
+});
+
+app.get('/api/auth/admin/stats', (req, res) => {
+  const { username, password } = req.headers || {};
+
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+
+  const stats = { total: 0, active: 0, blocked: 0, pending: 0, admins: 0, totalTransactions: 0, totalBudgets: 0 };
+
+  const countStmt = db.prepare('SELECT status, COUNT(*) as count FROM auth_user GROUP BY status');
+  while (countStmt.step()) {
+    const row = countStmt.getAsObject();
+    stats.total += row.count;
+    if (row.status === 'approved') stats.active++;
+    else if (row.status === 'blocked') stats.blocked++;
+    else if (row.status === 'pending') stats.pending++;
+  }
+  countStmt.free();
+
+  const adminStmt = db.prepare('SELECT COUNT(*) as count FROM auth_user WHERE is_admin = 1');
+  adminStmt.step();
+  stats.admins = adminStmt.getAsObject().count;
+  adminStmt.free();
+
+  const transStmt = db.prepare('SELECT COUNT(*) as count FROM transactions');
+  transStmt.step();
+  stats.totalTransactions = transStmt.getAsObject().count;
+  transStmt.free();
+
+  const budgetStmt = db.prepare('SELECT COUNT(*) as count FROM budgets');
+  budgetStmt.step();
+  stats.totalBudgets = budgetStmt.getAsObject().count;
+  budgetStmt.free();
+
+  return res.json(stats);
 });
 
 app.post('/api/auth/admin/approve/:id', (req, res) => {

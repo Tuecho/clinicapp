@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle } from 'lucide-react';
+import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -12,30 +12,89 @@ interface User {
   created_at: string;
 }
 
+interface Stats {
+  total: number;
+  active: number;
+  blocked: number;
+  pending: number;
+  admins: number;
+  totalTransactions: number;
+  totalBudgets: number;
+}
+
 export function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [stats, setStats] = useState<Stats>({ total: 0, active: 0, blocked: 0, pending: 0, admins: 0, totalTransactions: 0, totalBudgets: 0 });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserError, setNewUserError] = useState('');
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    fetchUsers();
+    fetchData();
   }, []);
 
-  const fetchUsers = async () => {
+  const fetchData = async () => {
     try {
       const headers = getAuthHeaders();
-      const response = await fetch(`${API_URL}/api/auth/admin/users`, { headers });
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setUsers(data);
+      const [usersRes, statsRes] = await Promise.all([
+        fetch(`${API_URL}/api/auth/admin/users`, { headers }),
+        fetch(`${API_URL}/api/auth/admin/stats`, { headers })
+      ]);
+      const usersData = await usersRes.json();
+      const statsData = await statsRes.json();
+      if (Array.isArray(usersData)) {
+        setUsers(usersData);
       }
+      setStats(statsData);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error fetching data:', error);
     }
     setLoading(false);
+  };
+
+  const handleCreateUser = async () => {
+    if (!newUsername.trim()) {
+      setNewUserError('El nombre de usuario es obligatorio');
+      return;
+    }
+    if (newUsername.length < 3) {
+      setNewUserError('El nombre debe tener al menos 3 caracteres');
+      return;
+    }
+    if (!newUserPassword || newUserPassword.length < 4) {
+      setNewUserError('La contraseña debe tener al menos 4 caracteres');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/auth/admin/user/create`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ username: newUsername.trim(), password: newUserPassword })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setShowCreateModal(false);
+        setNewUsername('');
+        setNewUserPassword('');
+        setNewUserError('');
+        fetchData();
+      } else {
+        setNewUserError(data.error || 'Error al crear usuario');
+      }
+    } catch {
+      setNewUserError('Error de conexión');
+    }
+    setCreating(false);
   };
 
   const handleBlock = async (user: User) => {
@@ -51,9 +110,35 @@ export function AdminPage() {
         headers,
         body: JSON.stringify({ blocked })
       });
-      fetchUsers();
+      fetchData();
     } catch (error) {
       console.error('Error blocking user:', error);
+    }
+    setActionLoading(null);
+  };
+
+  const handleApprove = async (user: User) => {
+    if (!window.confirm(`¿Aprobar la solicitud de ${user.username}?`)) return;
+    setActionLoading(user.id);
+    try {
+      const headers = getAuthHeaders();
+      await fetch(`${API_URL}/api/auth/admin/approve/${user.id}`, { method: 'POST', headers });
+      fetchData();
+    } catch (error) {
+      console.error('Error approving user:', error);
+    }
+    setActionLoading(null);
+  };
+
+  const handleReject = async (user: User) => {
+    if (!window.confirm(`¿Rechazar la solicitud de ${user.username}?`)) return;
+    setActionLoading(user.id);
+    try {
+      const headers = getAuthHeaders();
+      await fetch(`${API_URL}/api/auth/admin/reject/${user.id}`, { method: 'POST', headers });
+      fetchData();
+    } catch (error) {
+      console.error('Error rejecting user:', error);
     }
     setActionLoading(null);
   };
@@ -69,7 +154,7 @@ export function AdminPage() {
         method: 'DELETE',
         headers
       });
-      fetchUsers();
+      fetchData();
     } catch (error) {
       console.error('Error deleting user:', error);
     }
@@ -96,7 +181,7 @@ export function AdminPage() {
       if (!response.ok) {
         alert(data.error || 'Error al cambiar rol');
       }
-      fetchUsers();
+      fetchData();
     } catch (error) {
       console.error('Error changing role:', error);
     }
@@ -158,18 +243,116 @@ export function AdminPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Shield className="text-primary" size={24} />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Shield className="text-primary" size={24} />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800">Panel de Administración</h2>
         </div>
-        <h2 className="text-2xl font-bold text-gray-800">Administración de Usuarios</h2>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+        >
+          <UserPlus size={18} />
+          Crear Usuario
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Total Usuarios</p>
+              <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
+            </div>
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <Users className="text-blue-600" size={20} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Activos</p>
+              <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+            </div>
+            <div className="p-3 bg-green-100 rounded-lg">
+              <UserCheck className="text-green-600" size={20} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Pendientes</p>
+              <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+            </div>
+            <div className="p-3 bg-yellow-100 rounded-lg">
+              <Clock className="text-yellow-600" size={20} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Bloqueados</p>
+              <p className="text-2xl font-bold text-red-600">{stats.blocked}</p>
+            </div>
+            <div className="p-3 bg-red-100 rounded-lg">
+              <Lock className="text-red-600" size={20} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Administradores</p>
+              <p className="text-2xl font-bold text-purple-600">{stats.admins}</p>
+            </div>
+            <div className="p-3 bg-purple-100 rounded-lg">
+              <Shield className="text-purple-600" size={20} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Transacciones Totales</p>
+              <p className="text-2xl font-bold text-gray-800">{stats.totalTransactions}</p>
+            </div>
+            <div className="p-3 bg-indigo-100 rounded-lg">
+              <BarChart3 className="text-indigo-600" size={20} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Presupuestos</p>
+              <p className="text-2xl font-bold text-gray-800">{stats.totalBudgets}</p>
+            </div>
+            <div className="p-3 bg-teal-100 rounded-lg">
+              <Activity className="text-teal-600" size={20} />
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center gap-2 text-gray-600">
-            <Users size={18} />
-            <span className="font-medium">{users.length} usuarios registrados</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-gray-600">
+              <Users size={18} />
+              <span className="font-medium">Lista de Usuarios</span>
+            </div>
+            <button onClick={fetchData} className="text-sm text-primary hover:underline flex items-center gap-1">
+              <Loader2 size={14} />
+              Actualizar
+            </button>
           </div>
         </div>
 
@@ -186,7 +369,7 @@ export function AdminPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {users.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
+                <tr key={user.id} className={`hover:bg-gray-50 ${user.status === 'pending' ? 'bg-yellow-50/30' : ''}`}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -213,52 +396,76 @@ export function AdminPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleBlock(user)}
-                        disabled={actionLoading === user.id || user.is_admin}
-                        className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
-                          user.status === 'blocked'
-                            ? 'text-green-600 hover:bg-green-50'
-                            : 'text-orange-600 hover:bg-orange-50'
-                        }`}
-                        title={user.status === 'blocked' ? 'Desbloquear' : 'Bloquear'}
-                      >
-                        {actionLoading === user.id ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : user.status === 'blocked' ? (
-                          <Unlock size={16} />
-                        ) : (
-                          <Lock size={16} />
-                        )}
-                      </button>
+                      {user.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(user)}
+                            disabled={actionLoading === user.id}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="Aprobar"
+                          >
+                            {actionLoading === user.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                          </button>
+                          <button
+                            onClick={() => handleReject(user)}
+                            disabled={actionLoading === user.id}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Rechazar"
+                          >
+                            <X size={16} />
+                          </button>
+                        </>
+                      )}
+                      {user.status !== 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleBlock(user)}
+                            disabled={actionLoading === user.id || user.is_admin}
+                            className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
+                              user.status === 'blocked'
+                                ? 'text-green-600 hover:bg-green-50'
+                                : 'text-orange-600 hover:bg-orange-50'
+                            }`}
+                            title={user.status === 'blocked' ? 'Desbloquear' : 'Bloquear'}
+                          >
+                            {actionLoading === user.id ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : user.status === 'blocked' ? (
+                              <Unlock size={16} />
+                            ) : (
+                              <Lock size={16} />
+                            )}
+                          </button>
 
-                      <button
-                        onClick={() => handleRoleChange(user)}
-                        disabled={actionLoading === user.id || (user.is_admin && users.filter(u => u.is_admin).length <= 1)}
-                        className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
-                          user.is_admin
-                            ? 'text-purple-600 hover:bg-purple-50'
-                            : 'text-gray-400 hover:bg-purple-50 hover:text-purple-600'
-                        }`}
-                        title={user.is_admin ? 'Quitar admin' : 'Hacer admin'}
-                      >
-                        {actionLoading === user.id ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <Shield size={16} />
-                        )}
-                      </button>
+                          <button
+                            onClick={() => handleRoleChange(user)}
+                            disabled={actionLoading === user.id || (user.is_admin && users.filter(u => u.is_admin).length <= 1)}
+                            className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
+                              user.is_admin
+                                ? 'text-purple-600 hover:bg-purple-50'
+                                : 'text-gray-400 hover:bg-purple-50 hover:text-purple-600'
+                            }`}
+                            title={user.is_admin ? 'Quitar admin' : 'Hacer admin'}
+                          >
+                            {actionLoading === user.id ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Shield size={16} />
+                            )}
+                          </button>
 
-                      <button
-                        onClick={() => setShowPasswordModal(user)}
-                        disabled={actionLoading === user.id}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
-                        title="Cambiar contraseña"
-                      >
-                        <Key size={16} />
-                      </button>
+                          <button
+                            onClick={() => setShowPasswordModal(user)}
+                            disabled={actionLoading === user.id}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Cambiar contraseña"
+                          >
+                            <Key size={16} />
+                          </button>
+                        </>
+                      )}
 
-                      {!user.is_admin && (
+                      {!user.is_admin && user.status !== 'pending' && (
                         <button
                           onClick={() => handleDelete(user)}
                           disabled={actionLoading === user.id}
@@ -340,6 +547,76 @@ export function AdminPage() {
               >
                 <Check size={18} />
                 Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <UserPlus className="text-primary" size={20} />
+                Crear Nuevo Usuario
+              </h3>
+              <button onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setNewUserError(''); }}>
+                <X size={24} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de usuario</label>
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => { setNewUsername(e.target.value); setNewUserError(''); }}
+                  placeholder="usuario_ejemplo"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <input
+                  type="password"
+                  value={newUserPassword}
+                  onChange={(e) => { setNewUserPassword(e.target.value); setNewUserError(''); }}
+                  placeholder="Mínimo 4 caracteres"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+
+              {newUserError && (
+                <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 p-3 rounded-lg">
+                  <AlertTriangle size={16} />
+                  {newUserError}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-blue-800">
+                El usuario se creará con estado <strong>"Activo"</strong> y podrá iniciar sesión inmediatamente.
+              </p>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setNewUserError(''); }}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateUser}
+                disabled={creating}
+                className="flex-1 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {creating ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                Crear Usuario
               </button>
             </div>
           </div>
