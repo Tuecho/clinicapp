@@ -4,7 +4,8 @@ import initSqlJs from 'sql.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
-import cron from 'node-cron';
+import pkg from 'node-cron';
+const cron = pkg;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -2263,12 +2264,17 @@ app.post('/api/notifications/test', async (req, res) => {
   }
 });
 
+let notificationTask = null;
+
 function scheduleNotification(timeStr) {
   const [hours, minutes] = timeStr.split(':');
   const cronExpr = `${minutes} ${hours} * * *`;
   
-  cron.cancelTask('daily-notification');
-  cron.schedule('daily-notification', cronExpr, async () => {
+  if (notificationTask) {
+    notificationTask.stop();
+  }
+  
+  notificationTask = cron.schedule(cronExpr, async () => {
     console.log('Running daily notification job...');
     await runDailyNotification();
   });
