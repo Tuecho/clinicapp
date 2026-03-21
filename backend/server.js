@@ -129,6 +129,40 @@ async function initDb() {
   try { db.run(`ALTER TABLE expense_concepts ADD COLUMN owner_id INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_profile ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   
+  try {
+    const pragma = db.exec("PRAGMA table_info(user_profile)");
+    if (pragma.length > 0) {
+      const cols = pragma[0].values.map(v => v[1]);
+      if (cols.includes('id') && !cols.includes('owner_id')) {
+        db.run("ALTER TABLE user_profile ADD COLUMN owner_id INTEGER DEFAULT 1");
+      }
+    }
+  } catch(e) {}
+  
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS user_profile_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER,
+      name TEXT DEFAULT 'Usuario',
+      avatar TEXT,
+      email TEXT,
+      phone TEXT,
+      family_name TEXT DEFAULT 'Mi Familia',
+      currency TEXT DEFAULT 'EUR',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    const existing = db.exec("SELECT owner_id, name, avatar, email, phone, family_name, currency, updated_at FROM user_profile");
+    if (existing.length > 0 && existing[0].values.length > 0) {
+      for (const row of existing[0].values) {
+        try {
+          db.run("INSERT INTO user_profile_new (owner_id, name, avatar, email, phone, family_name, currency, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", row);
+        } catch(e) {}
+      }
+    }
+    db.run("DROP TABLE user_profile");
+    db.run("ALTER TABLE user_profile_new RENAME TO user_profile");
+  } catch(e) {}
+  
   db.run(`
     INSERT OR IGNORE INTO expense_concepts (key, owner_id, label) VALUES
       ('gasolina', 0, 'Gasolina'),
