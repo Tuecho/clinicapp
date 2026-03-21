@@ -21,6 +21,7 @@ export function Tasks() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'shopping' | 'tasks'>('shopping');
   const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState<'shopping' | 'task'>('shopping');
   const modalTypeRef = useRef<'shopping' | 'task'>('shopping');
   
   const [formData, setFormData] = useState({
@@ -76,6 +77,7 @@ export function Tasks() {
   };
 
   const openModal = (type: 'shopping' | 'task') => {
+    setModalType(type);
     modalTypeRef.current = type;
     setFormData({ 
       title: '', 
