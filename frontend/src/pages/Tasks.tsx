@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, Circle, Trash2, Plus, ShoppingCart, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
@@ -21,7 +21,7 @@ export function Tasks() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'shopping' | 'tasks'>('shopping');
   const [showModal, setShowModal] = useState(false);
-  const [modalType, setModalType] = useState<'shopping' | 'task'>('shopping');
+  const modalTypeRef = useRef<'shopping' | 'task'>('shopping');
   
   const [formData, setFormData] = useState({
     title: '',
@@ -50,14 +50,16 @@ export function Tasks() {
     e.preventDefault();
     if (!formData.title.trim()) return;
 
+    const currentModalType = modalTypeRef.current;
+
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       const dataToSend = {
         title: formData.title,
         description: formData.description,
-        due_date: modalType === 'shopping' ? '' : formData.due_date,
-        priority: modalType === 'shopping' ? 'normal' : (formData.priority || 'medium'),
-        is_family_task: modalType === 'task' ? 1 : 0
+        due_date: currentModalType === 'shopping' ? '' : formData.due_date,
+        priority: currentModalType === 'shopping' ? 'normal' : (formData.priority || 'medium'),
+        is_family_task: currentModalType === 'task' ? 1 : 0
       };
       
       await fetch(`${API_URL}/api/tasks`, {
@@ -74,7 +76,7 @@ export function Tasks() {
   };
 
   const openModal = (type: 'shopping' | 'task') => {
-    setModalType(type);
+    modalTypeRef.current = type;
     setFormData({ 
       title: '', 
       description: '', 
