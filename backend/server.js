@@ -1307,6 +1307,18 @@ app.post('/api/invitations', (req, res) => {
   }
   existingStmt.free();
   
+  const existingInviteStmt = db.prepare('SELECT id, status FROM invitations WHERE from_user_id = ? AND to_username = ?');
+  existingInviteStmt.bind([userId, to_username]);
+  if (existingInviteStmt.step()) {
+    const existing = existingInviteStmt.getAsObject();
+    existingInviteStmt.free();
+    if (existing.status === 'pending') {
+      return res.status(409).json({ error: 'Ya tienes una invitación pendiente para este usuario' });
+    }
+    db.run('DELETE FROM invitations WHERE id = ?', [existing.id]);
+  }
+  existingInviteStmt.free();
+  
   try {
     const inviteStmt = db.prepare('INSERT INTO invitations (from_user_id, to_username) VALUES (?, ?)');
     inviteStmt.run([userId, to_username]);
