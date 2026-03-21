@@ -23,6 +23,7 @@ export function NotificationSettings() {
     notify_time: '22:00'
   });
   const [smtpPassword, setSmtpPassword] = useState('');
+  const [savedPassword, setSavedPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -65,6 +66,9 @@ export function NotificationSettings() {
       
       if (data.success) {
         setMessage({ type: 'success', text: 'Configuración guardada' });
+        if (smtpPassword) {
+          setSavedPassword(smtpPassword);
+        }
         setSmtpPassword('');
       } else {
         setMessage({ type: 'error', text: data.error || 'Error guardando' });
@@ -77,8 +81,14 @@ export function NotificationSettings() {
   };
 
   const handleTest = async () => {
-    if (!settings.email_to || !settings.smtp_user || !smtpPassword) {
-      setMessage({ type: 'error', text: 'Completa todos los campos de email' });
+    if (!settings.email_to || !settings.smtp_user) {
+      setMessage({ type: 'error', text: 'Completa el email destino y usuario SMTP' });
+      return;
+    }
+
+    const passwordToUse = smtpPassword || savedPassword;
+    if (!passwordToUse) {
+      setMessage({ type: 'error', text: 'Ingresa la contraseña SMTP para enviar el email de prueba' });
       return;
     }
 
@@ -94,8 +104,8 @@ export function NotificationSettings() {
           smtp_host: settings.smtp_host,
           smtp_port: settings.smtp_port,
           smtp_user: settings.smtp_user,
-          smtp_password: smtpPassword
-        })
+          smtp_password: passwordToUse
+        }),
       });
       const data = await resp.json();
       
