@@ -63,7 +63,7 @@ La aplicación estará disponible en:
 
 ## Acceso
 
-- **Usuario admin**: miguel / Asturias12!
+- **Usuario admin**: 
 - Primer usuario creado se convierte en admin automáticamente
 
 ## Desarrollo local
