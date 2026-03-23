@@ -436,7 +436,6 @@ export function Dashboard() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
-          <p className="text-sm text-gray-500 capitalize">{monthLabel}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -446,17 +445,9 @@ export function Dashboard() {
           >
             <ChevronLeft size={18} />
           </button>
-          {!isCurrentMonth() && (
-            <button
-              onClick={() => {
-                const now = new Date();
-                setSelectedMonthYear(now.getMonth() + 1, now.getFullYear());
-              }}
-              className="px-3 py-2 rounded-lg border border-primary text-primary text-sm hover:bg-primary/5 transition-colors"
-            >
-              Mes actual
-            </button>
-          )}
+          <span className="px-4 py-2 font-semibold text-gray-700 capitalize min-w-[140px] text-center">
+            {monthLabel}
+          </span>
           <button
             onClick={() => changeMonth(1)}
             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
@@ -464,6 +455,17 @@ export function Dashboard() {
           >
             <ChevronRight size={18} />
           </button>
+          {!isCurrentMonth() && (
+            <button
+              onClick={() => {
+                const now = new Date();
+                setSelectedMonthYear(now.getMonth() + 1, now.getFullYear());
+              }}
+              className="px-3 py-2 rounded-lg border border-primary text-primary text-sm hover:bg-primary/5 transition-colors ml-2"
+            >
+              Mes actual
+            </button>
+          )}
         </div>
       </div>
       
