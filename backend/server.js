@@ -81,6 +81,17 @@ async function initDb() {
   `);
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS password_reset_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      code TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS family_events (
       id TEXT PRIMARY KEY,
       owner_id INTEGER NOT NULL,
@@ -219,7 +230,7 @@ async function initDb() {
       ['¿El chatbot puede ayudarme con mis finanzas?', 'Sí, el asistente IA puede analizar tus datos, explicar gastos, darte consejos de ahorro y responder preguntas sobre tu situación financiera.', 7],
       ['¿Mis datos están seguros?', 'Sí. Cada usuario tiene sus propios datos aislados. Solo tú y las personas que tú invites pueden ver tu información.', 8],
       ['¿Puedo importar datos de Excel?', 'Sí, en la sección Contabilidad hay un botón para importar transacciones desde un archivo Excel.', 9],
-      ['¿Cómo cambio mi contraseña?', 'Pide al administrador que la cambie desde el panel de administración, o contacta con él directamente.', 10]
+      ['¿Cómo cambio mi contraseña?', 'Puedes recuperarla desde la pantalla de login usando la opción "Olvidé mi contraseña". Recibirás un código por email que caducará en 15 minutos.', 10]
     ];
     const stmt = db.prepare('INSERT INTO faqs (question, answer, order_index) VALUES (?, ?, ?)');
     for (const faq of defaultFaqs) {
@@ -245,6 +256,16 @@ async function initDb() {
 
 function hashPassword(password, salt) {
   return crypto.createHash('sha256').update(`${salt}:${password}`).digest('hex');
+}
+
+function validatePassword(password) {
+  const errors = [];
+  if (password.length < 8) errors.push('Al menos 8 caracteres');
+  if (!/[A-Z]/.test(password)) errors.push('Una mayúscula');
+  if (!/[a-z]/.test(password)) errors.push('Una minúscula');
+  if (!/[0-9]/.test(password)) errors.push('Un número');
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('Un carácter especial');
+  return { valid: errors.length === 0, errors };
 }
 
 function saveDb() {
@@ -484,6 +505,100 @@ app.post('/api/auth/register', (req, res) => {
     console.error('Error registering user:', error);
     return res.status(500).json({ error: 'Error creando usuario' });
   }
+});
+
+app.post('/api/auth/forgot-password', (req, res) => {
+  const { username } = req.body || {};
+  
+  if (!username || typeof username !== 'string') {
+    return res.status(400).json({ error: 'Usuario requerido' });
+  }
+
+  const userStmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
+  userStmt.bind([username.trim()]);
+  const user = userStmt.step() ? userStmt.getAsObject() : null;
+  userStmt.free();
+
+  if (!user) {
+    return res.json({ success: true, message: 'Si el usuario existe, recibirás un código de recuperación' });
+  }
+
+  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+  db.run('DELETE FROM password_reset_codes WHERE username = ?', [username.trim()]);
+  
+  const insertStmt = db.prepare('INSERT INTO password_reset_codes (username, code, expires_at) VALUES (?, ?, ?)');
+  insertStmt.run([username.trim(), code, expiresAt]);
+  insertStmt.free();
+  saveDb();
+
+  const userProfileStmt = db.prepare('SELECT email FROM user_profile WHERE owner_id = (SELECT id FROM auth_user WHERE username = ?)');
+  userProfileStmt.bind([username.trim()]);
+  const userProfile = userProfileStmt.step() ? userProfileStmt.getAsObject() : null;
+  userProfileStmt.free();
+
+  if (userProfile?.email) {
+    const resetUrl = `${process.env.APP_URL || 'http://localhost:5173'}?reset=${code}`;
+    
+    const mailOptions = {
+      from: process.env.SMTP_FROM || 'noreply@familyagent.local',
+      to: userProfile.email,
+      subject: 'Código de recuperación de contraseña - Family Agent',
+      text: `Tu código de recuperación es: ${code}\n\nEste código expira en 15 minutos.\n\nSi no solicitaste este código, ignóralo.`
+    };
+
+    if (transporter) {
+      transporter.sendMail(mailOptions, (err) => {
+        if (err) console.error('Error sending email:', err);
+      });
+    }
+  }
+
+  console.log(`Código de recuperación para ${username}: ${code}`);
+
+  res.json({ 
+    success: true, 
+    message: userProfile?.email 
+      ? 'Si el usuario existe, recibirás un email con el código' 
+      : 'Código de recuperación generado',
+    code: code,
+    debug: !userProfile?.email
+  });
+});
+
+app.post('/api/auth/reset-password', (req, res) => {
+  const { username, code, newPassword } = req.body || {};
+
+  if (!username || !code || !newPassword) {
+    return res.status(400).json({ error: 'Todos los campos son requeridos' });
+  }
+
+  const { valid, errors } = validatePassword(newPassword);
+  if (!valid) {
+    return res.status(400).json({ error: 'Contraseña inválida: ' + errors.join(', ') });
+  }
+
+  const codeStmt = db.prepare('SELECT * FROM password_reset_codes WHERE username = ? AND code = ? AND used = 0 AND expires_at > ?');
+  codeStmt.bind([username.trim(), code.toUpperCase(), new Date().toISOString()]);
+  const resetCode = codeStmt.step() ? codeStmt.getAsObject() : null;
+  codeStmt.free();
+
+  if (!resetCode) {
+    return res.status(400).json({ error: 'Código inválido o expirado' });
+  }
+
+  const salt = crypto.randomBytes(16).toString('hex');
+  const password_hash = hashPassword(newPassword, salt);
+
+  const updateStmt = db.prepare('UPDATE auth_user SET password_hash = ?, salt = ? WHERE username = ?');
+  updateStmt.run([password_hash, salt, username.trim()]);
+  updateStmt.free();
+
+  db.run('UPDATE password_reset_codes SET used = 1 WHERE id = ?', [resetCode.id]);
+  saveDb();
+
+  res.json({ success: true, message: 'Contraseña actualizada correctamente' });
 });
 
 app.get('/api/auth/admin/users', (req, res) => {

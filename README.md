@@ -50,6 +50,7 @@ Aplicación web para la gestión de la economía familiar, agenda y planificaci�
 ### Extra
 - **Recordar posición**: Al recargar la app se mantiene en la misma página
 - **Widget chat oculto**: El widget flotante se oculta automáticamente en la página de Chat IA
+- **Recuperar contraseña**: Sistema de recuperación por código que caduca en 15 minutos
 - **FAQ**: Preguntas frecuentes editables por admins
 - **Acerca de**: Información de la app, sugerencias y compartir
 - **Diseño mobile-first**: Optimizado para móvil con escritorio mejorado
@@ -123,6 +124,7 @@ La aplicación estará disponible en:
 - **Widget chat oculto**: Se oculta automáticamente al entrar en la página de Chat IA
 - **Mejorada UI de listas**: Botones de editar/eliminar visibles en las pestañas
 - **Personalizar login**: Administradores pueden cambiar la imagen de login y mostrar/ocultar el candado
+- **Recuperar contraseña**: Sistema de recuperación por código que caduca en 15 minutos
 
 ### v1.0.4 (Marzo 2026)
 - **Importar CSV**: Soporte para archivos .csv además de Excel
