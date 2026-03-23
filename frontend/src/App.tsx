@@ -14,15 +14,22 @@ import { FAQ } from './pages/FAQ';
 import { About } from './pages/About';
 import { ChatWidget } from './components/ChatWidget';
 import { Login, useAuth, AuthProvider } from './components/Auth';
-import { LanguageProvider } from './i18n/LanguageContext';
-import { LanguageSelector } from './components/LanguageSelector';
 import { Menu, X } from 'lucide-react';
 
+type PageType = 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'faq' | 'about';
+
 function AppContent() {
-  const [activePage, setActivePage] = useState<'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'faq' | 'about'>('dashboard');
+  const [activePage, setActivePage] = useState<PageType>(() => {
+    const saved = localStorage.getItem('lastPage');
+    return (saved as PageType) || 'dashboard';
+  });
   const { isAuthenticated, isAdmin, login, logout } = useAuth();
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('lastPage', activePage);
+  }, [activePage]);
 
   useEffect(() => {
     if (window.innerWidth < 768) {
@@ -30,7 +37,7 @@ function AppContent() {
     }
   }, [activePage]);
 
-  const handleNavigate = (page: typeof activePage) => {
+  const handleNavigate = (page: PageType) => {
     setActivePage(page);
     setIsMobileMenuOpen(false);
   };
@@ -83,9 +90,6 @@ function AppContent() {
       )}
       
       <main className={`transition-all duration-200 pt-14 lg:pt-0 ${isSidebarHovered ? 'lg:ml-60' : 'lg:ml-16'} ml-0 min-h-screen`}>
-        <div className="hidden lg:block fixed top-3 right-3 z-50">
-          <LanguageSelector />
-        </div>
         <div className="p-3 sm:p-4 md:p-6 max-w-7xl mx-auto">
           {activePage === 'dashboard' && <Dashboard />}
           {activePage === 'accounting' && <Accounting />}
@@ -102,11 +106,7 @@ function AppContent() {
         </div>
       </main>
 
-      <div className="lg:hidden fixed bottom-4 right-4 z-40">
-        <LanguageSelector />
-      </div>
-
-      <ChatWidget />
+      <ChatWidget hidden={activePage === 'chatbot'} />
     </div>
   );
 }
@@ -114,9 +114,7 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <LanguageProvider>
-        <AppContent />
-      </LanguageProvider>
+      <AppContent />
     </AuthProvider>
   );
 }

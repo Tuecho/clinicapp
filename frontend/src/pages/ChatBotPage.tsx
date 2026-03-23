@@ -323,46 +323,48 @@ export function ChatBotPage() {
   const canUseAdvanced = llmSettings?.configured;
 
   return (
-    <div className="p-8 h-[calc(100vh-2rem)]">
+    <div className="p-3 sm:p-4 md:p-6 lg:p-8 h-[calc(100vh-2rem)]">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                <Bot className="text-primary" size={28} />
-                Chat IA
-              </h2>
-              <p className="text-gray-500 mt-1">
-                {mode === 'quick' 
-                  ? 'Respuestas rápidas basadas en tus datos'
-                  : 'Modo avanzado con IA generativa'
-                }
-              </p>
+        <div className="p-3 sm:p-4 md:p-6 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2 sm:gap-3">
+                  <Bot className="text-primary" size={24} />
+                  Chat IA
+                </h2>
+                <p className="text-gray-500 mt-1 text-sm">
+                  {mode === 'quick' 
+                    ? 'Respuestas rápidas basadas en tus datos'
+                    : 'Modo avanzado con IA generativa'
+                  }
+                </p>
+              </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex bg-gray-100 rounded-lg p-1">
                 <button
                   onClick={() => handleModeChange('quick')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
+                  className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-md transition-colors text-sm ${
                     mode === 'quick' 
                       ? 'bg-white shadow-sm text-primary font-medium' 
                       : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
-                  <Zap size={16} />
-                  Rápido
+                  <Zap size={14} />
+                  <span className="hidden sm:inline">Rápido</span>
                 </button>
                 <button
                   onClick={() => handleModeChange('advanced')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
+                  className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-md transition-colors text-sm ${
                     mode === 'advanced' 
                       ? 'bg-white shadow-sm text-purple-600 font-medium' 
                       : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
-                  <Brain size={16} />
-                  Avanzado
+                  <Brain size={14} />
+                  <span className="hidden sm:inline">Avanzado</span>
                   {!canUseAdvanced && (
                     <span className="w-2 h-2 bg-yellow-500 rounded-full" title="Configurar" />
                   )}
@@ -380,7 +382,7 @@ export function ChatBotPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-4">
           {messages.length === 0 ? (
             <div className="text-center py-12">
               <Bot className={`mx-auto mb-4 ${mode === 'advanced' ? 'text-purple-300' : 'text-gray-300'}`} size={48} />
@@ -472,15 +474,15 @@ export function ChatBotPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex gap-3">
+        <div className="p-3 sm:p-4 border-t border-gray-200">
+          <div className="flex gap-2 sm:gap-3">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={mode === 'advanced' ? 'Pregunta algo a la IA avanzada...' : 'Escribe tu pregunta...'}
-              className={`flex-1 px-4 py-3 border rounded-lg focus:ring-2 focus:border-transparent ${
+              placeholder={mode === 'advanced' ? 'Pregunta a la IA...' : 'Escribe tu pregunta...'}
+              className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:border-transparent text-sm sm:text-base ${
                 mode === 'advanced' 
                   ? 'focus:ring-purple-500 border-purple-200' 
                   : 'focus:ring-primary'
@@ -490,12 +492,12 @@ export function ChatBotPage() {
             <button
               onClick={handleSend}
               disabled={isLoading || !input.trim()}
-              className={`text-white px-6 py-3 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
+              className={`text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 sm:gap-2 ${
                 mode === 'advanced' ? 'bg-purple-600' : 'bg-primary'
               }`}
             >
-              <Send size={18} />
-              Enviar
+              <Send size={16} />
+              <span className="hidden sm:inline">Enviar</span>
             </button>
           </div>
         </div>

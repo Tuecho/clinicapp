@@ -44,6 +44,103 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   const [success, setSuccess] = useState('');
   const [showRegister, setShowRegister] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+  const [loginImage, setLoginImage] = useState('');
+  const [showLock, setShowLock] = useState(true);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetStep, setResetStep] = useState<'email' | 'code'>('email');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState('');
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/settings/login-image`)
+      .then(res => res.json())
+      .then(data => {
+        setLoginImage(data.image || '');
+        setShowLock(data.showLock !== false);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    setResetSuccess('');
+    setResetLoading(true);
+
+    try {
+      const resp = await fetch(`${API_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim() })
+      });
+      const data = await resp.json();
+      
+      if (data.success) {
+        if (data.debug && data.code) {
+          setResetSuccess(`Código de prueba: ${data.code} (no se envió email, el usuario no tiene email configurado)`);
+        } else {
+          setResetSuccess('Si el usuario existe, recibirás un código de recuperación');
+        }
+        setResetStep('code');
+      }
+    } catch {
+      setResetError('Error de conexión');
+    }
+    setResetLoading(false);
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    
+    if (newPassword !== confirmNewPassword) {
+      setResetError('Las contraseñas no coinciden');
+      return;
+    }
+
+    const { valid, errors } = validatePassword(newPassword);
+    if (!valid) {
+      setResetError('La contraseña debe tener: ' + errors.join(', '));
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const resp = await fetch(`${API_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          username: username.trim(), 
+          code: resetCode, 
+          newPassword 
+        })
+      });
+      const data = await resp.json();
+      
+      if (data.success) {
+        setResetSuccess('¡Contraseña actualizada! Ya puedes iniciar sesión.');
+        setTimeout(() => {
+          setShowForgotPassword(false);
+          setResetStep('email');
+          setResetCode('');
+          setNewPassword('');
+          setConfirmNewPassword('');
+          setResetSuccess('');
+          setPassword('');
+        }, 2000);
+      } else {
+        setResetError(data.error || 'Error al restablecer contraseña');
+      }
+    } catch {
+      setResetError('Error de conexión');
+    }
+    setResetLoading(false);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,9 +230,21 @@ export function Login({ onLogin }: { onLogin: () => void }) {
     <div className="min-h-screen bg-gradient-to-br from-primary via-pink-500 to-indigo-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md p-5 sm:p-8">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Lock className="text-primary" size={32} />
-          </div>
+          {loginImage ? (
+            <img 
+              src={loginImage} 
+              alt="Login" 
+              className="w-20 h-20 rounded-full object-cover mx-auto mb-4 shadow-lg"
+            />
+          ) : showLock ? (
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Lock className="text-primary" size={32} />
+            </div>
+          ) : (
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-3xl">🏠</span>
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-gray-800">Family Agent</h1>
           <p className="text-gray-500 mt-2">
             {showRegister ? 'Crea tu usuario' : 'Introduce tus credenciales'}
@@ -314,7 +423,148 @@ export function Login({ onLogin }: { onLogin: () => void }) {
               <UserPlus size={18} />
               Crear nuevo usuario
             </button>
+
+            {!showForgotPassword && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotPassword(true);
+                  setError('');
+                  setSuccess('');
+                  setResetStep('email');
+                }}
+                className="w-full text-gray-500 py-2 hover:text-primary transition-colors text-sm"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            )}
           </form>
+        )}
+
+        {showForgotPassword && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Recuperar contraseña</h3>
+              <button
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setResetStep('email');
+                  setResetCode('');
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                  setResetError('');
+                  setResetSuccess('');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {resetSuccess && (
+              <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm">
+                {resetSuccess}
+              </div>
+            )}
+
+            {resetError && (
+              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
+                {resetError}
+              </div>
+            )}
+
+            {resetStep === 'email' ? (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Introduce tu nombre de usuario. Si existe y tiene email configurado, recibirás un código de recuperación.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Usuario
+                  </label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Tu usuario"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={resetLoading || !username.trim()}
+                  className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
+                >
+                  {resetLoading ? 'Enviando...' : 'Enviar código'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Introduce el código que recibiste y tu nueva contraseña.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Código de recuperación
+                  </label>
+                  <input
+                    type="text"
+                    value={resetCode}
+                    onChange={(e) => setResetCode(e.target.value.toUpperCase())}
+                    placeholder="Código de 6 caracteres"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-center text-lg tracking-widest font-mono"
+                    maxLength={6}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nueva contraseña
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirmar nueva contraseña
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={resetLoading || !resetCode || !newPassword || !confirmNewPassword}
+                  className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
+                >
+                  {resetLoading ? 'Guardando...' : 'Cambiar contraseña'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetStep('email');
+                    setResetCode('');
+                    setResetError('');
+                  }}
+                  className="w-full text-gray-500 py-2 hover:text-gray-700 transition-colors text-sm"
+                >
+                  No recibí el código, reenviar
+                </button>
+              </form>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -506,6 +756,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('lastPage');
     setIsAuthenticated(false);
     setIsAdmin(false);
     window.dispatchEvent(new Event('storage'));

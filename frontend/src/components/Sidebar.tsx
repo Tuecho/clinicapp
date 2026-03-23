@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Wallet, Bot, Target, MessageCircle, User, Shield, HelpCircle, Info, CheckSquare, StickyNote, ShoppingCart, ListChecks } from 'lucide-react';
+import { Home, Wallet, Bot, Target, MessageCircle, User, Shield, HelpCircle, Info, CheckSquare, StickyNote, ShoppingCart, ListChecks, LogOut } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -207,37 +207,51 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
               {isExpanded && <span className="text-sm">Acerca de</span>}
             </button>
           </li>
+          <li>
+            <button
+              onClick={() => onNavigate('profile')}
+              className={`w-full flex items-center gap-3 rounded-xl transition-all ${
+                activePage === 'profile'
+                  ? 'bg-gradient-to-r from-primary to-pink-500 text-white shadow-lg shadow-primary/25'
+                  : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : (profile.name || 'Mi perfil')}
+            >
+              {profile.avatar ? (
+                <img src={profile.avatar} alt="Avatar" className="w-8 h-8 rounded-full object-cover ring-2 ring-white/50" />
+              ) : (
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  activePage === 'profile' ? 'bg-white/20' : 'bg-primary/10'
+                }`}>
+                  <User size={16} className={activePage === 'profile' ? 'text-white' : 'text-primary'} />
+                </div>
+              )}
+              {isExpanded && (
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium truncate">{profile.name || 'Mi perfil'}</p>
+                  <p className="text-xs opacity-60 truncate">{profile.family_name}</p>
+                </div>
+              )}
+            </button>
+          </li>
+          {onLogout && (
+            <li>
+              <button
+                onClick={onLogout}
+                className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                  isExpanded
+                    ? 'text-gray-500 hover:bg-gradient-to-r hover:from-red-50 hover:to-orange-50 hover:text-red-500 px-3 py-2.5'
+                    : 'text-gray-400 hover:text-red-500 p-2.5 justify-center'
+                }`}
+                title="Cerrar sesión"
+              >
+                <LogOut size={18} />
+                {isExpanded && <span className="text-sm">Cerrar sesión</span>}
+              </button>
+            </li>
+          )}
         </ul>
       </nav>
-
-      <div className={`border-t border-gray-200 space-y-1 transition-all duration-200 ${isExpanded ? 'p-3' : 'p-2'}`}>
-        <button
-          onClick={() => onNavigate('profile')}
-          className={`w-full flex items-center gap-2 rounded-lg transition-colors ${
-            activePage === 'profile'
-              ? 'bg-primary/10 text-primary'
-              : 'text-gray-500 hover:bg-gray-100'
-          } ${isExpanded ? 'px-3 py-2' : 'p-2.5 justify-center'}`}
-          title={isExpanded ? undefined : (profile.name || 'Mi perfil')}
-        >
-          {profile.avatar ? (
-            <img src={profile.avatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover" />
-          ) : (
-            <User size={16} />
-          )}
-          {isExpanded && <span className="text-sm truncate">{profile.name || 'Mi perfil'}</span>}
-        </button>
-        {onLogout && (
-          <button
-            onClick={onLogout}
-            className={`w-full text-xs text-gray-400 hover:text-expense transition-colors ${
-              isExpanded ? 'text-left px-3 py-2' : 'text-center p-2.5'
-            }`}
-          >
-            {isExpanded ? 'Cerrar sesión' : '🔓'}
-          </button>
-        )}
-      </div>
     </aside>
   );
 }

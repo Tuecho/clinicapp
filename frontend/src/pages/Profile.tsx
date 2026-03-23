@@ -281,14 +281,14 @@ export function Profile() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Perfil</h2>
+    <div className="p-3 sm:p-4 md:p-8">
+      <div className="mb-4 sm:mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Perfil</h2>
       </div>
 
-      <div className="max-w-2xl">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex items-center gap-6 mb-6">
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 mb-4 sm:mb-6">
             <div className="relative">
               {profile.avatar ? (
                 <img
@@ -315,20 +315,9 @@ export function Profile() {
                 className="hidden"
               />
             </div>
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-800">{profile.name || 'Usuario'}</h3>
-                  <p className="text-gray-500">{profile.family_name}</p>
-                </div>
-                <button
-                  onClick={logout}
-                  className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <LogOut size={18} />
-                  <span className="text-sm font-medium">Cerrar sesión</span>
-                </button>
-              </div>
+            <div className="flex-1 text-center sm:text-left">
+              <h3 className="text-xl font-semibold text-gray-800">{profile.name || 'Usuario'}</h3>
+              <p className="text-gray-500">{profile.family_name}</p>
             </div>
           </div>
 
@@ -430,25 +419,25 @@ export function Profile() {
             <NotificationSettings />
           </div>
 
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <Share2 size={20} className="text-primary" />
-              Compartir datos familiares
+          <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center gap-2">
+              <Share2 size={18} className="text-primary" />
+              Compartir datos
             </h3>
 
-            <form onSubmit={handleInvite} className="mb-6">
-              <div className="flex gap-3">
+            <form onSubmit={handleInvite} className="mb-4">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={inviteUsername}
                   onChange={(e) => setInviteUsername(e.target.value)}
                   placeholder="Nombre de usuario a invitar"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                 />
                 <button
                   type="submit"
                   disabled={inviting || !inviteUsername.trim()}
-                  className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  className="flex items-center justify-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm whitespace-nowrap"
                 >
                   {inviting ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
                   Invitar
@@ -459,8 +448,8 @@ export function Profile() {
             </form>
 
             {sharedUsers.length > 0 && (
-              <div className="mb-6">
-                <h4 className="font-medium text-gray-700 mb-2">Usuarios con acceso a tus datos:</h4>
+              <div className="mb-4">
+                <h4 className="font-medium text-gray-700 mb-2 text-sm">Usuarios con acceso:</h4>
                 <div className="space-y-2">
                   {sharedUsers.map((share) => (
                     <div key={share.shared_with_id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
@@ -468,7 +457,7 @@ export function Profile() {
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                           <User size={16} className="text-primary" />
                         </div>
-                        <span className="font-medium text-gray-800">{share.username || share.shared_with_username}</span>
+                        <span className="font-medium text-gray-800 text-sm">{share.username || share.shared_with_username}</span>
                       </div>
                       <button
                         onClick={() => handleRemoveShare(share.shared_with_id)}
@@ -485,17 +474,17 @@ export function Profile() {
 
             {invitations.filter(i => i.status === 'pending').length > 0 && (
               <div>
-                <h4 className="font-medium text-gray-700 mb-2">Invitaciones pendientes:</h4>
+                <h4 className="font-medium text-gray-700 mb-2 text-sm">Invitaciones pendientes:</h4>
                 <div className="space-y-2">
                   {invitations.filter(i => i.status === 'pending').map((inv) => (
-                    <div key={inv.id} className="flex items-center justify-between bg-yellow-50 rounded-lg p-3">
+                    <div key={inv.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-yellow-50 rounded-lg p-3 gap-2">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
                           <User size={16} className="text-yellow-600" />
                         </div>
-                        <span className="font-medium text-gray-800">{inv.from_username} quiere compartir contigo</span>
+                        <span className="font-medium text-gray-800 text-sm">{inv.from_username} quiere compartir contigo</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 ml-11 sm:ml-0">
                         <button
                           onClick={() => handleInvitationAction(inv.id, 'accept')}
                           className="flex items-center gap-1 bg-income text-white px-3 py-1 rounded-lg text-sm hover:bg-income/90"
