@@ -110,12 +110,18 @@ export function AdminPage() {
     setSavingLogin(true);
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/settings/login-image`, {
+      const resp = await fetch(`${API_URL}/api/settings/login-image`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ image: loginImage, showLock })
       });
-      alert('Configuración guardada');
+      const data = await resp.json();
+      if (data.success) {
+        alert('Configuración guardada');
+        fetchLoginSettings();
+      } else {
+        alert(data.error || 'Error al guardar');
+      }
     } catch (error) {
       console.error('Error saving login settings:', error);
       alert('Error al guardar');

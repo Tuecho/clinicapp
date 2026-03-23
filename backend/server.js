@@ -92,6 +92,13 @@ async function initDb() {
   `);
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS family_events (
       id TEXT PRIMARY KEY,
       owner_id INTEGER NOT NULL,
@@ -323,7 +330,8 @@ function getAccessibleUserIds(ownerId) {
 }
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 app.get('/api/concepts', (req, res) => {
   const stmt = db.prepare('SELECT key, label FROM expense_concepts ORDER BY label');
@@ -888,9 +896,20 @@ app.delete('/api/auth/admin/user/:id', (req, res) => {
 });
 
 app.get('/api/settings/login-image', (req, res) => {
-  const image = localStorage.getItem('loginImage') || '';
-  const showLock = localStorage.getItem('loginShowLock') !== 'false';
-  res.json({ image, showLock });
+  const imageStmt = db.prepare('SELECT value FROM app_settings WHERE key = ?');
+  imageStmt.bind(['loginImage']);
+  const imageResult = imageStmt.step() ? imageStmt.getAsObject() : null;
+  imageStmt.free();
+
+  const showLockStmt = db.prepare('SELECT value FROM app_settings WHERE key = ?');
+  showLockStmt.bind(['loginShowLock']);
+  const showLockResult = showLockStmt.step() ? showLockStmt.getAsObject() : null;
+  showLockStmt.free();
+
+  res.json({ 
+    image: imageResult?.value || '',
+    showLock: showLockResult?.value !== 'false'
+  });
 });
 
 app.put('/api/settings/login-image', (req, res) => {
@@ -907,11 +926,18 @@ app.put('/api/settings/login-image', (req, res) => {
   if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
   
   const { image, showLock } = req.body;
-  localStorage.setItem('loginImage', image || '');
+  
+  const upsertStmt = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+  upsertStmt.run(['loginImage', image || '']);
+  upsertStmt.free();
+  
   if (typeof showLock === 'boolean') {
-    localStorage.setItem('loginShowLock', String(showLock));
+    const lockStmt = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+    lockStmt.run(['loginShowLock', String(showLock)]);
+    lockStmt.free();
   }
   
+  saveDb();
   res.json({ success: true });
 });
 
