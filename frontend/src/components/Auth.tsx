@@ -506,6 +506,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('lastPage');
     setIsAuthenticated(false);
     setIsAdmin(false);
     window.dispatchEvent(new Event('storage'));

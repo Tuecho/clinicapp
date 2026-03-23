@@ -12,7 +12,8 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-export function ChatWidget() {
+export function ChatWidget({ hidden }: { hidden?: boolean }) {
+  if (hidden) return null;
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);

@@ -11,15 +11,20 @@ Aplicación web para la gestión de la economía familiar, agenda y planificaci�
 - **Dashboard**: Gráficos de evolución mensual con resumen del mes y presupuestos
 
 ### Tareas y Lista de la Compra
-- **Lista de la Compra**: Productos con cantidad, marcar al comprar, sección de comprados
-- **Tareas Familiares**: Tareas con prioridades (Alta/Media/Normal) y fechas límite
+- **Múltiples listas de compra**: Crea diferentes listas con nombre y color (ej: "Mercadona", "Compras semana")
+- **Editar/eliminar listas**: Botones visibles en cada pestaña para modificar o borrar
+- **Productos editables**: Modifica nombre, cantidad y mover entre listas
+- **Tareas Familiares editables**: Cambia título, descripción, fecha y prioridad
 - **Menú separado**: Lista de compra y tareas familiares en botones separados del sidebar
 - **Compartir listas**: Envía tu lista por WhatsApp, Telegram, Email, Facebook o X
 
 ### Notas
-- **Notas rápidas**: Apunta información importante
-- **Categorías**: General, Trabajo, Familia, Personal, Importante
+- **Tableros múltiples**: Organiza notas en diferentes tableros con nombre y color
+- **Notas editables**: Edita título, contenido, categoría y mover entre tableros
+- **Vistas**: Vista lista o cuadrícula
+- **Categorías**: General, Trabajo, Familia, Personal, Importante + personalizadas
 - **Búsqueda**: Filtra notas por título o contenido
+- **Compartir notas**: Por WhatsApp, Telegram o copiar al portapapeles
 
 ### Sistema Multi-Usuario
 - **Datos aislados**: Cada usuario tiene sus propios datos (transacciones, presupuestos, eventos, tareas, notas)
@@ -44,6 +49,8 @@ Aplicación web para la gestión de la economía familiar, agenda y planificaci�
 - **Multiidioma**: Selector de idioma (Español, English, Português)
 
 ### Extra
+- **Recordar posición**: Al recargar la app se mantiene en la misma página
+- **Widget chat oculto**: El widget flotante se oculta automáticamente en la página de Chat IA
 - **FAQ**: Preguntas frecuentes editables por admins
 - **Acerca de**: Información de la app, sugerencias y compartir
 - **Diseño mobile-first**: Optimizado para móvil con escritorio mejorado
@@ -107,6 +114,15 @@ La aplicación estará disponible en:
 - **`.env` excluido de Git**: Contiene claves sensibles
 
 ## Changelog
+
+### v1.0.5 (Marzo 2026)
+- **Múltiples listas de compra**: Crea, edita y elimina listas con nombre y color personalizado
+- **Múltiples tableros de notas**: Organiza tus notas en diferentes tableros con colores
+- **Notas editables**: Edita título, contenido, categoría y mueve entre tableros
+- **Tareas familiares editables**: Modifica título, descripción, fecha límite y prioridad
+- **Recordar última página**: Al recargar la app se mantiene en la misma sección
+- **Widget chat oculto**: Se oculta automáticamente al entrar en la página de Chat IA
+- **Mejorada UI de listas**: Botones de editar/eliminar visibles en las pestañas
 
 ### v1.0.4 (Marzo 2026)
 - **Importar CSV**: Soporte para archivos .csv además de Excel

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, Circle, Trash2, Plus, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy, FacebookIcon, TwitterIcon } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, Plus, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy, FacebookIcon, TwitterIcon, Edit2, X } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -20,6 +20,7 @@ export function FamilyTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   
   const [taskForm, setTaskForm] = useState({
     title: '',
@@ -86,6 +87,43 @@ export function FamilyTasks() {
       fetchTasks();
     } catch (error) {
       console.error('Error deleting task:', error);
+    }
+  };
+
+  const openEditTask = (task: Task) => {
+    setEditingTask(task);
+    setTaskForm({
+      title: task.title,
+      description: task.description || '',
+      due_date: task.due_date || '',
+      priority: task.priority || 'medium'
+    });
+    setShowTaskModal(true);
+  };
+
+  const handleUpdateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask || !taskForm.title.trim()) return;
+
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      await fetch(`${API_URL}/api/tasks/${editingTask.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          title: taskForm.title,
+          description: taskForm.description,
+          due_date: taskForm.due_date,
+          priority: taskForm.priority,
+          completed: editingTask.completed
+        })
+      });
+      setEditingTask(null);
+      setTaskForm({ title: '', description: '', due_date: '', priority: 'medium' });
+      setShowTaskModal(false);
+      fetchTasks();
+    } catch (error) {
+      console.error('Error updating task:', error);
     }
   };
 
@@ -313,12 +351,22 @@ export function FamilyTasks() {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => deleteTask(task.id)}
-                  className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all p-2"
-                >
-                  <Trash2 size={18} />
-                </button>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => openEditTask(task)}
+                    className="p-2 text-gray-400 hover:text-blue-500 transition-colors"
+                    title="Editar"
+                  >
+                    <Edit2 size={18} />
+                  </button>
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                    title="Eliminar"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -373,8 +421,22 @@ export function FamilyTasks() {
       {showTaskModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-xl font-bold mb-4 text-gray-800">Nueva Tarea</h3>
-            <form onSubmit={handleTaskSubmit} className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">
+                {editingTask ? 'Editar Tarea' : 'Nueva Tarea'}
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowTaskModal(false);
+                  setEditingTask(null);
+                  setTaskForm({ title: '', description: '', due_date: '', priority: 'medium' });
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={editingTask ? handleUpdateTask : handleTaskSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
                 <input
@@ -425,6 +487,7 @@ export function FamilyTasks() {
                   type="button"
                   onClick={() => {
                     setShowTaskModal(false);
+                    setEditingTask(null);
                     setTaskForm({ title: '', description: '', due_date: '', priority: 'medium' });
                   }}
                   className="flex-1 py-3 border rounded-xl text-gray-600 hover:bg-gray-50 font-medium"
@@ -435,7 +498,7 @@ export function FamilyTasks() {
                   type="submit"
                   className="flex-1 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 font-medium shadow-sm"
                 >
-                  Crear
+                  {editingTask ? 'Guardar' : 'Crear'}
                 </button>
               </div>
             </form>

@@ -8,28 +8,6 @@ import { ImportPDF } from '../components/ImportPDF';
 
 const MONTHS_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-function generateMonthOptions() {
-  const options = [];
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  
-  for (let y = currentYear - 1; y <= currentYear + 1; y++) {
-    const startMonth = y === currentYear - 1 ? 12 : (y === currentYear + 1 ? 1 : currentMonth);
-    const endMonth = y === currentYear - 1 ? 1 : (y === currentYear + 1 ? currentMonth + 1 : 1);
-    const step = y === currentYear + 1 ? 1 : -1;
-    
-    for (let m = startMonth; step > 0 ? m < endMonth : m >= endMonth; m += step) {
-      const monthStr = String(m).padStart(2, '0');
-      options.push({
-        value: `${y}-${monthStr}`,
-        label: `${MONTHS_ES[m - 1]} ${y}`
-      });
-    }
-  }
-  return options;
-}
-
 export function Accounting() {
   const { transactions, concepts, fetchConcepts, addTransaction, updateTransaction, deleteTransaction, getMonthlyTransactions, fetchTransactions, loading, selectedMonth, selectedYear } = useStore();
   const [showModal, setShowModal] = useState(false);
@@ -38,10 +16,32 @@ export function Accounting() {
   const [filterType, setFilterType] = useState<string>('all');
   const [filterMonth, setFilterMonth] = useState<string>(`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`);
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  const [monthOptions, setMonthOptions] = useState<{value: string, label: string}[]>([]);
   
-  const monthOptions = generateMonthOptions();
+  const fetchMonthsWithData = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const resp = await fetch(`${API_URL}/api/transactions/months`, { headers });
+      const data = await resp.json();
+      
+      const options = data.map((m: { year: number; month: number }) => ({
+        value: `${m.year}-${String(m.month).padStart(2, '0')}`,
+        label: `${MONTHS_ES[m.month - 1]} ${m.year}`
+      }));
+      
+      setMonthOptions(options);
+      
+      if (options.length > 0 && !options.find(o => o.value === filterMonth)) {
+        setFilterMonth(options[0].value);
+      }
+    } catch (error) {
+      console.error('Error fetching months:', error);
+    }
+  };
   
-  const selectedMonthLabel = monthOptions.find(o => o.value === filterMonth)?.label || 'Seleccionar mes';
+  useEffect(() => {
+    fetchMonthsWithData();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -53,6 +53,8 @@ export function Accounting() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
+  
+  const selectedMonthLabel = monthOptions.find(o => o.value === filterMonth)?.label || 'Seleccionar mes';
 
   useEffect(() => {
     fetchConcepts();

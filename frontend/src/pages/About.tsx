@@ -4,7 +4,7 @@ import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const version = '1.0.4';
+const version = '1.0.5';
 
 const shareText = 'Echa un vistazo a Family Agent, una aplicación para gestionar las finanzas familiares. ¡Increíble!';
 const shareUrl = 'https://github.com/Tuecho/family-agent';
@@ -25,6 +25,14 @@ const shareX = () => {
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
 };
 const features = [
+  { version: '1.0.5', date: 'Marzo 2026', changes: [
+    'Múltiples listas de compra con nombre y color',
+    'Múltiples tableros de notas organizados por secciones',
+    'Notas y productos editables',
+    'Tareas familiares editables',
+    'Recordar última página visitada',
+    'Widget de chat oculto en página de Chat IA'
+  ]},
   { version: '1.0.4', date: 'Marzo 2026', changes: [
     'Importar CSV además de Excel',
     'Botones compartir: WhatsApp, Telegram, Facebook, X',

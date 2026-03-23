@@ -156,6 +156,20 @@ async function initDb() {
   try { db.run(`ALTER TABLE family_tasks ADD COLUMN is_family_task INTEGER DEFAULT 0`); } catch(e) {}
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS shopping_lists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT DEFAULT '#22c55e',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try { db.run(`ALTER TABLE shopping_lists ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE shopping_lists ADD COLUMN color TEXT DEFAULT '#22c55e'`); } catch(e) {}
+
+  try { db.run(`ALTER TABLE family_tasks ADD COLUMN shopping_list_id INTEGER`); } catch(e) {}
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS family_notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       owner_id INTEGER,
@@ -167,6 +181,20 @@ async function initDb() {
     )
   `);
   try { db.run(`ALTER TABLE family_notes ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS note_boards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT DEFAULT '#eab308',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try { db.run(`ALTER TABLE note_boards ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE note_boards ADD COLUMN color TEXT DEFAULT '#eab308'`); } catch(e) {}
+
+  try { db.run(`ALTER TABLE family_notes ADD COLUMN board_id INTEGER`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS faqs (
@@ -1013,6 +1041,39 @@ app.get('/api/transactions/summary', (req, res) => {
   });
 });
 
+app.get('/api/transactions/months', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId);
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  try {
+    const stmt = db.prepare(`
+      SELECT DISTINCT strftime('%Y', date) as year, strftime('%m', date) as month
+      FROM transactions
+      WHERE owner_id IN (${placeholders})
+      ORDER BY year DESC, month DESC
+    `);
+    stmt.bind([...accessibleIds]);
+    
+    const months = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      months.push({
+        year: parseInt(row.year),
+        month: parseInt(row.month)
+      });
+    }
+    stmt.free();
+    
+    res.json(months);
+  } catch (error) {
+    console.error('Error fetching months:', error);
+    res.status(500).json({ error: 'Error fetching months' });
+  }
+});
+
 app.get('/api/transactions/monthly', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -1704,18 +1765,25 @@ app.post('/api/tasks', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { title, description, due_date, priority, is_family_task } = req.body;
+  const { title, description, due_date, priority, is_family_task, shopping_list_id } = req.body;
   
   if (!title) {
     return res.status(400).json({ error: 'El título es obligatorio' });
   }
   
-  const stmt = db.prepare('INSERT INTO family_tasks (owner_id, title, description, due_date, priority, is_family_task) VALUES (?, ?, ?, ?, ?, ?)');
-  stmt.run([userId, title, description || null, due_date || null, priority || 'normal', is_family_task ? 1 : 0]);
+  const listId = is_family_task ? null : (shopping_list_id || null);
+  const stmt = db.prepare('INSERT INTO family_tasks (owner_id, title, description, due_date, priority, is_family_task, shopping_list_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, title, description || null, due_date || null, priority || 'normal', is_family_task ? 1 : 0, listId]);
   stmt.free();
   saveDb();
   
-  res.json({ success: true });
+  const newStmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ? ORDER BY id DESC LIMIT 1');
+  newStmt.bind([userId]);
+  let newTask = null;
+  if (newStmt.step()) newTask = newStmt.getAsObject();
+  newStmt.free();
+  
+  res.json({ success: true, task: newTask });
 });
 
 app.put('/api/tasks/:id', (req, res) => {
@@ -1723,9 +1791,9 @@ app.put('/api/tasks/:id', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { id } = req.params;
-  const { title, description, completed, due_date, priority } = req.body;
+  const { title, description, completed, due_date, priority, shopping_list_id } = req.body;
   
-  const checkStmt = db.prepare('SELECT owner_id FROM family_tasks WHERE id = ?');
+  const checkStmt = db.prepare('SELECT owner_id, is_family_task FROM family_tasks WHERE id = ?');
   checkStmt.bind([id]);
   let task = null;
   if (checkStmt.step()) task = checkStmt.getAsObject();
@@ -1737,8 +1805,9 @@ app.put('/api/tasks/:id', (req, res) => {
     return res.status(403).json({ error: 'No tienes permisos para editar esta tarea' });
   }
   
-  const stmt = db.prepare('UPDATE family_tasks SET title = ?, description = ?, completed = ?, due_date = ?, priority = ? WHERE id = ?');
-  stmt.run([title, description || null, completed ? 1 : 0, due_date || null, priority || 'normal', id]);
+  const listId = task.is_family_task ? null : (shopping_list_id || null);
+  const stmt = db.prepare('UPDATE family_tasks SET title = ?, description = ?, completed = ?, due_date = ?, priority = ?, shopping_list_id = ? WHERE id = ?');
+  stmt.run([title, description || null, completed ? 1 : 0, due_date || null, priority || 'normal', listId, id]);
   stmt.free();
   saveDb();
   
@@ -1819,18 +1888,24 @@ app.post('/api/notes', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { title, content, category } = req.body;
+  const { title, content, category, board_id } = req.body;
   
   if (!title) {
     return res.status(400).json({ error: 'El título es obligatorio' });
   }
   
-  const stmt = db.prepare('INSERT INTO family_notes (owner_id, title, content, category) VALUES (?, ?, ?, ?)');
-  stmt.run([userId, title, content || '', category || 'general']);
+  const stmt = db.prepare('INSERT INTO family_notes (owner_id, title, content, category, board_id) VALUES (?, ?, ?, ?, ?)');
+  stmt.run([userId, title, content || '', category || 'general', board_id || null]);
   stmt.free();
   saveDb();
   
-  res.json({ success: true });
+  const newStmt = db.prepare('SELECT * FROM family_notes WHERE owner_id = ? ORDER BY id DESC LIMIT 1');
+  newStmt.bind([userId]);
+  let newNote = null;
+  if (newStmt.step()) newNote = newStmt.getAsObject();
+  newStmt.free();
+  
+  res.json({ success: true, note: newNote });
 });
 
 app.put('/api/notes/:id', (req, res) => {
@@ -1838,7 +1913,7 @@ app.put('/api/notes/:id', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { id } = req.params;
-  const { title, content, category } = req.body;
+  const { title, content, category, board_id } = req.body;
   
   const checkStmt = db.prepare('SELECT owner_id FROM family_notes WHERE id = ?');
   checkStmt.bind([id]);
@@ -1852,8 +1927,8 @@ app.put('/api/notes/:id', (req, res) => {
     return res.status(403).json({ error: 'No tienes permisos para editar esta nota' });
   }
   
-  const stmt = db.prepare('UPDATE family_notes SET title = ?, content = ?, category = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-  stmt.run([title, content || '', category || 'general', id]);
+  const stmt = db.prepare('UPDATE family_notes SET title = ?, content = ?, category = ?, board_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  stmt.run([title, content || '', category || 'general', board_id || null, id]);
   stmt.free();
   saveDb();
   
@@ -1879,6 +1954,198 @@ app.delete('/api/notes/:id', (req, res) => {
   }
   
   db.run('DELETE FROM family_notes WHERE id = ?', [id]);
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.get('/api/shopping-lists', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM shopping_lists WHERE owner_id = ? ORDER BY created_at DESC');
+  stmt.bind([userId]);
+  const lists = [];
+  while (stmt.step()) lists.push(stmt.getAsObject());
+  stmt.free();
+  
+  const result = lists.map(list => {
+    const taskStmt = db.prepare('SELECT * FROM family_tasks WHERE shopping_list_id = ? ORDER BY completed ASC, created_at DESC');
+    taskStmt.bind([list.id]);
+    const items = [];
+    while (taskStmt.step()) items.push(taskStmt.getAsObject());
+    taskStmt.free();
+    return { ...list, items };
+  });
+  
+  const noListStmt = db.prepare('SELECT * FROM family_tasks WHERE (shopping_list_id IS NULL OR shopping_list_id = 0) AND owner_id = ? AND is_family_task = 0 ORDER BY completed ASC, created_at DESC');
+  noListStmt.bind([userId]);
+  const noListItems = [];
+  while (noListStmt.step()) noListItems.push(noListStmt.getAsObject());
+  noListStmt.free();
+  
+  res.json([...result, { id: 0, name: 'Sin lista', color: '#6b7280', items: noListItems }]);
+});
+
+app.post('/api/shopping-lists', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, color } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const stmt = db.prepare('INSERT INTO shopping_lists (owner_id, name, color) VALUES (?, ?, ?)');
+  stmt.run([userId, name, color || '#22c55e']);
+  stmt.free();
+  saveDb();
+  
+  const newStmt = db.prepare('SELECT * FROM shopping_lists WHERE owner_id = ? ORDER BY id DESC LIMIT 1');
+  newStmt.bind([userId]);
+  let newList = null;
+  if (newStmt.step()) newList = newStmt.getAsObject();
+  newStmt.free();
+  
+  res.json({ success: true, list: { ...newList, items: [] } });
+});
+
+app.put('/api/shopping-lists/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, color } = req.body;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM shopping_lists WHERE id = ?');
+  checkStmt.bind([id]);
+  let list = null;
+  if (checkStmt.step()) list = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!list) return res.status(404).json({ error: 'Lista no encontrada' });
+  if (list.owner_id !== userId) return res.status(403).json({ error: 'No tienes permisos' });
+  
+  const stmt = db.prepare('UPDATE shopping_lists SET name = ?, color = ? WHERE id = ?');
+  stmt.run([name, color || '#22c55e', id]);
+  stmt.free();
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.delete('/api/shopping-lists/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  if (id === '0') return res.status(400).json({ error: 'No se puede eliminar la lista por defecto' });
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM shopping_lists WHERE id = ?');
+  checkStmt.bind([id]);
+  let list = null;
+  if (checkStmt.step()) list = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!list) return res.status(404).json({ error: 'Lista no encontrada' });
+  if (list.owner_id !== userId) return res.status(403).json({ error: 'No tienes permisos' });
+  
+  db.run('UPDATE family_tasks SET shopping_list_id = NULL WHERE shopping_list_id = ?', [id]);
+  db.run('DELETE FROM shopping_lists WHERE id = ?', [id]);
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.get('/api/note-boards', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM note_boards WHERE owner_id = ? ORDER BY created_at DESC');
+  stmt.bind([userId]);
+  const boards = [];
+  while (stmt.step()) boards.push(stmt.getAsObject());
+  stmt.free();
+  
+  const result = boards.map(board => {
+    const noteStmt = db.prepare('SELECT * FROM family_notes WHERE board_id = ? ORDER BY updated_at DESC');
+    noteStmt.bind([board.id]);
+    const notes = [];
+    while (noteStmt.step()) notes.push(noteStmt.getAsObject());
+    noteStmt.free();
+    return { ...board, notes };
+  });
+  
+  const noBoardStmt = db.prepare('SELECT * FROM family_notes WHERE (board_id IS NULL OR board_id = 0) AND owner_id = ? ORDER BY updated_at DESC');
+  noBoardStmt.bind([userId]);
+  const noBoardNotes = [];
+  while (noBoardStmt.step()) noBoardNotes.push(noBoardStmt.getAsObject());
+  noBoardStmt.free();
+  
+  res.json([...result, { id: 0, name: 'Sin tablero', color: '#6b7280', notes: noBoardNotes }]);
+});
+
+app.post('/api/note-boards', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, color } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const stmt = db.prepare('INSERT INTO note_boards (owner_id, name, color) VALUES (?, ?, ?)');
+  stmt.run([userId, name, color || '#eab308']);
+  stmt.free();
+  saveDb();
+  
+  const newStmt = db.prepare('SELECT * FROM note_boards WHERE owner_id = ? ORDER BY id DESC LIMIT 1');
+  newStmt.bind([userId]);
+  let newBoard = null;
+  if (newStmt.step()) newBoard = newStmt.getAsObject();
+  newStmt.free();
+  
+  res.json({ success: true, board: { ...newBoard, notes: [] } });
+});
+
+app.put('/api/note-boards/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, color } = req.body;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM note_boards WHERE id = ?');
+  checkStmt.bind([id]);
+  let board = null;
+  if (checkStmt.step()) board = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!board) return res.status(404).json({ error: 'Tablero no encontrado' });
+  if (board.owner_id !== userId) return res.status(403).json({ error: 'No tienes permisos' });
+  
+  const stmt = db.prepare('UPDATE note_boards SET name = ?, color = ? WHERE id = ?');
+  stmt.run([name, color || '#eab308', id]);
+  stmt.free();
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.delete('/api/note-boards/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  if (id === '0') return res.status(400).json({ error: 'No se puede eliminar el tablero por defecto' });
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM note_boards WHERE id = ?');
+  checkStmt.bind([id]);
+  let board = null;
+  if (checkStmt.step()) board = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!board) return res.status(404).json({ error: 'Tablero no encontrado' });
+  if (board.owner_id !== userId) return res.status(403).json({ error: 'No tienes permisos' });
+  
+  db.run('UPDATE family_notes SET board_id = NULL WHERE board_id = ?', [id]);
+  db.run('DELETE FROM note_boards WHERE id = ?', [id]);
   saveDb();
   
   res.json({ success: true });
