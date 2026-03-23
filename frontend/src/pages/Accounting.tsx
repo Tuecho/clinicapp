@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, Pencil, Filter, X } from 'lucide-react';
+import { Plus, Trash2, Loader2, Pencil, Filter, X, Calendar } from 'lucide-react';
 import { useStore } from '../store';
 import type { Transaction } from '../types';
 import { formatDateEs, formatMoneyEs } from '../utils/format';
@@ -11,11 +11,16 @@ export function Accounting() {
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [filterConcept, setFilterConcept] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
+  const [filterMonth, setFilterMonth] = useState<string>(`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`);
 
   useEffect(() => {
     fetchConcepts();
-    fetchTransactions({ month: selectedMonth, year: selectedYear });
-  }, [fetchConcepts, fetchTransactions, selectedMonth, selectedYear]);
+  }, [fetchConcepts]);
+
+  useEffect(() => {
+    const [year, month] = filterMonth.split('-').map(Number);
+    fetchTransactions({ month, year });
+  }, [filterMonth, fetchTransactions]);
 
   const [formData, setFormData] = useState({
     type: 'expense' as 'income' | 'expense',
@@ -38,6 +43,16 @@ export function Accounting() {
   }
 
   const hasFilters = filterConcept !== 'all' || filterType !== 'all';
+
+  const filteredIncome = monthlyTransactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const filteredExpense = monthlyTransactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const filteredBalance = filteredIncome - filteredExpense;
 
   const clearFilters = () => {
     setFilterConcept('all');
@@ -102,6 +117,11 @@ export function Accounting() {
     return acc;
   }, {} as Record<string, string>);
 
+  const monthLabel = new Date(selectedYear, selectedMonth - 1, 1).toLocaleDateString('es-ES', {
+    month: 'long',
+    year: 'numeric'
+  });
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
@@ -124,6 +144,16 @@ export function Accounting() {
         <div className="p-4 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2 text-gray-600">
+              <Calendar size={18} />
+              <span className="text-sm font-medium">Mes:</span>
+            </div>
+            <input
+              type="month"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <div className="border-l border-gray-300 pl-4 flex items-center gap-2 text-gray-600">
               <Filter size={18} />
               <span className="text-sm font-medium">Filtrar:</span>
             </div>
@@ -160,6 +190,28 @@ export function Accounting() {
             </span>
           </div>
         </div>
+
+        {hasFilters && (
+          <div className="p-4 bg-blue-50 border-b border-blue-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-blue-700">
+                <span className="text-sm font-medium">Resumen filtrado:</span>
+              </div>
+              <div className="flex items-center gap-6 text-sm">
+                <span className="text-income font-medium">
+                  Ingresos: <span className="font-bold">{formatMoneyEs(filteredIncome)}</span>
+                </span>
+                <span className="text-expense font-medium">
+                  Gastos: <span className="font-bold">{formatMoneyEs(filteredExpense)}</span>
+                </span>
+                <span className={`font-medium ${filteredBalance >= 0 ? 'text-income' : 'text-expense'}`}>
+                  Balance: <span className="font-bold">{formatMoneyEs(filteredBalance)}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>

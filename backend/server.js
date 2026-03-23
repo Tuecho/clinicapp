@@ -2060,6 +2060,11 @@ const conversationHistory = [];
 
 app.post('/api/chat', async (req, res) => {
   const { message, context } = req.body;
+  const userId = getCurrentUserId(req.headers);
+  
+  if (!userId) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
 
   conversationHistory.push({ role: 'user', content: message });
 
@@ -2069,15 +2074,17 @@ app.post('/api/chat', async (req, res) => {
     const now = new Date();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const year = String(now.getFullYear());
+    const accessibleIds = getAccessibleUserIds(userId);
+    const placeholders = accessibleIds.map(() => '?').join(',');
     
     const stmt = db.prepare(`
       SELECT 
         SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
         SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
       FROM transactions
-      WHERE date LIKE ?
+      WHERE date LIKE ? AND owner_id IN (${placeholders})
     `);
-    stmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`]);
+    stmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`, ...accessibleIds]);
     stmt.step();
     const summary = stmt.getAsObject();
     stmt.free();
@@ -2183,6 +2190,11 @@ const llmConversationHistory = new Map();
 
 app.post('/api/chat/llm', async (req, res) => {
   const { message, session_id = 'default' } = req.body;
+  const userId = getCurrentUserId(req.headers);
+
+  if (!userId) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
 
   if (!message) {
     return res.status(400).json({ error: 'Mensaje requerido' });
@@ -2204,6 +2216,8 @@ app.post('/api/chat/llm', async (req, res) => {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const year = String(now.getFullYear());
+  const accessibleIds = getAccessibleUserIds(userId);
+  const placeholders = accessibleIds.map(() => '?').join(',');
 
   // Get monthly summary
   const summaryStmt = db.prepare(`
@@ -2212,9 +2226,9 @@ app.post('/api/chat/llm', async (req, res) => {
       SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense,
       COUNT(*) as transaction_count
     FROM transactions
-    WHERE date LIKE ?
+    WHERE date LIKE ? AND owner_id IN (${placeholders})
   `);
-  summaryStmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`]);
+  summaryStmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`, ...accessibleIds]);
   summaryStmt.step();
   const monthlySummary = summaryStmt.getAsObject();
   summaryStmt.free();
@@ -2225,29 +2239,31 @@ app.post('/api/chat/llm', async (req, res) => {
     FROM transactions
     WHERE type = 'expense'
       AND date LIKE ?
+      AND owner_id IN (${placeholders})
     GROUP BY concept
     ORDER BY total DESC
   `);
-  conceptStmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`]);
+  conceptStmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`, ...accessibleIds]);
   const expensesByConcept = [];
   while (conceptStmt.step()) {
     expensesByConcept.push(conceptStmt.getAsObject());
   }
   conceptStmt.free();
 
-  // Get family profile
-  const profileStmt = db.prepare('SELECT name, family_name FROM user_profile WHERE id = 1');
+  // Get family profile for this user
+  const profileStmt = db.prepare('SELECT name, family_name FROM user_profile WHERE owner_id = ?');
+  profileStmt.bind([userId]);
   profileStmt.step();
   const profile = profileStmt.getAsObject();
   profileStmt.free();
 
-  // Get budget info
+  // Get budget info for this user
   const budgetStmt = db.prepare(`
     SELECT concept, amount
     FROM budgets
-    WHERE month = ? AND year = ?
+    WHERE month = ? AND year = ? AND owner_id IN (${placeholders})
   `);
-  budgetStmt.bind([parseInt(month), parseInt(year)]);
+  budgetStmt.bind([parseInt(month), parseInt(year), ...accessibleIds]);
   const budgets = [];
   while (budgetStmt.step()) {
     budgets.push(budgetStmt.getAsObject());

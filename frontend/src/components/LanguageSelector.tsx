@@ -22,7 +22,7 @@ export function LanguageSelector() {
             className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+          <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
             <button
               onClick={() => {
                 setLanguage('es');
@@ -44,6 +44,17 @@ export function LanguageSelector() {
               }`}
             >
               🇬🇧 English
+            </button>
+            <button
+              onClick={() => {
+                setLanguage('pt');
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${
+                language === 'pt' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-700'
+              }`}
+            >
+              🇵🇹 Português
             </button>
           </div>
         </>

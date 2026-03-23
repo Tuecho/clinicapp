@@ -577,7 +577,7 @@ export function Dashboard() {
             <Home size={16} className="text-primary" />
             <span className="font-semibold text-gray-700">Family Agent</span>
           </div>
-          <p className="mb-1">© {new Date().getFullYear()} {profile.family_name}. Todos los derechos reservados.</p>
+          <p className="mb-1">© {new Date().getFullYear()} Family Agent. Todos los derechos reservados.</p>
           <p className="text-xs text-gray-400">
             Hecho con <span className="text-red-500">❤</span> para las familias
           </p>

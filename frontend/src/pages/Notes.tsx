@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StickyNote, Plus, Trash2, Edit2, X, Check, Search } from 'lucide-react';
+import { StickyNote, Plus, Trash2, Edit2, X, Check, Search, Share2, FolderOpen, Settings } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -14,10 +14,13 @@ interface Note {
   updated_at: string;
 }
 
+const DEFAULT_CATEGORIES = ['general', 'trabajo', 'familia', 'personal', 'importante'];
+
 export function Notes() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -28,10 +31,15 @@ export function Notes() {
     category: 'general'
   });
 
-  const categories = ['general', 'trabajo', 'familia', 'personal', 'importante'];
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [newCategory, setNewCategory] = useState('');
+  const [editingCategory, setEditingCategory] = useState<{ old: string; new: string } | null>(null);
+
+  const categories = [...DEFAULT_CATEGORIES, ...customCategories.filter(c => !DEFAULT_CATEGORIES.includes(c))];
 
   useEffect(() => {
     fetchNotes();
+    loadCustomCategories();
   }, []);
 
   const fetchNotes = async () => {
@@ -44,6 +52,18 @@ export function Notes() {
       console.error('Error fetching notes:', error);
     }
     setLoading(false);
+  };
+
+  const loadCustomCategories = () => {
+    const saved = localStorage.getItem('note_categories');
+    if (saved) {
+      setCustomCategories(JSON.parse(saved));
+    }
+  };
+
+  const saveCustomCategories = (cats: string[]) => {
+    localStorage.setItem('note_categories', JSON.stringify(cats));
+    setCustomCategories(cats);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,6 +122,54 @@ export function Notes() {
     }
   };
 
+  const shareNote = (note: Note) => {
+    const text = `📝 ${note.title}\n\n${note.content}\n\n— Enviado desde Family Agent`;
+    const url = window.location.href;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: note.title,
+        text: text,
+        url: url
+      }).catch(console.error);
+    } else {
+      navigator.clipboard.writeText(text);
+      alert('¡Nota copiada al portapapeles!');
+    }
+  };
+
+  const addCategory = () => {
+    if (!newCategory.trim()) return;
+    const cat = newCategory.toLowerCase().trim().replace(/\s+/g, '-');
+    if (categories.includes(cat)) {
+      alert('Esta categoría ya existe');
+      return;
+    }
+    saveCustomCategories([...customCategories, cat]);
+    setNewCategory('');
+  };
+
+  const updateCategory = () => {
+    if (!editingCategory) return;
+    const oldCat = editingCategory.old;
+    const newCat = editingCategory.new.toLowerCase().trim().replace(/\s+/g, '-');
+    
+    if (categories.includes(newCat) && newCat !== oldCat) {
+      alert('Esta categoría ya existe');
+      return;
+    }
+    
+    const updated = customCategories.map(c => c === oldCat ? newCat : c);
+    saveCustomCategories(updated);
+    setEditingCategory(null);
+  };
+
+  const deleteCategory = (cat: string) => {
+    if (!window.confirm(`¿Eliminar la categoría "${cat}"?`)) return;
+    const updated = customCategories.filter(c => c !== cat);
+    saveCustomCategories(updated);
+  };
+
   const filteredNotes = notes.filter(note => {
     const matchesSearch = 
       note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -121,7 +189,14 @@ export function Notes() {
   };
 
   const getCategoryLabel = (category: string) => {
-    return category.charAt(0).toUpperCase() + category.slice(1);
+    const labels: Record<string, string> = {
+      general: 'General',
+      trabajo: 'Trabajo',
+      familia: 'Familia',
+      personal: 'Personal',
+      importante: 'Importante'
+    };
+    return labels[category] || category.charAt(0).toUpperCase() + category.slice(1);
   };
 
   const formatDate = (dateStr: string) => {
@@ -148,13 +223,23 @@ export function Notes() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-yellow-500 text-white px-4 py-2.5 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"
-        >
-          <Plus size={20} />
-          <span className="hidden sm:inline">Nueva Nota</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCategoriesModal(true)}
+            className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-200 transition-colors"
+            title="Gestionar categorías"
+          >
+            <FolderOpen size={20} />
+            <span className="hidden sm:inline">Categorías</span>
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-yellow-500 text-white px-4 py-2.5 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"
+          >
+            <Plus size={20} />
+            <span className="hidden sm:inline">Nueva Nota</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -201,6 +286,13 @@ export function Notes() {
                 </span>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
+                    onClick={() => shareNote(note)}
+                    className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors"
+                    title="Compartir"
+                  >
+                    <Share2 size={14} />
+                  </button>
+                  <button
                     onClick={() => openEditModal(note)}
                     className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors"
                   >
@@ -228,6 +320,126 @@ export function Notes() {
               </p>
             </div>
           ))}
+        </div>
+      )}
+
+      {showCategoriesModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <FolderOpen size={20} className="text-yellow-500" />
+                Gestionar Categorías
+              </h3>
+              <button
+                onClick={() => setShowCategoriesModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nueva categoría
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    placeholder="Nombre de la categoría..."
+                    className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    onKeyPress={(e) => e.key === 'Enter' && addCategory()}
+                  />
+                  <button
+                    onClick={addCategory}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+                  >
+                    <Plus size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium text-gray-600 mb-2">Categorías por defecto</h4>
+                <div className="flex flex-wrap gap-2">
+                  {DEFAULT_CATEGORIES.map(cat => (
+                    <span
+                      key={cat}
+                      className={`px-3 py-1 rounded-full text-sm ${getCategoryColor(cat)}`}
+                    >
+                      {getCategoryLabel(cat)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {customCategories.length > 0 && (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-gray-600 mb-2">Categorías personalizadas</h4>
+                  <div className="space-y-2">
+                    {customCategories.map(cat => (
+                      <div key={cat} className="flex items-center gap-2">
+                        {editingCategory?.old === cat ? (
+                          <>
+                            <input
+                              type="text"
+                              value={editingCategory.new}
+                              onChange={(e) => setEditingCategory({ ...editingCategory, new: e.target.value })}
+                              className="flex-1 px-3 py-1 border rounded-lg text-sm"
+                              autoFocus
+                              onKeyPress={(e) => e.key === 'Enter' && updateCategory()}
+                            />
+                            <button
+                              onClick={updateCategory}
+                              className="p-1 text-green-500 hover:text-green-600"
+                            >
+                              <Check size={18} />
+                            </button>
+                            <button
+                              onClick={() => setEditingCategory(null)}
+                              className="p-1 text-gray-400 hover:text-gray-600"
+                            >
+                              <X size={18} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className={`flex-1 px-3 py-1 rounded-lg text-sm ${getCategoryColor(cat)}`}>
+                              {getCategoryLabel(cat)}
+                            </span>
+                            <button
+                              onClick={() => setEditingCategory({ old: cat, new: cat })}
+                              className="p-1 text-gray-400 hover:text-blue-500"
+                              title="Editar"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => deleteCategory(cat)}
+                              className="p-1 text-gray-400 hover:text-red-500"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setShowCategoriesModal(false)}
+              className="w-full mt-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       )}
 
