@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X, Download, Upload } from 'lucide-react';
 import { NotificationSettings } from '../components/NotificationSettings';
+import { ImportDB } from '../components/ImportDB';
 import { useAuth } from '../components/Auth';
 import { getAuthHeaders } from '../utils/auth';
 
@@ -206,6 +207,8 @@ export function Profile() {
     setSaving(true);
     setSaved(false);
 
+    console.log('Submitting profile with avatar length:', profile.avatar ? profile.avatar.length : 'null');
+
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       const response = await fetch(`${API_URL}/api/profile`, {
@@ -214,7 +217,10 @@ export function Profile() {
         body: JSON.stringify(profile)
       });
       
+      console.log('Response status:', response.status);
       const data = await response.json();
+      console.log('Response avatar length:', data.avatar ? data.avatar.length : 'null');
+      
       if (response.ok) {
         setProfile(data);
         setSaved(true);
@@ -234,8 +240,10 @@ export function Profile() {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      console.log('Avatar file selected:', file.name, 'size:', file.size);
       const reader = new FileReader();
       reader.onloadend = () => {
+        console.log('Avatar read complete, length:', (reader.result as string).length);
         setProfile(prev => ({ ...prev, avatar: reader.result as string }));
       };
       reader.readAsDataURL(file);
@@ -561,6 +569,21 @@ export function Profile() {
                       accept=".json"
                       className="hidden"
                     />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Upload className="text-purple-500 flex-shrink-0 mt-0.5" size={20} />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-purple-800">Importar base de datos (.db)</h4>
+                    <p className="text-sm text-purple-600 mt-1">
+                      Restaura una base de datos completa desde un archivo .db. Solo administradores.
+                    </p>
+                    <div className="mt-3">
+                      <ImportDB onImportComplete={() => window.location.reload()} />
+                    </div>
                   </div>
                 </div>
               </div>

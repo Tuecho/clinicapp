@@ -5,7 +5,10 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import pkg from 'node-cron';
+import multer from 'multer';
+import pdf from 'pdf-parse/lib/pdf-parse.js';
 const cron = pkg;
+const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -45,6 +48,7 @@ async function initDb() {
       amount REAL NOT NULL,
       month INTEGER NOT NULL,
       year INTEGER NOT NULL,
+      recurring INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(owner_id, concept, month, year)
     )
@@ -83,6 +87,7 @@ async function initDb() {
       title TEXT NOT NULL,
       description TEXT,
       date TEXT NOT NULL,
+      end_date TEXT,
       start_time TEXT,
       end_time TEXT,
       type TEXT,
@@ -124,8 +129,10 @@ async function initDb() {
 
   try { db.run(`ALTER TABLE family_events ADD COLUMN recurrence TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE family_events ADD COLUMN days_of_week TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE family_events ADD COLUMN end_date TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE transactions ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE budgets ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE budgets ADD COLUMN recurring INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE family_events ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE expense_concepts ADD COLUMN owner_id INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_profile ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
@@ -193,6 +200,18 @@ async function initDb() {
     stmt.free();
   }
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER,
+      type TEXT DEFAULT 'idea',
+      subject TEXT,
+      content TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   saveDb();
 }
 
@@ -210,7 +229,7 @@ function getCurrentUserId(headers) {
   const { username, password } = headers || {};
   if (!username || !password) return null;
   
-  const stmt = db.prepare('SELECT id FROM auth_user WHERE username = ? AND status = "approved"');
+  const stmt = db.prepare('SELECT id FROM auth_user WHERE username = ? AND status IN ("approved", "active")');
   stmt.bind([username]);
   let userId = null;
   if (stmt.step()) {
@@ -224,7 +243,7 @@ function checkAdmin(headers) {
   const { username, password } = headers || {};
   if (!username || !password) return false;
   
-  const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE username = ? AND status = "approved"');
+  const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE username = ? AND status IN ("approved", "active")');
   stmt.bind([username]);
   let isAdmin = false;
   if (stmt.step()) {
@@ -414,15 +433,25 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(409).json({ error: 'El usuario ya existe' });
   }
 
+  const adminCheck = db.exec('SELECT COUNT(*) as count FROM auth_user WHERE is_admin = 1');
+  const adminCount = adminCheck.length > 0 ? adminCheck[0].values[0][0] : 0;
+  
   const salt = crypto.randomBytes(16).toString('hex');
   const password_hash = hashPassword(password, salt);
 
   try {
-    const stmt = db.prepare('INSERT INTO auth_user (username, password_hash, salt, status) VALUES (?, ?, ?, ?)');
-    stmt.run([username.trim(), password_hash, salt, 'pending']);
-    stmt.free();
-    saveDb();
-    return res.json({ success: true, message: 'Usuario creado. Espera aprobación del administrador.' });
+    const stmt = db.prepare('INSERT INTO auth_user (username, password_hash, salt, status, is_admin) VALUES (?, ?, ?, ?, ?)');
+    if (adminCount === 0) {
+      stmt.run([username.trim(), password_hash, salt, 'active', 1]);
+      stmt.free();
+      saveDb();
+      return res.json({ success: true, message: 'Usuario creado como administrador.', isAdmin: true });
+    } else {
+      stmt.run([username.trim(), password_hash, salt, 'pending', 0]);
+      stmt.free();
+      saveDb();
+      return res.json({ success: true, message: 'Usuario creado. Espera aprobación del administrador.' });
+    }
   } catch (error) {
     console.error('Error registering user:', error);
     return res.status(500).json({ error: 'Error creando usuario' });
@@ -788,19 +817,19 @@ app.post('/api/events', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { id, title, description, date, start_time, end_time, type, location, recurrence, days_of_week } = req.body || {};
+  const { id, title, description, date, end_date, start_time, end_time, type, location, recurrence, days_of_week } = req.body || {};
 
   if (!id || !title || !date) {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
   }
 
   const stmt = db.prepare(`
-    INSERT INTO family_events (id, owner_id, title, description, date, start_time, end_time, type, location, recurrence, days_of_week)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO family_events (id, owner_id, title, description, date, end_date, start_time, end_time, type, location, recurrence, days_of_week)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   try {
-    stmt.run([id, userId, title, description || null, date, start_time || null, end_time || null, type || null, location || null, recurrence || null, days_of_week || null]);
+    stmt.run([id, userId, title, description || null, date, end_date || null, start_time || null, end_time || null, type || null, location || null, recurrence || null, days_of_week || null]);
     stmt.free();
     saveDb();
     res.json({ success: true });
@@ -815,7 +844,7 @@ app.put('/api/events/:id', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { id } = req.params;
-  const { title, description, date, start_time, end_time, type, location, recurrence, days_of_week } = req.body || {};
+  const { title, description, date, end_date, start_time, end_time, type, location, recurrence, days_of_week } = req.body || {};
 
   if (!title || !date) {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
@@ -823,12 +852,12 @@ app.put('/api/events/:id', (req, res) => {
 
   const stmt = db.prepare(`
     UPDATE family_events
-    SET title = ?, description = ?, date = ?, start_time = ?, end_time = ?, type = ?, location = ?, recurrence = ?, days_of_week = ?
+    SET title = ?, description = ?, date = ?, end_date = ?, start_time = ?, end_time = ?, type = ?, location = ?, recurrence = ?, days_of_week = ?
     WHERE id = ? AND owner_id = ?
   `);
 
   try {
-    stmt.run([title, description || null, date, start_time || null, end_time || null, type || null, location || null, recurrence || null, days_of_week || null, id, userId]);
+    stmt.run([title, description || null, date, end_date || null, start_time || null, end_time || null, type || null, location || null, recurrence || null, days_of_week || null, id, userId]);
     stmt.free();
     saveDb();
     res.json({ success: true });
@@ -1094,15 +1123,15 @@ app.post('/api/budgets', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { id, concept, amount, month, year } = req.body;
+  const { id, concept, amount, month, year, recurring } = req.body;
   
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO budgets (id, owner_id, concept, amount, month, year)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO budgets (id, owner_id, concept, amount, month, year, recurring)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   
   try {
-    stmt.run([id, userId, concept, amount, parseInt(month), parseInt(year)]);
+    stmt.run([id, userId, concept, amount, parseInt(month), parseInt(year), recurring ? 1 : 0]);
     stmt.free();
     saveDb();
     res.json({ success: true });
@@ -1117,7 +1146,7 @@ app.put('/api/budgets/:id', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { id } = req.params;
-  const { concept, amount, month, year } = req.body || {};
+  const { concept, amount, month, year, recurring } = req.body || {};
 
   if (!concept || typeof amount !== 'number' || typeof month !== 'number' || typeof year !== 'number') {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
@@ -1125,12 +1154,12 @@ app.put('/api/budgets/:id', (req, res) => {
 
   const stmt = db.prepare(`
     UPDATE budgets
-    SET concept = ?, amount = ?, month = ?, year = ?
+    SET concept = ?, amount = ?, month = ?, year = ?, recurring = ?
     WHERE id = ? AND owner_id = ?
   `);
 
   try {
-    stmt.run([concept, amount, parseInt(month), parseInt(year), id, userId]);
+    stmt.run([concept, amount, parseInt(month), parseInt(year), recurring ? 1 : 0, id, userId]);
     stmt.free();
     saveDb();
     res.json({ success: true });
@@ -1149,6 +1178,42 @@ app.delete('/api/budgets/:id', (req, res) => {
   db.run('DELETE FROM budgets WHERE id = ? AND owner_id = ?', [id, userId]);
   saveDb();
   res.json({ success: true });
+});
+
+app.post('/api/budgets/copy-recurring', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { month, year } = req.body;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  
+  try {
+    const stmt = db.prepare('SELECT * FROM budgets WHERE recurring = 1 AND owner_id = ? AND month = ? AND year = ?');
+    stmt.bind([userId, month, year]);
+    
+    const newStmt = db.prepare('INSERT INTO budgets (id, owner_id, concept, amount, month, year, recurring) VALUES (?, ?, ?, ?, ?, ?, 1)');
+    
+    while (stmt.step()) {
+      const budget = stmt.getAsObject();
+      newStmt.run([
+        crypto.randomUUID(),
+        userId,
+        budget.concept,
+        budget.amount,
+        nextMonth,
+        nextYear
+      ]);
+    }
+    stmt.free();
+    newStmt.free();
+    saveDb();
+    
+    res.json({ success: true, month: nextMonth, year: nextYear });
+  } catch (error) {
+    console.error('Error copying recurring budgets:', error);
+    res.status(500).json({ error: 'Error copying recurring budgets' });
+  }
 });
 
 app.get('/api/budgets/with-spending', (req, res) => {
@@ -1387,6 +1452,54 @@ app.post('/api/import', (req, res) => {
   }
 });
 
+app.post('/api/import/db', upload.single('file'), async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const isAdmin = checkAdmin(userId);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Solo administradores pueden importar bases de datos' });
+  }
+  
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se ha proporcionado ningún archivo' });
+  }
+  
+  try {
+    const backupDb = new (await initSqlJs()).Database(req.file.buffer);
+    
+    const tables = ['transactions', 'budgets', 'family_events', 'family_tasks', 'family_notes', 'auth_user', 'user_profile', 'notification_settings', 'expense_concepts', 'faqs', 'user_shares', 'share_requests', 'suggestions'];
+    let importedCount = 0;
+    
+    for (const table of tables) {
+      try {
+        const result = backupDb.exec(`SELECT * FROM ${table}`);
+        if (result.length === 0) continue;
+        
+        const columns = result[0].columns;
+        const rows = result[0].values;
+        
+        for (const row of rows) {
+          try {
+            const placeholders = columns.map(() => '?').join(', ');
+            const stmt = db.prepare(`INSERT OR IGNORE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
+            stmt.run(row);
+            stmt.free();
+            importedCount++;
+          } catch (e) {}
+        }
+      } catch (e) {}
+    }
+    
+    backupDb.close();
+    saveDb();
+    res.json({ success: true, message: `Base de datos importada. ${importedCount} registros insertados.` });
+  } catch (error) {
+    console.error('Error importing database:', error);
+    res.status(500).json({ error: 'Error importando la base de datos' });
+  }
+});
+
 app.get('/api/faqs', (req, res) => {
   try {
     const stmt = db.prepare('SELECT * FROM faqs ORDER BY order_index ASC');
@@ -1471,6 +1584,100 @@ app.delete('/api/faqs/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting FAQ:', error);
     res.status(500).json({ error: 'Error deleting FAQ' });
+  }
+});
+
+app.get('/api/suggestions', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    let stmt;
+    const isAdmin = checkAdmin(userId);
+    
+    if (isAdmin) {
+      stmt = db.prepare('SELECT * FROM suggestions ORDER BY created_at DESC');
+    } else {
+      stmt = db.prepare('SELECT * FROM suggestions WHERE owner_id = ? ORDER BY created_at DESC');
+      stmt.bind([userId]);
+    }
+    
+    const suggestions = [];
+    while (stmt.step()) {
+      suggestions.push(stmt.getAsObject());
+    }
+    stmt.free();
+    res.json(suggestions);
+  } catch (error) {
+    console.error('Error fetching suggestions:', error);
+    res.status(500).json({ error: 'Error fetching suggestions' });
+  }
+});
+
+app.post('/api/suggestions', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { type, subject, content } = req.body;
+  
+  if (!content) {
+    return res.status(400).json({ error: 'El contenido es obligatorio' });
+  }
+  
+  try {
+    const stmt = db.prepare('INSERT INTO suggestions (owner_id, type, subject, content) VALUES (?, ?, ?, ?)');
+    stmt.run([userId, type || 'idea', subject || '', content]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error creating suggestion:', error);
+    res.status(500).json({ error: 'Error creating suggestion' });
+  }
+});
+
+app.put('/api/suggestions/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const isAdmin = checkAdmin(userId);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Solo los administradores pueden modificar las sugerencias' });
+  }
+  
+  const { id } = req.params;
+  const { status } = req.body;
+  
+  try {
+    const stmt = db.prepare('UPDATE suggestions SET status = ? WHERE id = ?');
+    stmt.run([status || 'pending', id]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating suggestion:', error);
+    res.status(500).json({ error: 'Error updating suggestion' });
+  }
+});
+
+app.delete('/api/suggestions/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const isAdmin = checkAdmin(userId);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Solo los administradores pueden eliminar las sugerencias' });
+  }
+  
+  const { id } = req.params;
+  
+  try {
+    db.run('DELETE FROM suggestions WHERE id = ?', [id]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting suggestion:', error);
+    res.status(500).json({ error: 'Error deleting suggestion' });
   }
 });
 
@@ -1871,10 +2078,8 @@ app.delete('/api/shares/:sharedWithId', (req, res) => {
 });
 
 
-import multer from 'multer';
-import XLSX from 'xlsx';
 
-const upload = multer({ storage: multer.memoryStorage() });
+import XLSX from 'xlsx';
 
 function parseDate(dateValue) {
   if (!dateValue) return null;
@@ -1945,13 +2150,47 @@ app.post('/api/import/excel', upload.single('file'), (req, res) => {
   }
 
   try {
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-    if (data.length < 2) {
-      return res.status(400).json({ error: 'El archivo está vacío o no tiene datos' });
+    let data;
+    const fileName = req.file.originalname.toLowerCase();
+    
+    if (fileName.endsWith('.csv')) {
+      const csvText = req.file.buffer.toString('utf-8');
+      const lines = csvText.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        return res.status(400).json({ error: 'El archivo CSV está vacío o no tiene datos' });
+      }
+      
+      const parseCSVLine = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      };
+      
+      data = lines.map(line => parseCSVLine(line));
+    } else {
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (data.length < 2) {
+        return res.status(400).json({ error: 'El archivo está vacío o no tiene datos' });
+      }
     }
 
     const headers = data[0].map(h => String(h).toLowerCase().trim());
@@ -2053,6 +2292,59 @@ app.post('/api/import/excel', upload.single('file'), (req, res) => {
   } catch (error) {
     console.error('Error importing Excel:', error);
     res.status(500).json({ error: 'Error procesando el archivo Excel' });
+  }
+});
+
+app.post('/api/import/pdf', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se ha proporcionado ningún archivo' });
+  }
+
+  try {
+    const pdfData = await pdf(req.file.buffer);
+    const text = pdfData.text;
+    
+    const amountMatch = text.match(/[\d.,]+\s*(?:€|EUR|euros?|USD|dollars?)/i) || text.match(/(?:total|importe|cantidad|amount)[:\s]*[\d.,]+/i);
+    const dateMatch = text.match(/\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/) || text.match(/\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}/);
+    
+    let amount = 0;
+    if (amountMatch) {
+      const cleanAmount = amountMatch[0].replace(/[^\d.,]/g, '').replace(',', '.');
+      amount = parseFloat(cleanAmount);
+    }
+    
+    let extractedDate = new Date().toISOString().split('T')[0];
+    if (dateMatch) {
+      const parts = dateMatch[0].split(/[\/\-\.]/);
+      if (parts[0].length === 4) {
+        extractedDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      } else {
+        const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+        extractedDate = `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+    
+    let concept = 'otros';
+    const lowerText = text.toLowerCase();
+    if (lowerText.includes('hipoteca') || lowerText.includes('alquiler')) concept = 'alquiler';
+    else if (lowerText.includes('luz') || lowerText.includes('electricidad') || lowerText.includes('endesa') || lowerText.includes('iberdrola')) concept = 'servicios';
+    else if (lowerText.includes('agua')) concept = 'servicios';
+    else if (lowerText.includes('gasolina') || lowerText.includes('combustible') || lowerText.includes('repsol') || lowerText.includes('cepsa')) concept = 'gasolina';
+    else if (lowerText.includes('supermercado') || lowerText.includes('mercadona') || lowerText.includes('carrefour') || lowerText.includes('dia')) concept = 'comida';
+    else if (lowerText.includes('restaurante') || lowerText.includes('bar') || lowerText.includes('café')) concept = 'ocio';
+    
+    res.json({
+      success: true,
+      extracted: {
+        concept,
+        amount,
+        date: extractedDate,
+        description: `Factura PDF - ${req.file.originalname}`
+      }
+    });
+  } catch (error) {
+    console.error('Error parsing PDF:', error);
+    res.status(500).json({ error: 'Error procesando el PDF' });
   }
 });
 

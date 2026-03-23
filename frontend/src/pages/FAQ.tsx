@@ -48,11 +48,17 @@ export function FAQ() {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       
       if (editingFaq) {
-        await fetch(`${API_URL}/api/faqs/${editingFaq.id}`, {
+        const response = await fetch(`${API_URL}/api/faqs/${editingFaq.id}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify(formData)
         });
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('Error updating FAQ:', error);
+          alert(error.error || 'Error al actualizar FAQ');
+          return;
+        }
       } else {
         await fetch(`${API_URL}/api/faqs`, {
           method: 'POST',
@@ -96,22 +102,22 @@ export function FAQ() {
   };
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <HelpCircle className="text-primary" size={24} />
+    <div className="p-3 sm:p-4 md:p-8">
+      <div className="flex items-center justify-between mb-4 sm:mb-6">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="p-1.5 sm:p-2 bg-primary/10 rounded-lg">
+            <HelpCircle className="text-primary" size={20} className="sm:w-6 sm:h-6" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800">Preguntas Frecuentes (FAQ)</h2>
+          <h2 className="text-lg sm:text-2xl font-bold text-gray-800">FAQ</h2>
         </div>
         
         {isAdmin && (
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors shadow-sm"
+            className="flex items-center gap-1 sm:gap-2 bg-primary text-white px-2 sm:px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors shadow-sm text-sm"
           >
-            <Plus size={18} />
-            Nueva FAQ
+            <Plus size={16} />
+            <span className="hidden sm:inline">Nueva FAQ</span>
           </button>
         )}
       </div>
@@ -159,7 +165,7 @@ export function FAQ() {
                 </div>
               </button>
               {openIndex === index && (
-                <div className="px-4 pb-4 text-gray-600">
+                <div className="px-3 sm:px-4 pb-3 sm:pb-4 text-gray-600 text-sm sm:text-base">
                   {faq.answer}
                 </div>
               )}
@@ -176,10 +182,10 @@ export function FAQ() {
       )}
 
       {showModal && isAdmin && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-800">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800">
                 {editingFaq ? 'Editar FAQ' : 'Nueva FAQ'}
               </h3>
               <button
@@ -190,7 +196,7 @@ export function FAQ() {
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Pregunta *
@@ -200,7 +206,7 @@ export function FAQ() {
                   value={formData.question}
                   onChange={(e) => setFormData({ ...formData, question: e.target.value })}
                   placeholder="Escribe la pregunta..."
-                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent text-sm sm:text-base"
                   autoFocus
                   required
                 />
@@ -214,25 +220,25 @@ export function FAQ() {
                   value={formData.answer}
                   onChange={(e) => setFormData({ ...formData, answer: e.target.value })}
                   placeholder="Escribe la respuesta..."
-                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent resize-none min-h-[120px]"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent resize-none min-h-[100px] text-sm sm:text-base"
                   rows={4}
                   required
                 />
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="flex-1 py-3 border rounded-xl text-gray-600 hover:bg-gray-50 font-medium"
+                  className="flex-1 py-2.5 sm:py-3 border rounded-lg sm:rounded-xl text-gray-600 hover:bg-gray-50 font-medium text-sm"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 font-medium shadow-sm flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 sm:py-3 bg-primary text-white rounded-lg sm:rounded-xl hover:bg-primary/90 font-medium shadow-sm flex items-center justify-center gap-2 text-sm"
                 >
-                  <Check size={18} />
+                  <Check size={16} />
                   {editingFaq ? 'Guardar' : 'Crear'}
                 </button>
               </div>
