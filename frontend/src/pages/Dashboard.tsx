@@ -364,7 +364,11 @@ function MonthlyChart({ data }: { data: { month: number; year: number; label: st
   );
 }
 
-export function Dashboard() {
+interface DashboardProps {
+  onNavigate?: (page: 'profile') => void;
+}
+
+export function Dashboard({ onNavigate }: DashboardProps) {
   const { 
     getTotals, 
     getMonthlyTransactions, 
@@ -381,13 +385,20 @@ export function Dashboard() {
   } = useStore();
   
   const [profile, setProfile] = useState<Profile>({ family_name: 'Mi Familia', name: 'Usuario' });
+  const [currentMonthBudgets, setCurrentMonthBudgets] = useState<any[]>([]);
+  const [weather, setWeather] = useState<{ city: string; temperature: number; description: string; isRainy: boolean; isSnowy: boolean } | null>(null);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
   
   useEffect(() => {
     fetchTransactions({ month: selectedMonth, year: selectedYear });
-    fetchBudgets();
+    fetch(`${API_URL}/api/budgets/with-spending?month=${selectedMonth}&year=${selectedYear}`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => setCurrentMonthBudgets(Array.isArray(data) ? data : []))
+      .catch(err => console.error('Error fetching budgets:', err));
     fetchMonthlyData();
     fetchProfile();
-  }, [fetchTransactions, fetchBudgets, fetchMonthlyData, selectedMonth, selectedYear]);
+    fetchWeather();
+  }, [fetchTransactions, fetchMonthlyData, selectedMonth, selectedYear]);
 
   const fetchProfile = async () => {
     try {
@@ -397,6 +408,28 @@ export function Dashboard() {
         setProfile({ family_name: data.family_name, name: data.name || 'Usuario' });
       }
     } catch (e) {}
+  };
+
+  const fetchWeather = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/weather`, { headers: getAuthHeaders() });
+      const data = await res.json();
+      if (data.temperature !== null) {
+        setWeather({
+          city: data.city,
+          temperature: data.temperature,
+          description: data.description,
+          isRainy: data.isRainy,
+          isSnowy: data.isSnowy
+        });
+        setWeatherError(null);
+      } else {
+        setWeatherError(data.error || 'Ciudad no configurada');
+        setWeather(null);
+      }
+    } catch (e) {
+      setWeatherError('Error cargando clima');
+    }
   };
 
   const totals = getTotals();
@@ -436,6 +469,24 @@ export function Dashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Dashboard</h2>
+          {weather && (
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-2xl">
+                {weather.isRainy ? '🌧️' : weather.isSnowy ? '❄️' : '☀️'}
+              </span>
+              <span className="font-medium text-gray-700">
+                {weather.temperature}°C
+              </span>
+              <span className="text-gray-500 text-sm">
+                {weather.city} - {weather.description}
+              </span>
+            </div>
+          )}
+          {weatherError && (
+            <p className="text-xs text-gray-400 mt-1">
+              {weatherError} - <button onClick={() => onNavigate?.('profile')} className="text-primary hover:underline">Configurar ciudad</button>
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <button
@@ -548,7 +599,7 @@ export function Dashboard() {
           <h3 className="text-base sm:text-lg font-semibold">Presupuestos del Mes</h3>
         </div>
         
-        {budgets.length === 0 ? (
+        {currentMonthBudgets.length === 0 ? (
           <div className="text-center py-8 sm:py-12">
             <span className="text-4xl sm:text-5xl mb-4 block">🎯</span>
             <p className="text-gray-500 mb-2 text-sm">No hay presupuestos establecidos</p>
@@ -556,7 +607,7 @@ export function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
-            {budgets.map((budget) => (
+            {currentMonthBudgets.map((budget) => (
               <BudgetCard key={budget.id} budget={budget} />
             ))}
           </div>

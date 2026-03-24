@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, Circle, Trash2, Plus, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy, FacebookIcon, TwitterIcon, Edit2, X } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, Plus, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy, FacebookIcon, TwitterIcon, Edit2, X, User } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -14,6 +14,12 @@ interface Task {
   priority: string;
   is_family_task: number;
   created_at: string;
+  assigned_to_id: number | null;
+}
+
+interface SharedUser {
+  id: number;
+  username: string;
 }
 
 export function FamilyTasks() {
@@ -21,17 +27,58 @@ export function FamilyTasks() {
   const [loading, setLoading] = useState(true);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
+  const [userNames, setUserNames] = useState<Record<number, string>>({});
   
   const [taskForm, setTaskForm] = useState({
     title: '',
     description: '',
     due_date: '',
-    priority: 'medium'
+    priority: 'medium',
+    assigned_to_id: ''
   });
 
   useEffect(() => {
     fetchTasks();
+    fetchSharedUsers();
   }, []);
+
+  const fetchSharedUsers = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const users: SharedUser[] = [];
+      const names: Record<number, string> = {};
+      
+      const profileRes = await fetch(`${API_URL}/api/profile`, { headers });
+      if (profileRes.ok) {
+        const profile = await profileRes.json();
+        if (profile.id) {
+          users.push({ id: profile.id, username: profile.name || 'Yo' });
+          names[profile.id] = profile.name || 'Yo';
+        }
+      }
+      
+      const response = await fetch(`${API_URL}/api/invitations`, { headers });
+      const data = await response.json();
+      
+      if (data.sharedWith) {
+        data.sharedWith.forEach((share: any) => {
+          users.push({ id: share.shared_with_id, username: share.username });
+          names[share.shared_with_id] = share.username;
+        });
+      }
+      if (data.sharedBy) {
+        data.sharedBy.forEach((share: any) => {
+          users.push({ id: share.owner_id, username: share.owner_username });
+          names[share.owner_id] = share.owner_username;
+        });
+      }
+      setSharedUsers(users);
+      setUserNames(names);
+    } catch (error) {
+      console.error('Error fetching shared users:', error);
+    }
+  };
 
   const fetchTasks = async () => {
     try {
@@ -59,10 +106,11 @@ export function FamilyTasks() {
           description: taskForm.description,
           due_date: taskForm.due_date,
           priority: taskForm.priority,
-          is_family_task: 1
+          is_family_task: 1,
+          assigned_to_id: taskForm.assigned_to_id ? parseInt(taskForm.assigned_to_id) : null
         })
       });
-      setTaskForm({ title: '', description: '', due_date: '', priority: 'medium' });
+      setTaskForm({ title: '', description: '', due_date: '', priority: 'medium', assigned_to_id: '' });
       setShowTaskModal(false);
       fetchTasks();
     } catch (error) {
@@ -96,7 +144,8 @@ export function FamilyTasks() {
       title: task.title,
       description: task.description || '',
       due_date: task.due_date || '',
-      priority: task.priority || 'medium'
+      priority: task.priority || 'medium',
+      assigned_to_id: task.assigned_to_id ? String(task.assigned_to_id) : ''
     });
     setShowTaskModal(true);
   };
@@ -115,11 +164,12 @@ export function FamilyTasks() {
           description: taskForm.description,
           due_date: taskForm.due_date,
           priority: taskForm.priority,
-          completed: editingTask.completed
+          completed: editingTask.completed,
+          assigned_to_id: taskForm.assigned_to_id ? parseInt(taskForm.assigned_to_id) : null
         })
       });
       setEditingTask(null);
-      setTaskForm({ title: '', description: '', due_date: '', priority: 'medium' });
+      setTaskForm({ title: '', description: '', due_date: '', priority: 'medium', assigned_to_id: '' });
       setShowTaskModal(false);
       fetchTasks();
     } catch (error) {
@@ -237,7 +287,7 @@ export function FamilyTasks() {
         </div>
         <button
           onClick={() => {
-            setTaskForm({ title: '', description: '', due_date: '', priority: 'medium' });
+            setTaskForm({ title: '', description: '', due_date: '', priority: 'medium', assigned_to_id: '' });
             setShowTaskModal(true);
           }}
           className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2.5 rounded-lg hover:bg-purple-700 transition-colors shadow-sm"
@@ -350,6 +400,12 @@ export function FamilyTasks() {
                       )}
                     </div>
                   )}
+                  {task.assigned_to_id && (
+                    <div className="flex items-center gap-1 mt-2 text-sm text-purple-600">
+                      <User size={14} />
+                      <span>Asignado a: {userNames[task.assigned_to_id] || 'Usuario'}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
@@ -429,7 +485,7 @@ export function FamilyTasks() {
                 onClick={() => {
                   setShowTaskModal(false);
                   setEditingTask(null);
-                  setTaskForm({ title: '', description: '', due_date: '', priority: 'medium' });
+                  setTaskForm({ title: '', description: '', due_date: '', priority: 'medium', assigned_to_id: '' });
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -482,13 +538,28 @@ export function FamilyTasks() {
                   </select>
                 </div>
               </div>
+              {sharedUsers.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a</label>
+                  <select
+                    value={taskForm.assigned_to_id}
+                    onChange={(e) => setTaskForm({ ...taskForm, assigned_to_id: e.target.value })}
+                    className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="">Sin asignar</option>
+                    {sharedUsers.map((user) => (
+                      <option key={user.id} value={user.id}>{user.username}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setShowTaskModal(false);
                     setEditingTask(null);
-                    setTaskForm({ title: '', description: '', due_date: '', priority: 'medium' });
+                    setTaskForm({ title: '', description: '', due_date: '', priority: 'medium', assigned_to_id: '' });
                   }}
                   className="flex-1 py-3 border rounded-xl text-gray-600 hover:bg-gray-50 font-medium"
                 >

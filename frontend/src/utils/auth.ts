@@ -3,10 +3,16 @@ const STORAGE_KEY = 'family_agent_auth';
 export function getAuthHeaders(): Record<string, string> {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
-    const { username, password } = JSON.parse(stored);
+    const { username, password, userId } = JSON.parse(stored);
+    const headers: Record<string, string> = {};
     if (username && password) {
-      return { username, password };
+      headers.username = username;
+      headers.password = password;
     }
+    if (userId) {
+      headers.userId = String(userId);
+    }
+    return headers;
   }
   return {};
 }

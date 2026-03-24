@@ -67,7 +67,7 @@ const features = [
     'Exportar e importar datos (backup)',
     'Contraseñas seguras con validación',
     'Auto-cierre de sesión por inactividad (5 min)',
-    'FAQs editables por administradores'
+    'FAQs editables'
   ]},
   { version: '1.0.0', date: 'Marzo 2026', changes: ['Sistema multi-usuario con datos aislados', 'Panel de administración completo', 'Notificaciones por email personalizables', 'Integración con IA (Groq)', 'Zonas horarias configurables', 'Compartir datos familiares'] },
 ];
@@ -101,14 +101,17 @@ export function About() {
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
+  const [suggestionError, setSuggestionError] = useState('');
+
   const submitSuggestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!suggestionContent.trim()) return;
 
+    setSuggestionError('');
     setSendingSuggestion(true);
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/suggestions`, {
+      const response = await fetch(`${API_URL}/api/suggestions`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -117,12 +120,19 @@ export function About() {
           content: suggestionContent
         })
       });
-      setSuggestionSent(true);
-      setSuggestionContent('');
-      setSuggestionSubject('');
-      setTimeout(() => setSuggestionSent(false), 3000);
+      
+      if (response.ok) {
+        setSuggestionSent(true);
+        setSuggestionContent('');
+        setSuggestionSubject('');
+        setTimeout(() => setSuggestionSent(false), 3000);
+      } else {
+        const data = await response.json();
+        setSuggestionError(data.error || 'Error al enviar la sugerencia');
+      }
     } catch (error) {
       console.error('Error sending suggestion:', error);
+      setSuggestionError('Error de conexión');
     }
     setSendingSuggestion(false);
   };
@@ -209,7 +219,18 @@ export function About() {
           <ul className="space-y-3 text-gray-600">
             <li className="flex items-start gap-2">
               <span className="text-primary mt-1">★</span>
-              <span>Danos 5 estrellas en GitHub si te gusta el proyecto</span>
+              <span>
+                Danos 5 estrellas en{' '}
+                <a 
+                  href="https://github.com/Tuecho/family-agent" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline font-medium"
+                >
+                  GitHub
+                </a>{' '}
+                si te gusta el proyecto
+              </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary mt-1">★</span>
@@ -322,6 +343,9 @@ export function About() {
                   rows={3}
                   required
                 />
+                {suggestionError && (
+                  <p className="text-red-500 text-sm">{suggestionError}</p>
+                )}
                 <button
                   type="submit"
                   disabled={sendingSuggestion || !suggestionContent.trim()}

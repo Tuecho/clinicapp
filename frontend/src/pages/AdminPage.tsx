@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon } from 'lucide-react';
+import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon, Database, Download, Upload } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -47,11 +47,14 @@ export function AdminPage() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserError, setNewUserError] = useState('');
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login' | 'database'>('users');
   
   const [loginImage, setLoginImage] = useState('');
   const [showLock, setShowLock] = useState(true);
   const [savingLogin, setSavingLogin] = useState(false);
+  const [downloadingDb, setDownloadingDb] = useState(false);
+  const [uploadingDb, setUploadingDb] = useState(false);
+  const [dbMessage, setDbMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -127,6 +130,173 @@ export function AdminPage() {
       alert('Error al guardar');
     }
     setSavingLogin(false);
+  };
+
+  const downloadDatabase = async () => {
+    setDownloadingDb(true);
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/export/db`, { headers });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        setDbMessage({ type: 'error', text: error.error || 'Error al descargar' });
+        return;
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `family_agent_backup_${new Date().toISOString().split('T')[0]}.db`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      setDbMessage({ type: 'success', text: 'Base de datos descargada correctamente' });
+    } catch (error) {
+      console.error('Error downloading database:', error);
+      setDbMessage({ type: 'error', text: 'Error al descargar la base de datos' });
+    }
+    setDownloadingDb(false);
+  };
+
+  const uploadDatabase = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!window.confirm('¿Estás seguro? Esta acción fusionará los datos con la base de datos actual.')) {
+      e.target.value = '';
+      return;
+    }
+    
+    setUploadingDb(true);
+    setDbMessage(null);
+    
+    try {
+      const headers = getAuthHeaders();
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_URL}/api/import/db`, {
+        method: 'POST',
+        headers,
+        body: formData
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setDbMessage({ type: 'success', text: data.message || 'Base de datos importada correctamente' });
+      } else {
+        setDbMessage({ type: 'error', text: data.error || 'Error al importar' });
+      }
+    } catch (error) {
+      console.error('Error uploading database:', error);
+      setDbMessage({ type: 'error', text: 'Error al subir la base de datos' });
+    }
+    setUploadingDb(false);
+    e.target.value = '';
+  };
+
+  const [exportingJson, setExportingJson] = useState(false);
+  const [importingJson, setImportingJson] = useState(false);
+  const [jsonMessage, setJsonMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const downloadJsonBackup = async () => {
+    setExportingJson(true);
+    setJsonMessage(null);
+    
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/export`, { headers });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al exportar los datos');
+      }
+      
+      const data = await response.json();
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `family-agent-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setJsonMessage({ type: 'success', text: 'Backup JSON descargado correctamente' });
+    } catch (error) {
+      console.error('Error exporting JSON:', error);
+      setJsonMessage({ type: 'error', text: 'Error al descargar el backup JSON' });
+    }
+    
+    setExportingJson(false);
+  };
+
+  const uploadJsonBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!window.confirm('¿Estás seguro de importar estos datos? Se añadirán a los datos existentes.')) {
+      e.target.value = '';
+      return;
+    }
+
+    setImportingJson(true);
+    setJsonMessage(null);
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/import`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        setJsonMessage({ type: 'success', text: 'Datos importados correctamente' });
+      } else {
+        const errorData = await response.json();
+        setJsonMessage({ type: 'error', text: errorData.error || 'Error al importar' });
+      }
+    } catch (error) {
+      console.error('Error importing JSON:', error);
+      setJsonMessage({ type: 'error', text: 'Error al procesar el archivo JSON' });
+    }
+
+    setImportingJson(false);
+    e.target.value = '';
+  };
+
+  const handleResetData = async () => {
+    const confirm = window.confirm('¿Estás seguro? Se eliminarán todas las transacciones, presupuestos, eventos y conceptos.\n\nEsta acción no se puede deshacer.');
+    if (!confirm) return;
+
+    const doubleConfirm = window.confirm('¿Realmente quieres eliminar TODOS los datos?\n\nPulsa Aceptar para confirmar.');
+    if (!doubleConfirm) return;
+
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/reset`, { method: 'POST', headers });
+      const data = await response.json();
+      if (response.ok) {
+        alert('Todos los datos han sido eliminados.');
+        window.location.reload();
+      } else {
+        alert(data.error || 'Error al eliminar los datos.');
+      }
+    } catch (error) {
+      console.error('Error resetting data:', error);
+      alert('Error al eliminar los datos.');
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -392,6 +562,17 @@ export function AdminPage() {
         >
           <Settings size={16} className="inline mr-1" />
           Login
+        </button>
+        <button
+          onClick={() => setActiveTab('database')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-2 ${
+            activeTab === 'database'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Database size={16} className="inline mr-1" />
+          Base de Datos
         </button>
       </div>
 
@@ -796,6 +977,216 @@ export function AdminPage() {
                     Guardar configuración
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'database' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2 text-gray-600">
+              <Database size={18} />
+              <span className="font-medium">Gestión de Base de Datos</span>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-1">Copia de seguridad completa</h4>
+                  <p className="text-sm text-blue-600">
+                    Esta opción te permite descargar una copia completa de la base de datos, incluyendo todos los usuarios, 
+                    transacciones, presupuestos, eventos, tareas, notas y configuraciones.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="border rounded-lg p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <Download className="text-green-600" size={24} />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-800">Descargar Backup</h4>
+                    <p className="text-sm text-gray-500">Guarda una copia de seguridad</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  Descarga toda la base de datos en un archivo .db que podrás guardar de forma segura.
+                </p>
+                <button
+                  onClick={downloadDatabase}
+                  disabled={downloadingDb}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                >
+                  {downloadingDb ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Descargando...
+                    </>
+                  ) : (
+                    <>
+                      <Download size={18} />
+                      Descargar base de datos
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="border rounded-lg p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-orange-100 rounded-lg">
+                    <Upload className="text-orange-600" size={24} />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-800">Restaurar Backup</h4>
+                    <p className="text-sm text-gray-500">Restaura desde un archivo</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  Restaura los datos desde un archivo de backup .db. Los datos existentes se fusionarán.
+                </p>
+                <label className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 cursor-pointer transition-colors">
+                  {uploadingDb ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Subiendo...
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={18} />
+                      Seleccionar archivo .db
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept=".db"
+                    onChange={uploadDatabase}
+                    disabled={uploadingDb}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {dbMessage && (
+              <div className={`p-4 rounded-lg ${dbMessage.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+                <div className="flex items-center gap-2">
+                  {dbMessage.type === 'success' ? (
+                    <Check size={18} />
+                  ) : (
+                    <AlertTriangle size={18} />
+                  )}
+                  {dbMessage.text}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="border rounded-lg p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-blue-100 rounded-lg">
+                  <Download className="text-blue-600" size={24} />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-800">Backup JSON</h4>
+                  <p className="text-sm text-gray-500">Exportar datos en JSON</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">
+                Descarga todos tus datos en formato JSON: transacciones, presupuestos, eventos, tareas y notas.
+              </p>
+              <button
+                onClick={downloadJsonBackup}
+                disabled={exportingJson}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {exportingJson ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Descargando...
+                  </>
+                ) : (
+                  <>
+                    <Download size={18} />
+                    Descargar backup JSON
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="border rounded-lg p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-green-100 rounded-lg">
+                  <Upload className="text-green-600" size={24} />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-800">Restaurar JSON</h4>
+                  <p className="text-sm text-gray-500">Importar desde JSON</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">
+                Restaura los datos desde un archivo JSON. Los datos existentes se fusionarán.
+              </p>
+              <label className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">
+                {importingJson ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Importando...
+                  </>
+                ) : (
+                  <>
+                    <Upload size={18} />
+                    Seleccionar archivo JSON
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={uploadJsonBackup}
+                  disabled={importingJson}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          {jsonMessage && (
+            <div className={`mt-4 p-4 rounded-lg ${jsonMessage.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+              <div className="flex items-center gap-2">
+                {jsonMessage.type === 'success' ? <Check size={18} /> : <AlertTriangle size={18} />}
+                {jsonMessage.text}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <div className="border-2 border-red-200 rounded-lg p-6 bg-red-50">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-red-100 rounded-lg">
+                  <AlertTriangle className="text-red-600" size={24} />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-red-800 text-lg">Zona de Peligro</h4>
+                  <p className="text-sm text-red-600">Acciones irreversibles</p>
+                </div>
+              </div>
+              <p className="text-sm text-red-700 mb-4">
+                Esta acción eliminará permanentemente todos los datos de tu familia: transacciones, presupuestos, eventos, tareas, notas y conceptos de gasto. Esta acción no se puede deshacer.
+              </p>
+              <button
+                onClick={handleResetData}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <Trash2 size={18} />
+                Vaciar todos los datos
               </button>
             </div>
           </div>

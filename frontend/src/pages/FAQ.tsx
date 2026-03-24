@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { HelpCircle, ChevronDown, ChevronUp, Plus, Edit2, Trash2, X, Check, Lock } from 'lucide-react';
+import { HelpCircle, ChevronDown, ChevronUp, Plus, Edit2, Trash2, X, Check } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import { useAuth } from '../components/Auth';
 
@@ -122,12 +122,7 @@ export function FAQ() {
         )}
       </div>
 
-      {isAdmin && (
-        <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-700 text-sm">
-          <Lock size={16} />
-          Estás en modo administrador. Puedes añadir, editar y eliminar FAQs.
-        </div>
-      )}
+
 
       {loading ? (
         <div className="text-center py-12 text-gray-500">Cargando...</div>
@@ -171,13 +166,6 @@ export function FAQ() {
               )}
             </div>
           ))}
-        </div>
-      )}
-
-      {!isAdmin && (
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg text-center text-gray-500 text-sm">
-          <Lock size={16} className="inline mr-1" />
-          Solo los administradores pueden editar las FAQs.
         </div>
       )}
 

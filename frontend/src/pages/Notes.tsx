@@ -40,7 +40,7 @@ export function Notes() {
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   
   const [boardForm, setBoardForm] = useState({ name: '', color: '#eab308' });
-  const [noteForm, setNoteForm] = useState({ title: '', content: '', category: 'general' });
+  const [noteForm, setNoteForm] = useState({ title: '', content: '', category: 'general', board_id: null as number | null });
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState('');
   const [editingCategory, setEditingCategory] = useState<{ old: string; new: string } | null>(null);
@@ -157,9 +157,9 @@ export function Notes() {
       await fetch(`${API_URL}/api/notes`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ ...noteForm, board_id: activeBoardId })
+        body: JSON.stringify({ ...noteForm, board_id: noteForm.board_id ?? activeBoardId })
       });
-      setNoteForm({ title: '', content: '', category: 'general' });
+      setNoteForm({ title: '', content: '', category: 'general', board_id: null });
       setShowNoteModal(false);
       fetchBoards();
     } catch (error) {
@@ -176,10 +176,10 @@ export function Notes() {
       await fetch(`${API_URL}/api/notes/${editingNote.id}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify({ ...noteForm, board_id: activeBoardId })
+        body: JSON.stringify({ ...noteForm, board_id: noteForm.board_id ?? activeBoardId })
       });
       setEditingNote(null);
-      setNoteForm({ title: '', content: '', category: 'general' });
+      setNoteForm({ title: '', content: '', category: 'general', board_id: null });
       setShowNoteModal(false);
       fetchBoards();
     } catch (error) {
@@ -189,7 +189,7 @@ export function Notes() {
 
   const openEditNote = (note: Note) => {
     setEditingNote(note);
-    setNoteForm({ title: note.title, content: note.content, category: note.category });
+    setNoteForm({ title: note.title, content: note.content, category: note.category, board_id: note.board_id });
     setShowNoteModal(true);
   };
 
@@ -501,10 +501,12 @@ export function Notes() {
                         onChange={(e) => moveNoteToBoard(note, parseInt(e.target.value))}
                         className="text-xs border rounded px-2 py-1 text-gray-500"
                         title="Mover a otro tablero"
+                        value=""
                       >
-                        <option value="">Mover a...</option>
-                        {boards.filter(b => b.id !== activeBoardId).map(b => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
+                        <option value="" disabled>📤 Mover a...</option>
+                        <option value="0">📋 Sin tablero</option>
+                        {boards.filter(b => b.id !== activeBoardId && b.id !== 0).map(b => (
+                          <option key={b.id} value={b.id}>📁 {b.name}</option>
                         ))}
                       </select>
                     )}
@@ -566,6 +568,23 @@ export function Notes() {
                     <p className="text-sm text-gray-600 line-clamp-3 whitespace-pre-wrap">
                       {note.content}
                     </p>
+                  )}
+                  
+                  {boards.length > 1 && (
+                    <div className="mt-2 pt-2 border-t">
+                      <select
+                        onChange={(e) => moveNoteToBoard(note, parseInt(e.target.value))}
+                        className="text-xs border rounded px-2 py-1 text-gray-500 w-full"
+                        title="Mover a otro tablero"
+                        value=""
+                      >
+                        <option value="" disabled>📤 Mover a...</option>
+                        <option value="0">📋 Sin tablero</option>
+                        {boards.filter(b => b.id !== activeBoardId && b.id !== 0).map(b => (
+                          <option key={b.id} value={b.id}>📁 {b.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   )}
                 </div>
               ))}
@@ -671,6 +690,21 @@ export function Notes() {
                     <option key={cat} value={cat}>{getCategoryLabel(cat)}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tablero (opcional)</label>
+                <select
+                  value={noteForm.board_id ?? ''}
+                  onChange={(e) => setNoteForm({ ...noteForm, board_id: e.target.value ? parseInt(e.target.value) : null })}
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+                  <option value="">📋 Sin tablero</option>
+                  {boards.filter(b => b.id !== 0).map(board => (
+                    <option key={board.id} value={board.id}>📁 {board.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Las notas sin tablero aparecen en "Sin tablero"</p>
               </div>
 
               <div>

@@ -271,6 +271,24 @@ export function Tasks() {
     window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
   };
 
+  const sendTasksByEmail = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/tasks/send-email`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('Email enviado correctamente');
+      } else {
+        alert(data.error || 'Error al enviar email');
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert('Error al enviar email');
+    }
+  };
+
   const copyTasksToClipboard = async () => {
     const text = generateTasksShareText().replace(/[*_]/g, '');
     await navigator.clipboard.writeText(text);
@@ -507,11 +525,11 @@ export function Tasks() {
                     Telegram
                   </button>
                   <button
-                    onClick={shareTasksByEmail}
+                    onClick={sendTasksByEmail}
                     className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
                   >
                     <Mail size={16} />
-                    Email
+                    Enviar Email
                   </button>
                   <button
                     onClick={copyTasksToClipboard}

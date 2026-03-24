@@ -125,14 +125,14 @@ export function ImportExcel({ onImportComplete }: { onImportComplete: () => void
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="font-medium text-blue-800 mb-2">Formato esperado del archivo:</h4>
                 <p className="text-sm text-blue-600">
-                  El archivo debe tener las siguientes columnas en la primera fila:
+                  El archivo debe tener las siguientes columnas en la primera fila (en minúsculas):
                 </p>
                 <ul className="text-sm text-blue-600 mt-2 space-y-1">
-                  <li><strong>Fecha</strong> - Formato: 01/03/2026 o 01-03-2026</li>
-                  <li><strong>Tipo</strong> - Valores: "ingreso" o "gasto"</li>
-                  <li><strong>Importe</strong> - Número (ej: 45.50)</li>
-                  <li><strong>Descripción</strong> - Texto descriptivo</li>
-                  <li><strong>Concepto</strong> - (Opcional) gasolina, comida, alquiler, servicios, ocio, otros</li>
+                  <li><strong>fecha</strong> - Formato: 01/03/2026 o 01-03-2026</li>
+                  <li><strong>tipo</strong> - Valores: "ingreso" o "gasto" (o "income"/"expense")</li>
+                  <li><strong>importe</strong> - Número (ej: 45.50)</li>
+                  <li><strong>descripcion</strong> - Texto descriptivo</li>
+                  <li><strong>concepto</strong> - (Opcional) gasolina, comida, alquiler, servicios, ocio, otros</li>
                 </ul>
               </div>
 

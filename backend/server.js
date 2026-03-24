@@ -63,10 +63,13 @@ async function initDb() {
       email TEXT,
       phone TEXT,
       family_name TEXT DEFAULT 'Mi Familia',
+      city TEXT,
       currency TEXT DEFAULT 'EUR',
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  try { db.run(`ALTER TABLE user_profile ADD COLUMN city TEXT`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS auth_user (
@@ -95,6 +98,24 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS notification_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER,
+      email_enabled INTEGER DEFAULT 0,
+      email_to TEXT,
+      smtp_host TEXT DEFAULT 'smtp.gmail.com',
+      smtp_port INTEGER DEFAULT 587,
+      smtp_user TEXT,
+      smtp_password TEXT,
+      notify_time TEXT DEFAULT '22:00',
+      notify_timezone TEXT DEFAULT 'Europe/Madrid',
+      notify_day_before INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -130,20 +151,58 @@ async function initDb() {
       from_user_id INTEGER NOT NULL,
       to_username TEXT NOT NULL,
       status TEXT DEFAULT 'pending',
+      share_dashboard INTEGER DEFAULT 1,
+      share_accounting INTEGER DEFAULT 1,
+      share_budgets INTEGER DEFAULT 1,
+      share_agenda INTEGER DEFAULT 1,
+      share_tasks INTEGER DEFAULT 1,
+      share_notes INTEGER DEFAULT 0,
+      share_shopping INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(from_user_id, to_username)
     )
   `);
+
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_dashboard INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_accounting INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_budgets INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_agenda INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_tasks INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_notes INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_shopping INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_contacts INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_recipes INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_restaurants INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_family_members INTEGER DEFAULT 0`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS user_shares (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       owner_id INTEGER NOT NULL,
       shared_with_id INTEGER NOT NULL,
+      share_dashboard INTEGER DEFAULT 1,
+      share_accounting INTEGER DEFAULT 1,
+      share_budgets INTEGER DEFAULT 1,
+      share_agenda INTEGER DEFAULT 1,
+      share_tasks INTEGER DEFAULT 1,
+      share_notes INTEGER DEFAULT 0,
+      share_shopping INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(owner_id, shared_with_id)
     )
   `);
+
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_dashboard INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_accounting INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_budgets INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_agenda INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_tasks INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_notes INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_shopping INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_contacts INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_recipes INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_restaurants INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_family_members INTEGER DEFAULT 0`); } catch(e) {}
 
   try { db.run(`ALTER TABLE family_events ADD COLUMN recurrence TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE family_events ADD COLUMN days_of_week TEXT`); } catch(e) {}
@@ -186,6 +245,7 @@ async function initDb() {
   try { db.run(`ALTER TABLE shopping_lists ADD COLUMN color TEXT DEFAULT '#22c55e'`); } catch(e) {}
 
   try { db.run(`ALTER TABLE family_tasks ADD COLUMN shopping_list_id INTEGER`); } catch(e) {}
+  try { db.run(`ALTER TABLE family_tasks ADD COLUMN assigned_to_id INTEGER`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS family_notes (
@@ -213,6 +273,49 @@ async function initDb() {
   try { db.run(`ALTER TABLE note_boards ADD COLUMN color TEXT DEFAULT '#eab308'`); } catch(e) {}
 
   try { db.run(`ALTER TABLE family_notes ADD COLUMN board_id INTEGER`); } catch(e) {}
+
+  db.run(`DROP TABLE IF EXISTS favorite_restaurants`);
+  db.run(`
+    CREATE TABLE favorite_restaurants (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      address TEXT,
+      phone TEXT,
+      cuisine_type TEXT,
+      rating INTEGER DEFAULT 3,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS family_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      age_group TEXT,
+      restrictions TEXT,
+      allergies TEXT,
+      intolerances TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS meal_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      week_start TEXT NOT NULL,
+      day_of_week TEXT NOT NULL,
+      meal_type TEXT NOT NULL,
+      recipe_id TEXT,
+      recipe_name TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   db.run(`
     CREATE TABLE IF NOT EXISTS faqs (
@@ -258,6 +361,95 @@ async function initDb() {
     )
   `);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS family_contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      relationship TEXT,
+      phone TEXT,
+      email TEXT,
+      address TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS family_gallery (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      image_data TEXT NOT NULL,
+      album TEXT DEFAULT 'General',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+try { db.run(`ALTER TABLE family_gallery ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS recipes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      ingredients TEXT,
+      instructions TEXT,
+      prep_time INTEGER,
+      cook_time INTEGER,
+      servings INTEGER DEFAULT 4,
+      category TEXT DEFAULT 'main',
+      restrictions TEXT,
+      contains TEXT,
+      is_favorite INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+try { db.run(`ALTER TABLE recipes ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS meal_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      week_start TEXT NOT NULL,
+      day_of_week INTEGER NOT NULL,
+      meal_type TEXT NOT NULL,
+      recipe_id INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS contact_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER,
+      name TEXT,
+      email TEXT,
+      subject TEXT,
+      message TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sales_contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER,
+      company_name TEXT,
+      contact_name TEXT,
+      email TEXT,
+      phone TEXT,
+      employees TEXT,
+      message TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   saveDb();
 }
 
@@ -282,17 +474,32 @@ function saveDb() {
 }
 
 function getCurrentUserId(headers) {
-  const { username, password } = headers || {};
+  const { username, password, userId } = headers || {};
+  
+  if (userId) {
+    const numericUserId = parseInt(userId, 10);
+    if (!isNaN(numericUserId)) {
+      const stmt = db.prepare('SELECT id FROM auth_user WHERE id = ? AND status IN ("approved", "active")');
+      stmt.bind([numericUserId]);
+      let foundUserId = null;
+      if (stmt.step()) {
+        foundUserId = stmt.getAsObject().id;
+      }
+      stmt.free();
+      if (foundUserId) return foundUserId;
+    }
+  }
+  
   if (!username || !password) return null;
   
   const stmt = db.prepare('SELECT id FROM auth_user WHERE username = ? AND status IN ("approved", "active")');
   stmt.bind([username]);
-  let userId = null;
+  let foundUserId = null;
   if (stmt.step()) {
-    userId = stmt.getAsObject().id;
+    foundUserId = stmt.getAsObject().id;
   }
   stmt.free();
-  return userId;
+  return foundUserId;
 }
 
 function checkAdmin(headers) {
@@ -309,22 +516,38 @@ function checkAdmin(headers) {
   return isAdmin;
 }
 
-function getAccessibleUserIds(ownerId) {
+function getAccessibleUserIds(ownerId, module = null) {
   const ids = [ownerId];
   
-  const stmt = db.prepare('SELECT shared_with_id FROM user_shares WHERE owner_id = ?');
-  stmt.bind([ownerId]);
-  while (stmt.step()) {
-    ids.push(stmt.getAsObject().shared_with_id);
+  if (!module) {
+    const stmt = db.prepare('SELECT shared_with_id FROM user_shares WHERE owner_id = ?');
+    stmt.bind([ownerId]);
+    while (stmt.step()) {
+      ids.push(stmt.getAsObject().shared_with_id);
+    }
+    stmt.free();
+    
+    const stmt2 = db.prepare('SELECT owner_id FROM user_shares WHERE shared_with_id = ?');
+    stmt2.bind([ownerId]);
+    while (stmt2.step()) {
+      ids.push(stmt2.getAsObject().owner_id);
+    }
+    stmt2.free();
+  } else {
+    const stmt = db.prepare(`SELECT shared_with_id FROM user_shares WHERE owner_id = ? AND ${module} = 1`);
+    stmt.bind([ownerId]);
+    while (stmt.step()) {
+      ids.push(stmt.getAsObject().shared_with_id);
+    }
+    stmt.free();
+    
+    const stmt2 = db.prepare(`SELECT owner_id FROM user_shares WHERE shared_with_id = ? AND ${module} = 1`);
+    stmt2.bind([ownerId]);
+    while (stmt2.step()) {
+      ids.push(stmt2.getAsObject().owner_id);
+    }
+    stmt2.free();
   }
-  stmt.free();
-  
-  const stmt2 = db.prepare('SELECT owner_id FROM user_shares WHERE shared_with_id = ?');
-  stmt2.bind([ownerId]);
-  while (stmt2.step()) {
-    ids.push(stmt2.getAsObject().owner_id);
-  }
-  stmt2.free();
   
   return [...new Set(ids)];
 }
@@ -507,7 +730,7 @@ app.post('/api/auth/register', (req, res) => {
       stmt.run([username.trim(), password_hash, salt, 'pending', 0]);
       stmt.free();
       saveDb();
-      return res.json({ success: true, message: 'Usuario creado. Espera aprobación del administrador.' });
+      return res.json({ success: true, message: 'Usuario creado. Espera aprobación del administrador.', isAdmin: false });
     }
   } catch (error) {
     console.error('Error registering user:', error);
@@ -946,21 +1169,21 @@ app.get('/api/events', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { from, to } = req.query;
-  const accessibleIds = getAccessibleUserIds(userId);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_agenda');
   const placeholders = accessibleIds.map(() => '?').join(',');
 
   let query = `SELECT * FROM family_events WHERE owner_id IN (${placeholders})`;
   const params = [...accessibleIds];
 
   if (from && to) {
-    query += ' AND (date BETWEEN ? AND ? OR recurrence = ?)';
-    params.push(String(from), String(to), 'weekly');
+    query += ' AND (date BETWEEN ? AND ? OR recurrence IN (?, ?))';
+    params.push(String(from), String(to), 'weekly', 'daily');
   } else if (from) {
-    query += ' AND (date >= ? OR recurrence = ?)';
-    params.push(String(from), 'weekly');
+    query += ' AND (date >= ? OR recurrence IN (?, ?))';
+    params.push(String(from), 'weekly', 'daily');
   } else if (to) {
-    query += ' AND (date <= ? OR recurrence = ?)';
-    params.push(String(to), 'weekly');
+    query += ' AND (date <= ? OR recurrence IN (?, ?))';
+    params.push(String(to), 'weekly', 'daily');
   }
 
   query += ' ORDER BY date ASC, start_time ASC';
@@ -980,7 +1203,7 @@ app.get('/api/events', (req, res) => {
     const toDate = new Date(to);
     
     for (const event of events) {
-      if (event.recurrence === 'weekly' && event.days_of_week) {
+      if ((event.recurrence === 'weekly' || event.recurrence === 'daily') && event.days_of_week) {
         const days = event.days_of_week.split(',').map(d => parseInt(d.trim()));
         const cursor = new Date(fromDate);
         while (cursor <= toDate) {
@@ -1085,7 +1308,7 @@ app.get('/api/transactions', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { month, year } = req.query;
-  const accessibleIds = getAccessibleUserIds(userId);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_accounting');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
   let query = `SELECT * FROM transactions WHERE owner_id IN (${placeholders})`;
@@ -1176,7 +1399,7 @@ app.get('/api/transactions/summary', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { month, year } = req.query;
-  const accessibleIds = getAccessibleUserIds(userId);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_accounting');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
   let query = `
@@ -1214,7 +1437,7 @@ app.get('/api/transactions/months', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const accessibleIds = getAccessibleUserIds(userId);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_accounting');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
   try {
@@ -1249,7 +1472,7 @@ app.get('/api/transactions/monthly', (req, res) => {
   
   const { months = 12 } = req.query;
   const numMonths = parseInt(months) || 12;
-  const accessibleIds = getAccessibleUserIds(userId);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_accounting');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
   const results = [];
@@ -1290,7 +1513,7 @@ app.get('/api/transactions/by-concept', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { month, year } = req.query;
-  const accessibleIds = getAccessibleUserIds(userId);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_accounting');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
   let query = `
@@ -1324,7 +1547,7 @@ app.get('/api/budgets', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { month, year } = req.query;
-  const accessibleIds = getAccessibleUserIds(userId);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_budgets');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
   let query = `SELECT * FROM budgets WHERE owner_id IN (${placeholders})`;
@@ -1414,16 +1637,19 @@ app.post('/api/budgets/copy-recurring', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { month, year } = req.body;
-  const nextMonth = month === 12 ? 1 : month + 1;
-  const nextYear = month === 12 ? year + 1 : year;
+  const { fromMonth, fromYear, toMonth, toYear } = req.body;
+  const sourceMonth = fromMonth || new Date().getMonth() + 1;
+  const sourceYear = fromYear || new Date().getFullYear();
+  const targetMonth = toMonth || (sourceMonth === 12 ? 1 : sourceMonth + 1);
+  const targetYear = toYear || (sourceMonth === 12 ? sourceYear + 1 : sourceYear);
   
   try {
     const stmt = db.prepare('SELECT * FROM budgets WHERE recurring = 1 AND owner_id = ? AND month = ? AND year = ?');
-    stmt.bind([userId, month, year]);
+    stmt.bind([userId, sourceMonth, sourceYear]);
     
     const newStmt = db.prepare('INSERT INTO budgets (id, owner_id, concept, amount, month, year, recurring) VALUES (?, ?, ?, ?, ?, ?, 1)');
     
+    let copied = 0;
     while (stmt.step()) {
       const budget = stmt.getAsObject();
       newStmt.run([
@@ -1431,15 +1657,16 @@ app.post('/api/budgets/copy-recurring', (req, res) => {
         userId,
         budget.concept,
         budget.amount,
-        nextMonth,
-        nextYear
+        targetMonth,
+        targetYear
       ]);
+      copied++;
     }
     stmt.free();
     newStmt.free();
     saveDb();
     
-    res.json({ success: true, month: nextMonth, year: nextYear });
+    res.json({ success: true, copied, month: targetMonth, year: targetYear });
   } catch (error) {
     console.error('Error copying recurring budgets:', error);
     res.status(500).json({ error: 'Error copying recurring budgets' });
@@ -1451,7 +1678,7 @@ app.get('/api/budgets/with-spending', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { month, year } = req.query;
-  const accessibleIds = getAccessibleUserIds(userId);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_budgets');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
   const budgetsStmt = db.prepare(`SELECT * FROM budgets WHERE month = ? AND year = ? AND owner_id IN (${placeholders})`);
@@ -1490,6 +1717,19 @@ app.get('/api/budgets/with-spending', (req, res) => {
   res.json(result);
 });
 
+app.get('/api/me', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT id, username FROM auth_user WHERE id = ?');
+  stmt.bind([userId]);
+  let user = null;
+  if (stmt.step()) user = stmt.getAsObject();
+  stmt.free();
+  
+  res.json(user);
+});
+
 app.get('/api/profile', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -1516,35 +1756,52 @@ app.get('/api/profile', (req, res) => {
     }
   }
   
-  res.json(profile || { id: userId, name: 'Usuario', family_name: 'Mi Familia', currency: 'EUR' });
+  const baseProfile = profile || { id: userId, name: 'Usuario', family_name: 'Mi Familia', currency: 'EUR' };
+  
+  const dashboardIds = getAccessibleUserIds(userId, 'share_dashboard');
+  const familyMembersStmt = db.prepare(`SELECT * FROM family_members WHERE owner_id IN (${dashboardIds.map(() => '?').join(',')}) ORDER BY owner_id, name`);
+  familyMembersStmt.bind(dashboardIds);
+  const familyMembers = [];
+  while (familyMembersStmt.step()) familyMembers.push(familyMembersStmt.getAsObject());
+  familyMembersStmt.free();
+  
+  const familyProfiles = [];
+  if (dashboardIds.length > 1) {
+    const profileStmt = db.prepare(`SELECT * FROM user_profile WHERE owner_id IN (${dashboardIds.map(() => '?').join(',')})`);
+    profileStmt.bind(dashboardIds);
+    while (profileStmt.step()) familyProfiles.push(profileStmt.getAsObject());
+    profileStmt.free();
+  }
+  
+  res.json({ ...baseProfile, familyMembers, familyProfiles });
 });
 
 app.put('/api/profile', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { name, avatar, email, phone, family_name, currency } = req.body;
+  const { name, avatar, email, phone, family_name, city, currency } = req.body;
   
   try {
     const checkStmt = db.prepare('SELECT id FROM user_profile WHERE owner_id = ?');
     checkStmt.bind([userId]);
-    const exists = checkStmt.step();
+    const hasRows = checkStmt.step();
     checkStmt.free();
     
-    if (exists) {
+    if (hasRows) {
       const stmt = db.prepare(`
         UPDATE user_profile 
-        SET name = ?, avatar = ?, email = ?, phone = ?, family_name = ?, currency = ?, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, avatar = ?, email = ?, phone = ?, family_name = ?, city = ?, currency = ?, updated_at = CURRENT_TIMESTAMP
         WHERE owner_id = ?
       `);
-      stmt.run([name, avatar || null, email || null, phone || null, family_name || 'Mi Familia', currency || 'EUR', userId]);
+      stmt.run([name || null, avatar || null, email || null, phone || null, family_name || 'Mi Familia', city || null, currency || 'EUR', userId]);
       stmt.free();
     } else {
       const stmt = db.prepare(`
-        INSERT INTO user_profile (owner_id, name, avatar, email, phone, family_name, currency)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO user_profile (owner_id, name, avatar, email, phone, family_name, city, currency)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run([userId, name || 'Usuario', avatar || null, email || null, phone || null, family_name || 'Mi Familia', currency || 'EUR']);
+      stmt.run([userId, name || 'Usuario', avatar || null, email || null, phone || null, family_name || 'Mi Familia', city || null, currency || 'EUR']);
       stmt.free();
     }
     
@@ -1552,14 +1809,91 @@ app.put('/api/profile', (req, res) => {
     
     const updatedStmt = db.prepare('SELECT * FROM user_profile WHERE owner_id = ?');
     updatedStmt.bind([userId]);
-    updatedStmt.step();
-    const profile = updatedStmt.getAsObject();
-    updatedStmt.free();
-    
-    res.json(profile);
+    if (updatedStmt.step()) {
+      const profile = updatedStmt.getAsObject();
+      updatedStmt.free();
+      res.json(profile);
+    } else {
+      updatedStmt.free();
+      res.status(404).json({ error: 'Perfil no encontrado' });
+    }
   } catch (error) {
     console.error('Error updating profile:', error);
     res.status(500).json({ error: 'Error updating profile' });
+  }
+});
+
+app.get('/api/weather', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const profileStmt = db.prepare('SELECT city FROM user_profile WHERE owner_id = ?');
+    profileStmt.bind([userId]);
+    let city = null;
+    if (profileStmt.step()) {
+      city = profileStmt.getAsObject().city;
+    }
+    profileStmt.free();
+    
+    if (!city) {
+      return res.json({ error: 'Ciudad no configurada', temperature: null, description: null });
+    }
+    
+    const geoResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`);
+    const geoData = await geoResponse.json();
+    
+    if (!geoData.results || geoData.results.length === 0) {
+      return res.json({ error: 'Ciudad no encontrada', temperature: null, description: null });
+    }
+    
+    const { latitude, longitude } = geoData.results[0];
+    
+    const weatherResponse = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
+    );
+    const weatherData = await weatherResponse.json();
+    
+    const temp = weatherData.current?.temperature_2m;
+    const weatherCode = weatherData.current?.weather_code;
+    
+    const weatherDescriptions = {
+      0: 'Despejado',
+      1: 'Mayormente despejado',
+      2: 'Parcialmente nublado',
+      3: 'Nublado',
+      45: 'Niebla',
+      48: 'Niebla',
+      51: 'Llovizna ligera',
+      53: 'Llovizna',
+      55: 'Llovizna densa',
+      61: 'Lluvia ligera',
+      63: 'Lluvia',
+      65: 'Lluvia intensa',
+      71: 'Nieve ligera',
+      73: 'Nieve',
+      75: 'Nieve intensa',
+      80: 'Chubascos ligeros',
+      81: 'Chubascos',
+      82: 'Chubascos intensos',
+      95: 'Tormenta'
+    };
+    
+    const description = weatherDescriptions[weatherCode] || 'Desconocido';
+    const isRainy = [51, 53, 55, 61, 63, 65, 80, 81, 82, 95].includes(weatherCode);
+    const isSnowy = [71, 73, 75].includes(weatherCode);
+    
+    res.json({
+      city,
+      temperature: temp,
+      description,
+      isRainy,
+      isSnowy,
+      weatherCode
+    });
+  } catch (error) {
+    console.error('Weather API error:', error);
+    res.status(500).json({ error: 'Error obteniendo el clima' });
   }
 });
 
@@ -1682,11 +2016,35 @@ app.post('/api/import', (req, res) => {
   }
 });
 
+app.get('/api/export/db', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const isAdmin = checkAdmin(req.headers);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Solo administradores pueden exportar la base de datos' });
+  }
+  
+  try {
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    
+    const filename = `family_agent_backup_${new Date().toISOString().split('T')[0]}.db`;
+    
+    res.setHeader('Content-Type', 'application/x-sqlite3');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error exporting database:', error);
+    res.status(500).json({ error: 'Error exportando la base de datos' });
+  }
+});
+
 app.post('/api/import/db', upload.single('file'), async (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const isAdmin = checkAdmin(userId);
+  const isAdmin = checkAdmin(req.headers);
   if (!isAdmin) {
     return res.status(403).json({ error: 'Solo administradores pueden importar bases de datos' });
   }
@@ -1749,7 +2107,7 @@ app.post('/api/faqs', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const isAdmin = checkAdmin(userId);
+  const isAdmin = checkAdmin(req.headers);
   if (!isAdmin) {
     return res.status(403).json({ error: 'Solo los administradores pueden modificar las FAQs' });
   }
@@ -1775,15 +2133,15 @@ app.post('/api/faqs', (req, res) => {
 app.put('/api/faqs/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
-  
-  const isAdmin = checkAdmin(userId);
+
+  const isAdmin = checkAdmin(req.headers);
   if (!isAdmin) {
     return res.status(403).json({ error: 'Solo los administradores pueden modificar las FAQs' });
   }
-  
+
   const { id } = req.params;
   const { question, answer, order_index } = req.body;
-  
+
   try {
     const stmt = db.prepare('UPDATE faqs SET question = ?, answer = ?, order_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
     stmt.run([question, answer, order_index || 0, id]);
@@ -1800,7 +2158,7 @@ app.delete('/api/faqs/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const isAdmin = checkAdmin(userId);
+  const isAdmin = checkAdmin(req.headers);
   if (!isAdmin) {
     return res.status(403).json({ error: 'Solo los administradores pueden eliminar las FAQs' });
   }
@@ -1823,7 +2181,7 @@ app.get('/api/suggestions', (req, res) => {
   
   try {
     let stmt;
-    const isAdmin = checkAdmin(userId);
+    const isAdmin = checkAdmin(req.headers);
     
     if (isAdmin) {
       stmt = db.prepare('SELECT * FROM suggestions ORDER BY created_at DESC');
@@ -1870,7 +2228,7 @@ app.put('/api/suggestions/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const isAdmin = checkAdmin(userId);
+  const isAdmin = checkAdmin(req.headers);
   if (!isAdmin) {
     return res.status(403).json({ error: 'Solo los administradores pueden modificar las sugerencias' });
   }
@@ -1894,7 +2252,7 @@ app.delete('/api/suggestions/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const isAdmin = checkAdmin(userId);
+  const isAdmin = checkAdmin(req.headers);
   if (!isAdmin) {
     return res.status(403).json({ error: 'Solo los administradores pueden eliminar las sugerencias' });
   }
@@ -1915,11 +2273,11 @@ app.get('/api/tasks', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const accessibleIds = getAccessibleUserIds(userId);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_tasks');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
-  const stmt = db.prepare(`SELECT * FROM family_tasks WHERE owner_id IN (${placeholders}) OR owner_id = ? ORDER BY completed ASC, created_at DESC`);
-  stmt.bind([...accessibleIds, userId]);
+  const stmt = db.prepare(`SELECT * FROM family_tasks WHERE owner_id IN (${placeholders}) OR owner_id = ? OR assigned_to_id = ? ORDER BY completed ASC, created_at DESC`);
+  stmt.bind([...accessibleIds, userId, userId]);
   
   const tasks = [];
   while (stmt.step()) {
@@ -1934,15 +2292,15 @@ app.post('/api/tasks', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { title, description, due_date, priority, is_family_task, shopping_list_id } = req.body;
+  const { title, description, due_date, priority, is_family_task, shopping_list_id, assigned_to_id } = req.body;
   
   if (!title) {
     return res.status(400).json({ error: 'El título es obligatorio' });
   }
   
   const listId = is_family_task ? null : (shopping_list_id || null);
-  const stmt = db.prepare('INSERT INTO family_tasks (owner_id, title, description, due_date, priority, is_family_task, shopping_list_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
-  stmt.run([userId, title, description || null, due_date || null, priority || 'normal', is_family_task ? 1 : 0, listId]);
+  const stmt = db.prepare('INSERT INTO family_tasks (owner_id, title, description, due_date, priority, is_family_task, shopping_list_id, assigned_to_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, title, description || null, due_date || null, priority || 'normal', is_family_task ? 1 : 0, listId, assigned_to_id || null]);
   stmt.free();
   saveDb();
   
@@ -1960,9 +2318,9 @@ app.put('/api/tasks/:id', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { id } = req.params;
-  const { title, description, completed, due_date, priority, shopping_list_id } = req.body;
+  const { title, description, completed, due_date, priority, shopping_list_id, assigned_to_id } = req.body;
   
-  const checkStmt = db.prepare('SELECT owner_id, is_family_task FROM family_tasks WHERE id = ?');
+  const checkStmt = db.prepare('SELECT owner_id, is_family_task, assigned_to_id FROM family_tasks WHERE id = ?');
   checkStmt.bind([id]);
   let task = null;
   if (checkStmt.step()) task = checkStmt.getAsObject();
@@ -1970,13 +2328,14 @@ app.put('/api/tasks/:id', (req, res) => {
   
   if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
   
-  if (task.owner_id !== userId) {
+  const canEdit = task.owner_id === userId || task.assigned_to_id === userId;
+  if (!canEdit) {
     return res.status(403).json({ error: 'No tienes permisos para editar esta tarea' });
   }
   
   const listId = task.is_family_task ? null : (shopping_list_id || null);
-  const stmt = db.prepare('UPDATE family_tasks SET title = ?, description = ?, completed = ?, due_date = ?, priority = ?, shopping_list_id = ? WHERE id = ?');
-  stmt.run([title, description || null, completed ? 1 : 0, due_date || null, priority || 'normal', listId, id]);
+  const stmt = db.prepare('UPDATE family_tasks SET title = ?, description = ?, completed = ?, due_date = ?, priority = ?, shopping_list_id = ?, assigned_to_id = ? WHERE id = ?');
+  stmt.run([title, description || null, completed ? 1 : 0, due_date || null, priority || 'normal', listId, assigned_to_id || null, id]);
   stmt.free();
   saveDb();
   
@@ -2016,7 +2375,7 @@ app.delete('/api/tasks/:id', (req, res) => {
   
   const { id } = req.params;
   
-  const checkStmt = db.prepare('SELECT owner_id FROM family_tasks WHERE id = ?');
+  const checkStmt = db.prepare('SELECT owner_id, assigned_to_id FROM family_tasks WHERE id = ?');
   checkStmt.bind([id]);
   let task = null;
   if (checkStmt.step()) task = checkStmt.getAsObject();
@@ -2024,7 +2383,8 @@ app.delete('/api/tasks/:id', (req, res) => {
   
   if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
   
-  if (task.owner_id !== userId) {
+  const canDelete = task.owner_id === userId || task.assigned_to_id === userId;
+  if (!canDelete) {
     return res.status(403).json({ error: 'No tienes permisos para eliminar esta tarea' });
   }
   
@@ -2034,15 +2394,197 @@ app.delete('/api/tasks/:id', (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/notes', (req, res) => {
+app.get('/api/restaurants', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const accessibleIds = getAccessibleUserIds(userId);
   const placeholders = accessibleIds.map(() => '?').join(',');
   
-  const stmt = db.prepare(`SELECT * FROM family_notes WHERE owner_id IN (${placeholders}) OR owner_id = ? ORDER BY updated_at DESC`);
-  stmt.bind([...accessibleIds, userId]);
+  const stmt = db.prepare(`SELECT * FROM favorite_restaurants WHERE owner_id IN (${placeholders}) ORDER BY created_at DESC`);
+  stmt.bind(accessibleIds);
+  
+  const restaurants = [];
+  while (stmt.step()) {
+    restaurants.push(stmt.getAsObject());
+  }
+  stmt.free();
+  
+  res.json(restaurants);
+});
+
+app.post('/api/restaurants', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, address, phone, cuisine_type, notes, rating } = req.body;
+  
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO favorite_restaurants (id, owner_id, name, address, phone, cuisine_type, notes, rating) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([id, userId, name, address || null, phone || null, cuisine_type || null, notes || null, rating || 3]);
+  stmt.free();
+  saveDb();
+  
+  res.json({ id, name, address, phone, cuisine_type, notes, rating: rating || 3 });
+});
+
+app.put('/api/restaurants/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, address, phone, cuisine_type, notes, rating } = req.body;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM favorite_restaurants WHERE id = ?');
+  checkStmt.bind([id]);
+  let restaurant = null;
+  if (checkStmt.step()) restaurant = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!restaurant) return res.status(404).json({ error: 'Restaurante no encontrado' });
+  
+  if (restaurant.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos' });
+  }
+  
+  const stmt = db.prepare('UPDATE favorite_restaurants SET name = ?, address = ?, phone = ?, cuisine_type = ?, notes = ?, rating = ? WHERE id = ?');
+  stmt.run([name, address || null, phone || null, cuisine_type || null, notes || null, rating || 3, id]);
+  stmt.free();
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.delete('/api/restaurants/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM favorite_restaurants WHERE id = ?');
+  checkStmt.bind([id]);
+  let restaurant = null;
+  if (checkStmt.step()) restaurant = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!restaurant) return res.status(404).json({ error: 'Restaurante no encontrado' });
+  
+  if (restaurant.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos para eliminar este restaurante' });
+  }
+  
+  db.run('DELETE FROM favorite_restaurants WHERE id = ?', [id]);
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.get('/api/favorite-restaurants', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM favorite_restaurants WHERE owner_id = ? ORDER BY created_at DESC');
+  stmt.bind([userId]);
+  
+  const restaurants = [];
+  while (stmt.step()) {
+    restaurants.push(stmt.getAsObject());
+  }
+  stmt.free();
+  
+  res.json(restaurants);
+});
+
+app.post('/api/favorite-restaurants', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  console.log('POST /api/favorite-restaurants - userId:', userId, 'body:', req.body);
+  
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, address, phone, cuisine_type, notes, rating } = req.body;
+  
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  try {
+    // Ensure owner_id is an integer
+    const ownerIdInt = parseInt(String(userId), 10);
+    
+    const id = crypto.randomUUID();
+    const stmt = db.prepare('INSERT INTO favorite_restaurants (id, owner_id, name, address, phone, cuisine_type, notes, rating) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run([id, ownerIdInt, name, address || '', phone || '', cuisine_type || '', notes || '', rating || 3]);
+    stmt.free();
+    saveDb();
+    
+    console.log('Restaurant created:', id);
+    res.json({ id, name, address, phone, cuisine_type, notes, rating: rating || 3 });
+  } catch (err) {
+    console.error('Error creating restaurant:', err);
+    res.status(500).json({ error: 'Error al crear restaurante: ' + err.message });
+  }
+});
+
+app.put('/api/favorite-restaurants/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, address, phone, cuisine_type, notes, rating } = req.body;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM favorite_restaurants WHERE id = ?');
+  checkStmt.bind([id]);
+  let restaurant = null;
+  if (checkStmt.step()) restaurant = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!restaurant) return res.status(404).json({ error: 'Restaurante no encontrado' });
+  
+  if (restaurant.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos' });
+  }
+  
+  const stmt = db.prepare('UPDATE favorite_restaurants SET name = ?, address = ?, phone = ?, cuisine_type = ?, notes = ?, rating = ? WHERE id = ?');
+  stmt.run([name, address || null, phone || null, cuisine_type || null, notes || null, rating || 3, id]);
+  stmt.free();
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.delete('/api/favorite-restaurants/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM favorite_restaurants WHERE id = ?');
+  checkStmt.bind([id]);
+  let restaurant = null;
+  if (checkStmt.step()) restaurant = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!restaurant) return res.status(404).json({ error: 'Restaurante no encontrado' });
+  
+  if (restaurant.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos para eliminar este restaurante' });
+  }
+  
+  db.run('DELETE FROM favorite_restaurants WHERE id = ?', [id]);
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.get('/api/notes', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_notes');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  const stmt = db.prepare(`SELECT * FROM family_notes WHERE owner_id IN (${placeholders}) ORDER BY updated_at DESC`);
+  stmt.bind(accessibleIds);
   
   const notes = [];
   while (stmt.step()) {
@@ -2132,8 +2674,11 @@ app.get('/api/shopping-lists', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const stmt = db.prepare('SELECT * FROM shopping_lists WHERE owner_id = ? ORDER BY created_at DESC');
-  stmt.bind([userId]);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_shopping');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  const stmt = db.prepare(`SELECT * FROM shopping_lists WHERE owner_id IN (${placeholders}) ORDER BY created_at DESC`);
+  stmt.bind(accessibleIds);
   const lists = [];
   while (stmt.step()) lists.push(stmt.getAsObject());
   stmt.free();
@@ -2222,6 +2767,188 @@ app.delete('/api/shopping-lists/:id', (req, res) => {
   saveDb();
   
   res.json({ success: true });
+});
+
+app.get('/api/family-members', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_family_members');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  const stmt = db.prepare(`SELECT * FROM family_members WHERE owner_id IN (${placeholders}) ORDER BY name`);
+  stmt.bind(accessibleIds);
+  const members = [];
+  while (stmt.step()) members.push(stmt.getAsObject());
+  stmt.free();
+  res.json(members);
+});
+
+app.post('/api/family-members', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { name, age_group, restrictions, allergies, intolerances, notes } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  const stmt = db.prepare('INSERT INTO family_members (owner_id, name, age_group, restrictions, allergies, intolerances, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, name, age_group || 'adult', restrictions || '', allergies || '', intolerances || '', notes || '']);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.put('/api/family-members/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { name, age_group, restrictions, allergies, intolerances, notes } = req.body;
+  const stmt = db.prepare('UPDATE family_members SET name = ?, age_group = ?, restrictions = ?, allergies = ?, intolerances = ?, notes = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, age_group || 'adult', restrictions || '', allergies || '', intolerances || '', notes || '', id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/family-members/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  db.run('DELETE FROM family_members WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/recipes', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_recipes');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  const { category, search } = req.query;
+  let query = `SELECT * FROM recipes WHERE owner_id IN (${placeholders})`;
+  const params = [...accessibleIds];
+  if (category) { query += ' AND category = ?'; params.push(category); }
+  if (search) { query += ' AND (name LIKE ? OR ingredients LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  query += ' ORDER BY is_favorite DESC, name';
+  const stmt = db.prepare(query);
+  stmt.bind(params);
+  const recipes = [];
+  while (stmt.step()) recipes.push(stmt.getAsObject());
+  stmt.free();
+  res.json(recipes);
+});
+
+app.post('/api/recipes', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { name, description, ingredients, instructions, prep_time, cook_time, servings, category, restrictions, contains } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  const stmt = db.prepare('INSERT INTO recipes (owner_id, name, description, ingredients, instructions, prep_time, cook_time, servings, category, restrictions, contains) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, name, description || '', ingredients || '', instructions || '', prep_time || null, cook_time || null, servings || 4, category || 'main', restrictions || '', contains || '']);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.put('/api/recipes/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { name, description, ingredients, instructions, prep_time, cook_time, servings, category, restrictions, contains, is_favorite } = req.body;
+  const stmt = db.prepare('UPDATE recipes SET name = ?, description = ?, ingredients = ?, instructions = ?, prep_time = ?, cook_time = ?, servings = ?, category = ?, restrictions = ?, contains = ?, is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_id = ?');
+  stmt.run([name, description || '', ingredients || '', instructions || '', prep_time || null, cook_time || null, servings || 4, category || 'main', restrictions || '', contains || '', is_favorite ? 1 : 0, id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/recipes/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  db.run('DELETE FROM recipes WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/meal-plans', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { week_start } = req.query;
+  let query = 'SELECT * FROM meal_plans WHERE owner_id = ?';
+  const params = [userId];
+  if (week_start) { query += ' AND week_start = ?'; params.push(week_start); }
+  query += ' ORDER BY day_of_week, meal_type';
+  const stmt = db.prepare(query);
+  stmt.bind(params);
+  const plans = [];
+  while (stmt.step()) plans.push(stmt.getAsObject());
+  stmt.free();
+  res.json(plans);
+});
+
+app.post('/api/meal-plans', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { week_start, day_of_week, meal_type, recipe_id, recipe_name, notes } = req.body;
+  if (!week_start || day_of_week === undefined || !meal_type) return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  const stmt = db.prepare('INSERT OR REPLACE INTO meal_plans (owner_id, week_start, day_of_week, meal_type, recipe_id, recipe_name, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, week_start, day_of_week, meal_type, recipe_id || null, recipe_name || '', notes || '']);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/meal-plans/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  db.run('DELETE FROM meal_plans WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/meal-plans/shopping-list', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { week_start } = req.query;
+  if (!week_start) return res.status(400).json({ error: 'Se requiere week_start' });
+  const stmt = db.prepare('SELECT * FROM meal_plans WHERE owner_id = ? AND week_start = ? AND recipe_id IS NOT NULL');
+  stmt.bind([userId, week_start]);
+  const plans = [];
+  while (stmt.step()) plans.push(stmt.getAsObject());
+  stmt.free();
+  const ingredients = {};
+  for (const plan of plans) {
+    const recipeStmt = db.prepare('SELECT ingredients FROM recipes WHERE id = ?');
+    recipeStmt.bind([plan.recipe_id]);
+    if (recipeStmt.step()) {
+      const recipe = recipeStmt.getAsObject();
+      if (recipe.ingredients) {
+        const lines = recipe.ingredients.split('\n').filter(l => l.trim());
+        for (const line of lines) {
+          const name = line.replace(/^[-•*]\s*\d*\s*(g|kg|ml|l|ud|unidades|tazas|cucharadas|cucharaditas)?\s*/i, '').trim().toLowerCase();
+          if (name) {
+            if (!ingredients[name]) ingredients[name] = { amount: 1, unit: 'ud' };
+            else ingredients[name].amount += 1;
+          }
+        }
+      }
+    }
+    recipeStmt.free();
+  }
+  const result = Object.entries(ingredients).map(([name, data]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), amount: data.amount, unit: data.unit }));
+  res.json(result);
+});
+
+app.get('/api/meal-plans/categories', (req, res) => {
+  res.json([['breakfast', 'Desayuno'], ['lunch', 'Comida'], ['dinner', 'Cena'], ['snack', 'Merienda'], ['dessert', 'Postre'], ['main', 'Plato principal'], ['side', 'Acompañamiento'], ['soup', 'Sopa'], ['salad', 'Ensalada'], ['drink', 'Bebida']]);
+});
+
+app.get('/api/meal-plans/restrictions', (req, res) => {
+  res.json([['gluten_free', 'Sin Gluten'], ['dairy_free', 'Sin Lácteos'], ['egg_free', 'Sin Huevos'], ['nut_free', 'Sin Frutos secos'], ['soy_free', 'Sin Soja'], ['fish_free', 'Sin Pescado'], ['shellfish_free', 'Sin Mariscos'], ['vegan', 'Vegano'], ['vegetarian', 'Vegetariano'], ['low_sodium', 'Bajo en Sodio'], ['diabetic', 'Diabético'], ['soft', 'Blanda (mayores)'], ['kids', 'Apto para niños']]);
+});
+
+app.get('/api/meal-plans/age-groups', (req, res) => {
+  res.json([['baby', 'Bebé (0-2 años)'], ['child', 'Niño (3-12 años)'], ['teen', 'Adolescente (13-17 años)'], ['adult', 'Adulto'], ['senior', 'Mayor (65+ años)']]);
 });
 
 app.get('/api/note-boards', (req, res) => {
@@ -2324,19 +3051,38 @@ app.post('/api/reset', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
+  const tables = [
+    { name: 'transactions', ownerField: 'owner_id' },
+    { name: 'budgets', ownerField: 'owner_id' },
+    { name: 'family_events', ownerField: 'owner_id' },
+    { name: 'family_tasks', ownerField: 'owner_id' },
+    { name: 'family_notes', ownerField: 'owner_id' },
+    { name: 'family_members', ownerField: 'owner_id' },
+    { name: 'shopping_lists', ownerField: 'owner_id' },
+    { name: 'note_boards', ownerField: 'owner_id' },
+    { name: 'family_contacts', ownerField: 'owner_id' },
+    { name: 'family_gallery', ownerField: 'owner_id' },
+    { name: 'user_shares', ownerField: null, customWhere: 'owner_id = ? OR shared_with_id = ?' },
+    { name: 'invitations', ownerField: null, customWhere: 'from_user_id = ?' }
+  ];
+  
   try {
-    db.run('DELETE FROM transactions WHERE owner_id = ?', [userId]);
-    db.run('DELETE FROM budgets WHERE owner_id = ?', [userId]);
-    db.run('DELETE FROM family_events WHERE owner_id = ?', [userId]);
-    db.run('DELETE FROM family_tasks WHERE owner_id = ?', [userId]);
-    db.run('DELETE FROM family_notes WHERE owner_id = ?', [userId]);
-    db.run('DELETE FROM user_shares WHERE owner_id = ? OR shared_with_id = ?', [userId, userId]);
-    db.run('DELETE FROM invitations WHERE from_user_id = ?', [userId]);
+    for (const table of tables) {
+      try {
+        if (table.customWhere) {
+          db.run(`DELETE FROM ${table.name} WHERE ${table.customWhere}`, [userId, userId]);
+        } else {
+          db.run(`DELETE FROM ${table.name} WHERE ${table.ownerField} = ?`, [userId]);
+        }
+      } catch (e) {
+        console.warn(`Warning: Could not delete from ${table.name}:`, e.message);
+      }
+    }
     saveDb();
     res.json({ success: true, message: 'Todos tus datos han sido eliminados' });
   } catch (error) {
     console.error('Error resetting data:', error);
-    res.status(500).json({ error: 'Error al resetear los datos' });
+    res.status(500).json({ error: 'Error al resetear los datos: ' + error.message });
   }
 });
 
@@ -2389,7 +3135,7 @@ app.post('/api/invitations', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { to_username } = req.body;
+  const { to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members } = req.body;
   if (!to_username) return res.status(400).json({ error: 'Falta el nombre de usuario' });
   
   const targetStmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
@@ -2422,8 +3168,25 @@ app.post('/api/invitations', (req, res) => {
   existingInviteStmt.free();
   
   try {
-    const inviteStmt = db.prepare('INSERT INTO invitations (from_user_id, to_username) VALUES (?, ?)');
-    inviteStmt.run([userId, to_username]);
+    const inviteStmt = db.prepare(`
+      INSERT INTO invitations (from_user_id, to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    inviteStmt.run([
+      userId, 
+      to_username,
+      share_dashboard ? 1 : 0,
+      share_accounting ? 1 : 0,
+      share_budgets ? 1 : 0,
+      share_agenda ? 1 : 0,
+      share_tasks ? 1 : 0,
+      share_notes ? 1 : 0,
+      share_shopping ? 1 : 0,
+      share_contacts ? 1 : 0,
+      share_recipes ? 1 : 0,
+      share_restaurants ? 1 : 0,
+      share_family_members ? 1 : 0
+    ]);
     inviteStmt.free();
     saveDb();
     res.json({ success: true, message: 'Invitación enviada' });
@@ -2454,7 +3217,27 @@ app.put('/api/invitations/:id/accept', (req, res) => {
   
   try {
     if (invite.from_username) {
-      db.run('INSERT OR IGNORE INTO user_shares (owner_id, shared_with_id) VALUES (?, ?)', [invite.from_user_id, userId]);
+      const shareStmt = db.prepare(`
+        INSERT OR IGNORE INTO user_shares 
+        (owner_id, shared_with_id, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      shareStmt.run([
+        invite.from_user_id, 
+        userId,
+        invite.share_dashboard || 0,
+        invite.share_accounting || 0,
+        invite.share_budgets || 0,
+        invite.share_agenda || 0,
+        invite.share_tasks || 0,
+        invite.share_notes || 0,
+        invite.share_shopping || 0,
+        invite.share_contacts || 0,
+        invite.share_recipes || 0,
+        invite.share_restaurants || 0,
+        invite.share_family_members || 0
+      ]);
+      shareStmt.free();
     }
     db.run('UPDATE invitations SET status = "accepted" WHERE id = ?', [id]);
     saveDb();
@@ -2510,6 +3293,41 @@ app.delete('/api/shares/:sharedWithId', (req, res) => {
   } catch (error) {
     console.error('Error removing share:', error);
     res.status(500).json({ error: 'Error eliminando compartición' });
+  }
+});
+
+app.put('/api/shares/:sharedWithId', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { sharedWithId } = req.params;
+  const { share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members } = req.body;
+  
+  try {
+    db.run(`
+      UPDATE user_shares 
+      SET share_dashboard = ?, share_accounting = ?, share_budgets = ?, share_agenda = ?, share_tasks = ?, share_notes = ?, share_shopping = ?, share_contacts = ?, share_recipes = ?, share_restaurants = ?, share_family_members = ?
+      WHERE owner_id = ? AND shared_with_id = ?
+    `, [
+      share_dashboard ? 1 : 0,
+      share_accounting ? 1 : 0,
+      share_budgets ? 1 : 0,
+      share_agenda ? 1 : 0,
+      share_tasks ? 1 : 0,
+      share_notes ? 1 : 0,
+      share_shopping ? 1 : 0,
+      share_contacts ? 1 : 0,
+      share_recipes ? 1 : 0,
+      share_restaurants ? 1 : 0,
+      share_family_members ? 1 : 0,
+      userId,
+      sharedWithId
+    ]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating share:', error);
+    res.status(500).json({ error: 'Error actualizando compartición' });
   }
 });
 
@@ -2581,6 +3399,9 @@ function isDuplicate(transaction) {
 }
 
 app.post('/api/import/excel', upload.single('file'), (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
   if (!req.file) {
     return res.status(400).json({ error: 'No se ha proporcionado ningún archivo' });
   }
@@ -2696,10 +3517,10 @@ app.post('/api/import/excel', upload.single('file'), (req, res) => {
         }
 
         const stmt = db.prepare(`
-          INSERT INTO transactions (id, type, amount, description, concept, date)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO transactions (id, owner_id, type, amount, description, concept, date)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
-        stmt.run([transaction.id, transaction.type, transaction.amount, transaction.description, transaction.concept, transaction.date]);
+        stmt.run([transaction.id, userId, transaction.type, transaction.amount, transaction.description, transaction.concept, transaction.date]);
         stmt.free();
 
         imported.push(transaction);
@@ -2802,7 +3623,7 @@ app.post('/api/chat', async (req, res) => {
     const now = new Date();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const year = String(now.getFullYear());
-    const accessibleIds = getAccessibleUserIds(userId);
+    const accessibleIds = getAccessibleUserIds(userId, 'share_accounting');
     const placeholders = accessibleIds.map(() => '?').join(',');
     
     const stmt = db.prepare(`
@@ -2817,7 +3638,88 @@ app.post('/api/chat', async (req, res) => {
     const summary = stmt.getAsObject();
     stmt.free();
 
-    response = generateFamilyResponse(message, summary);
+    const transactionsStmt = db.prepare(`
+      SELECT t.id, t.type, t.amount, t.description, t.concept, t.date, u.name as owner_name
+      FROM transactions t
+      LEFT JOIN user_profile u ON t.owner_id = u.owner_id
+      WHERE t.owner_id IN (${placeholders})
+      ORDER BY t.date DESC LIMIT 100
+    `);
+    transactionsStmt.bind([...accessibleIds]);
+    const transactions = [];
+    while (transactionsStmt.step()) transactions.push(transactionsStmt.getAsObject());
+    transactionsStmt.free();
+
+    const allTimeStmt = db.prepare(`
+      SELECT 
+        SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
+        SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
+      FROM transactions
+      WHERE owner_id IN (${placeholders})
+    `);
+    allTimeStmt.step();
+    const allTimeSummary = allTimeStmt.getAsObject();
+    allTimeStmt.free();
+
+    const byConceptStmt = db.prepare(`
+      SELECT concept, SUM(amount) as total
+      FROM transactions
+      WHERE type = 'expense' AND owner_id IN (${placeholders}) AND date LIKE ?
+      GROUP BY concept
+      ORDER BY total DESC
+      LIMIT 10
+    `);
+    byConceptStmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`]);
+    const byConcept = [];
+    while (byConceptStmt.step()) byConcept.push(byConceptStmt.getAsObject());
+    byConceptStmt.free();
+
+    const notesStmt = db.prepare(`SELECT id, title, content, category, updated_at FROM family_notes WHERE owner_id IN (${placeholders}) ORDER BY updated_at DESC LIMIT 50`);
+    notesStmt.bind([...accessibleIds]);
+    const notes = [];
+    while (notesStmt.step()) notes.push(notesStmt.getAsObject());
+    notesStmt.free();
+
+    const tasksStmt = db.prepare(`SELECT id, title, completed, priority FROM family_tasks WHERE owner_id IN (${placeholders}) AND completed = 0 ORDER BY priority DESC LIMIT 20`);
+    tasksStmt.bind([...accessibleIds]);
+    const tasks = [];
+    while (tasksStmt.step()) tasks.push(tasksStmt.getAsObject());
+    tasksStmt.free();
+
+    const shoppingListsStmt = db.prepare(`SELECT id, name, color FROM shopping_lists WHERE owner_id IN (${placeholders})`);
+    shoppingListsStmt.bind([...accessibleIds]);
+    const shoppingLists = [];
+    while (shoppingListsStmt.step()) shoppingLists.push(shoppingListsStmt.getAsObject());
+    shoppingListsStmt.free();
+
+    let shoppingItems = [];
+    if (shoppingLists.length > 0) {
+      const listPlaceholders = shoppingLists.map(() => '?').join(',');
+      const shoppingItemsStmt = db.prepare(`
+        SELECT t.id, t.title, t.completed, sl.name as list_name
+        FROM family_tasks t
+        JOIN shopping_lists sl ON t.shopping_list_id = sl.id
+        WHERE t.shopping_list_id IN (${listPlaceholders})
+        ORDER BY t.completed ASC, t.title
+        LIMIT 50
+      `);
+      shoppingItemsStmt.bind(shoppingLists.map(l => l.id));
+      while (shoppingItemsStmt.step()) shoppingItems.push(shoppingItemsStmt.getAsObject());
+      shoppingItemsStmt.free();
+    }
+
+    const chatData = {
+      summary,
+      allTimeSummary,
+      byConcept,
+      notes,
+      tasks,
+      shoppingLists,
+      shoppingItems,
+      transactions
+    };
+
+    response = generateFamilyResponse(message, chatData);
   } else {
     response = 'Soy el asistente de Family Agent. Estoy configurado para ayudarte con la economía familiar.';
   }
@@ -2944,7 +3846,7 @@ app.post('/api/chat/llm', async (req, res) => {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const year = String(now.getFullYear());
-  const accessibleIds = getAccessibleUserIds(userId);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_accounting');
   const placeholders = accessibleIds.map(() => '?').join(',');
 
   // Get monthly summary
@@ -3090,36 +3992,169 @@ app.delete('/api/chat/llm/history', (req, res) => {
   res.json({ success: true });
 });
 
-function generateFamilyResponse(message, summary) {
+function generateFamilyResponse(message, chatData) {
   const msg = message.toLowerCase();
+  const { summary = {}, allTimeSummary = {}, byConcept = [], notes = [], tasks = [], shoppingItems = [], transactions = [] } = chatData;
+  
   const income = summary.income || 0;
   const expense = summary.expense || 0;
   const balance = income - expense;
+  const totalIncome = allTimeSummary.income || 0;
+  const totalExpense = allTimeSummary.expense || 0;
+  const totalBalance = totalIncome - totalExpense;
 
-  if (msg.includes('hola') || msg.includes('buenas') || msg.includes('hello')) {
-    return `¡Hola! Soy el asistente IA de Family Agent. Este mes:\n- Ingresos: ${income}€\n- Gastos: ${expense}€\n- Balance: ${balance}€\n\n¿Qué quieres saber?`;
+  const searchInNotes = (query) => {
+    const q = query.toLowerCase();
+    return notes.filter(n => 
+      n.title.toLowerCase().includes(q) || 
+      (n.content && n.content.toLowerCase().includes(q))
+    );
+  };
+
+  if (msg.includes('hola') || msg.includes('buenas') || msg.includes('hello') || msg.includes('hey')) {
+    let reply = `¡Hola! Soy el asistente IA de Family Agent. Puedo ayudarte a buscar en:\n\n📝 Notas\n🛒 Lista de la compra\n💰 Contabilidad (gastos e ingresos)\n\nEste mes:
+- Ingresos: ${income.toFixed(2)}€
+- Gastos: ${expense.toFixed(2)}€
+- Balance: ${balance.toFixed(2)}€`;
+
+    if (tasks.length > 0) {
+      reply += `\n\n📋 Tienes ${tasks.length} tarea(s) pendiente(s).`;
+    }
+    if (shoppingItems.length > 0) {
+      reply += `\n🛒 Lista de la compra: ${shoppingItems.length} producto(s).`;
+    }
+    reply += '\n\n¿Qué quieres buscar?';
+    return reply;
   }
 
-  if (msg.includes('gasto') || msg.includes('gastado')) {
-    return `Este mes habéis gastado un total de ${expense}€.`;
+  if (msg.includes('nota') || msg.includes('apunte') || msg.includes('recordar') || msg.includes('buscar en nota')) {
+    const noteQuery = msg.replace(/buscar|busca|encontrar|nota|apunte|recordar|en/gi, '').trim();
+    if (noteQuery && notes.length > 0) {
+      const found = searchInNotes(noteQuery);
+      if (found.length > 0) {
+        return `📝 Notas encontradas para "${noteQuery}":\n\n${found.slice(0, 10).map(n => `• ${n.title}${n.content ? ': ' + n.content.substring(0, 80) : ''}`).join('\n')}`;
+      }
+      return `📝 No encontré notas con "${noteQuery}".\n\nTienes ${notes.length} nota(s) en total.`;
+    }
+    if (notes.length > 0) {
+      return `📝 Tienes ${notes.length} nota(s):\n\n${notes.slice(0, 10).map(n => `• ${n.title}`).join('\n')}\n\n🔍 Busca con "buscar nota [término]"`;
+    }
+    return '📝 No tienes notas guardadas todavía.';
   }
 
-  if (msg.includes('ingreso') || msg.includes('ganado')) {
-    return `Los ingresos de este mes suman ${income}€.`;
+  if (msg.includes('tarea') || msg.includes('pendiente') || msg.includes('hacer')) {
+    if (tasks.length > 0) {
+      return `📋 Tienes ${tasks.length} tarea(s) pendiente(s):\n\n${tasks.slice(0, 5).map((t, i) => `${i + 1}. ${t.title}`).join('\n')}`;
+    }
+    return '✅ ¡No tienes tareas pendientes!';
   }
 
-  if (msg.includes('balance') || msg.includes('queda') || msg.includes('saldo')) {
-    return `El balance del mes es:\n- Ingresos: ${income}€\n- Gastos: ${expense}€\n- Disponible: ${balance}€`;
+  if (msg.includes('compra') || msg.includes('comprar') || msg.includes('lista') || msg.includes('producto')) {
+    const shoppingQuery = msg.replace(/buscar|compra|comprar|lista|producto|en/gi, '').trim();
+    if (shoppingQuery && shoppingItems.length > 0) {
+      const found = shoppingItems.filter(s => s.title.toLowerCase().includes(shoppingQuery.toLowerCase()));
+      if (found.length > 0) {
+        return `🛒 Productos encontrados para "${shoppingQuery}":\n\n${found.slice(0, 10).map((s, i) => `${i + 1}. ${s.title} (${s.list_name || ''})`).join('\n')}`;
+      }
+    }
+    if (shoppingItems.length > 0) {
+      return `🛒 Lista de la compra (${shoppingItems.length} productos):\n\n${shoppingItems.slice(0, 15).map((s, i) => `${i + 1}. ${s.title} [${s.list_name || 'sin lista'}]`).join('\n')}`;
+    }
+    return '🛒 La lista de la compra está vacía.';
   }
 
-  if (msg.includes('ayuda')) {
-    return 'Puedo ayudarte con:\n- Gastos del mes\n- Ingresos del mes\n- Balance familiar\n- Análisis por conceptos\n\n¿Sobre qué quieres preguntar?';
+  if (msg.includes('gasto') || msg.includes('gastado') || msg.includes('gastos')) {
+    const gastoQuery = msg.replace(/buscar|gasto|gastado|gastos|por|de|en/gi, '').trim();
+    
+    if (gastoQuery && transactions.length > 0) {
+      const found = transactions.filter(t => t.type === 'expense' && (t.description.toLowerCase().includes(gastoQuery.toLowerCase()) || (t.concept && t.concept.toLowerCase().includes(gastoQuery.toLowerCase()))));
+      if (found.length > 0) {
+        const total = found.reduce((sum, t) => sum + t.amount, 0);
+        return `💰 Gastos encontrados para "${gastoQuery}" (${found.length}):\n\n${found.slice(0, 10).map(t => `• ${t.description}: ${t.amount.toFixed(2)}€ (${t.date})`).join('\n')}\n\nTotal: ${total.toFixed(2)}€`;
+      }
+    }
+
+    if (byConcept.length > 0) {
+      return `💰 Gastos este mes por concepto:\n\n${byConcept.map((c, i) => `${i + 1}. ${c.concept || 'Sin concepto'}: ${c.total.toFixed(2)}€`).join('\n')}\n\nTotal: ${expense.toFixed(2)}€`;
+    }
+    return `💰 Este mes habéis gastado un total de ${expense.toFixed(2)}€.`;
   }
 
-  return `Este mes:\n- Ingresos: ${income}€\n- Gastos: ${expense}€\n- Balance: ${balance}€\n\n¿Te interesa algo más?`;
+  if (msg.includes('ingreso') || msg.includes('ganado') || msg.includes('ingresos')) {
+    const ingresoQuery = msg.replace(/buscar|ingreso|ingresos|ganado|de/gi, '').trim();
+    
+    if (ingresoQuery && transactions.length > 0) {
+      const found = transactions.filter(t => t.type === 'income' && (t.description.toLowerCase().includes(ingresoQuery.toLowerCase()) || (t.concept && t.concept.toLowerCase().includes(ingresoQuery.toLowerCase()))));
+      if (found.length > 0) {
+        const total = found.reduce((sum, t) => sum + t.amount, 0);
+        return `💵 Ingresos encontrados para "${ingresoQuery}" (${found.length}):\n\n${found.slice(0, 10).map(t => `• ${t.description}: ${t.amount.toFixed(2)}€ (${t.date})`).join('\n')}\n\nTotal: ${total.toFixed(2)}€`;
+      }
+    }
+    return `💵 Los ingresos de este mes suman ${income.toFixed(2)}€.\n\nTotal acumulado: ${totalIncome.toFixed(2)}€`;
+  }
+
+  if (msg.includes('balance') || msg.includes('queda') || msg.includes('saldo') || msg.includes('resumen')) {
+    return `📊 Resumen financiero:\n\nEste mes:
+- Ingresos: ${income.toFixed(2)}€
+- Gastos: ${expense.toFixed(2)}€
+- Balance: ${balance.toFixed(2)}€
+
+Total acumulado:
+- Ingresos: ${totalIncome.toFixed(2)}€
+- Gastos: ${totalExpense.toFixed(2)}€`;
+  }
+
+  if (msg.includes('transaccion') || msg.includes('movimiento')) {
+    const transQuery = msg.replace(/buscar|transaccion|transacciones|movimiento|movimientos|de|por/gi, '').trim();
+    if (transQuery && transactions.length > 0) {
+      const found = transactions.filter(t => t.description.toLowerCase().includes(transQuery.toLowerCase()) || (t.concept && t.concept.toLowerCase().includes(transQuery.toLowerCase())));
+      if (found.length > 0) {
+        return `📋 Transacciones encontradas para "${transQuery}" (${found.length}):\n\n${found.slice(0, 10).map(t => `${t.type === 'income' ? '💵' : '💰'} ${t.description}: ${t.amount.toFixed(2)}€ (${t.concept || 'sin concepto'}) - ${t.date}`).join('\n')}`;
+      }
+    }
+    if (transactions.length > 0) {
+      return `📋 Últimas transacciones (${transactions.length}):\n\n${transactions.slice(0, 10).map(t => `${t.type === 'income' ? '💵' : '💰'} ${t.description}: ${t.amount.toFixed(2)}€ - ${t.date}`).join('\n')}`;
+    }
+    return '📋 No hay transacciones registradas.';
+  }
+
+  if (msg.includes('ayuda') || msg.includes('qué puedes') || msg.includes('que puedes')) {
+    return `🤖 Puedo ayudarte con:
+
+📝 NOTAS:
+- "buscar nota [término]"
+- "mis notas"
+- "últimas notas"
+
+🛒 LISTA DE LA COMPRA:
+- "qué hay en la lista"
+- "buscar producto [nombre]"
+- "lista de compra"
+
+💰 CONTABILIDAD:
+- "gastos del mes"
+- "ingresos"
+- "balance"
+- "gastos por concepto"
+- "buscar gasto [término]"
+- "últimas transacciones"
+- "transacciones de [concepto]"
+
+📋 TAREAS:
+- "tareas pendientes"
+- "qué tareas tengo"
+
+Ejemplos: "buscar nota reunion", "gastos de comida", "últimos movimientos"
+`;
+  }
+
+  return `📊 Resumen rápido:\n\nEste mes:
+- Ingresos: ${income.toFixed(2)}€
+- Gastos: ${expense.toFixed(2)}€
+- Balance: ${balance.toFixed(2)}€\n\n📋 ${tasks.length} tareas | 🛒 ${shoppingItems.length} productos | 📝 ${notes.length} notas\n\n💡 Prueba: "ayuda" para ver todo lo que puedo buscar`;
 }
 
-async function sendNotificationEmail(settings, events, budgets, profile) {
+async function sendNotificationEmail(settings, events, budgets, profile, tasks = []) {
   if (!settings.email_enabled || !settings.email_to || !settings.smtp_user || !settings.smtp_password) {
     return { success: false, reason: 'Email notifications not configured' };
   }
@@ -3128,6 +4163,7 @@ async function sendNotificationEmail(settings, events, budgets, profile) {
   
   if (!events || !Array.isArray(events)) events = [];
   if (!budgets || !Array.isArray(budgets)) budgets = [];
+  if (!tasks || !Array.isArray(tasks)) tasks = [];
 
   const today = new Date();
   const nextWeek = new Date(today);
@@ -3138,9 +4174,12 @@ async function sendNotificationEmail(settings, events, budgets, profile) {
 
   const hasEvents = events.length > 0;
   const hasBudgets = budgets && budgets.length > 0;
+  const hasTasks = tasks.length > 0;
 
   let budgetsSection = '';
   let budgetsText = '';
+  let tasksSection = '';
+  let tasksText = '';
   if (hasBudgets) {
     const totalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
     const totalSpent = budgets.reduce((sum, b) => sum + (b.spent || 0), 0);
@@ -3175,13 +4214,53 @@ async function sendNotificationEmail(settings, events, budgets, profile) {
     `;
   }
 
+  if (hasTasks) {
+    const priorityOrder = { high: 0, urgent: 0, normal: 1, low: 2 };
+    const sortedTasks = [...tasks].sort((a, b) => {
+      const aP = priorityOrder[a.priority] ?? 1;
+      const bP = priorityOrder[b.priority] ?? 1;
+      if (aP !== bP) return aP - bP;
+      if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
+      if (a.due_date) return -1;
+      if (b.due_date) return 1;
+      return 0;
+    });
+
+    tasksText = `📋 TAREAS PENDIENTES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      sortedTasks.map(t => {
+        const emoji = (t.priority === 'high' || t.priority === 'urgent') ? '🔴' : (t.priority === 'low' ? '🟢' : '🟡');
+        const due = t.due_date ? ` (Hasta: ${new Date(t.due_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })})` : '';
+        return `${emoji} ${t.title}${due}`;
+      }).join('\n');
+
+    tasksSection = `
+      <div style="background: #fef3c7; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <h3 style="margin: 0 0 16px 0; color: #92400e;">📋 Tareas Pendientes (${tasks.length})</h3>
+        <table style="width: 100%; font-size: 14px;">
+          <tbody>
+            ${sortedTasks.map(t => {
+              const emoji = (t.priority === 'high' || t.priority === 'urgent') ? '🔴' : (t.priority === 'low' ? '🟢' : '🟡');
+              const due = t.due_date ? `<br><small style="color: #92400e;">Hasta: ${new Date(t.due_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</small>` : '';
+              return `
+                <tr style="border-bottom: 1px solid #fcd34d;">
+                  <td style="padding: 10px 0;">${emoji}</td>
+                  <td style="padding: 10px 0; color: #111827;">${t.title}${due}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   const familyName = profileData.family_name || 'Familia';
   
   const dateRangeStr = `${today.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${nextWeek.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   if (!hasEvents) {
-    textContent = `Hola ${familyName},\n\nNo hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n\n${budgetsText}\n\n\u00a1Que tengas un buen d\u00eda!\n\nSaludos,\nFamily Agent`;
-    htmlContent = `<h2>Hola ${familyName}</h2><p>No hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).</p>${budgetsSection}<p>\u00a1Que tengas un buen d\u00eda!</p><p><em>Saludos,<br>Family Agent</em></p>`;
+    textContent = `Hola ${familyName},\n\nNo hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n${budgetsText}\n${tasksText ? '\n' + tasksText : ''}\n\n\u00a1Que tengas un buen d\u00eda!\n\nSaludos,\nFamily Agent`;
+    htmlContent = `<h2>Hola ${familyName}</h2><p>No hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).</p>${tasksSection}${budgetsSection}<p>\u00a1Que tengas un buen d\u00eda!</p><p><em>Saludos,<br>Family Agent</em></p>`;
   } else {
     const eventsByDay = events.reduce((acc, e) => {
       const dayName = new Date(e.date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -3230,7 +4309,8 @@ async function sendNotificationEmail(settings, events, budgets, profile) {
   });
 
   let subject = '📋 Resumen Family Agent';
-  if (hasEvents) subject = `📅 ${events.length} ${events.length === 1 ? 'plan' : 'planes'} para los pr\u00f3ximos 7 d\u00edas`;
+  if (hasTasks && !hasEvents) subject = `📋 Tienes ${tasks.length} tarea${tasks.length !== 1 ? 's' : ''} pendiente${tasks.length !== 1 ? 's' : ''}`;
+  else if (hasEvents) subject = `📅 ${events.length} ${events.length === 1 ? 'plan' : 'planes'} para los pr\u00f3ximos 7 d\u00edas`;
   if (hasBudgets) subject += ` | 💰 Disponible: ${(budgets.reduce((sum, b) => sum + b.amount, 0) - budgets.reduce((sum, b) => sum + (b.spent || 0), 0)).toFixed(2)}€`;
 
   try {
@@ -3346,7 +4426,15 @@ async function sendUserNotification(userId) {
     if (profileStmt.step()) profile = profileStmt.getAsObject();
     profileStmt.free();
 
-    await sendNotificationEmail(settings, expandedEvents, budgets, profile);
+    const tasksStmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ? AND completed = 0 ORDER BY CASE priority WHEN "high" THEN 0 WHEN "urgent" THEN 0 WHEN "normal" THEN 1 WHEN "low" THEN 2 ELSE 1 END, due_date ASC');
+    tasksStmt.bind([userId]);
+    const tasks = [];
+    while (tasksStmt.step()) {
+      tasks.push(tasksStmt.getAsObject());
+    }
+    tasksStmt.free();
+
+    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks);
   } catch (error) {
     console.error('Error sending notification to user', userId, error);
   }
@@ -3473,6 +4561,51 @@ app.post('/api/notifications/test', async (req, res) => {
   }
 });
 
+app.post('/api/tasks/send-email', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  try {
+    const settingsStmt = db.prepare('SELECT * FROM notification_settings WHERE owner_id = ?');
+    settingsStmt.bind([userId]);
+    let settings = null;
+    if (settingsStmt.step()) settings = settingsStmt.getAsObject();
+    settingsStmt.free();
+
+    if (!settings?.email_enabled || !settings?.email_to || !settings?.smtp_user || !settings?.smtp_password) {
+      return res.status(400).json({ error: 'Email no configurado. Configura las notificaciones en tu perfil.' });
+    }
+
+    const profileStmt = db.prepare('SELECT * FROM user_profile WHERE owner_id = ?');
+    profileStmt.bind([userId]);
+    let profile = { name: 'Usuario', family_name: 'Mi Familia' };
+    if (profileStmt.step()) profile = profileStmt.getAsObject();
+    profileStmt.free();
+
+    const accessibleIds = getAccessibleUserIds(userId, 'share_tasks');
+    const placeholders = accessibleIds.map(() => '?').join(',');
+    
+    const tasksStmt = db.prepare(`SELECT * FROM family_tasks WHERE owner_id IN (${placeholders}) AND completed = 0 ORDER BY CASE priority WHEN "high" THEN 0 WHEN "urgent" THEN 0 WHEN "normal" THEN 1 WHEN "low" THEN 2 ELSE 1 END, due_date ASC`);
+    tasksStmt.bind([...accessibleIds]);
+    const tasks = [];
+    while (tasksStmt.step()) {
+      tasks.push(tasksStmt.getAsObject());
+    }
+    tasksStmt.free();
+
+    const result = await sendNotificationEmail(settings, [], [], profile, tasks);
+
+    if (result.success) {
+      res.json({ success: true, message: 'Email enviado correctamente' });
+    } else {
+      res.status(500).json({ error: 'Error enviando email: ' + result.reason });
+    }
+  } catch (error) {
+    console.error('Error sending tasks email:', error);
+    res.status(500).json({ error: 'Error enviando email' });
+  }
+});
+
 let notificationTask = null;
 
 function scheduleNotification(timeStr, timezone = 'Europe/Madrid') {
@@ -3496,7 +4629,379 @@ function scheduleNotification(timeStr, timezone = 'Europe/Madrid') {
   }
 }
 
+app.get('/api/contacts', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_contacts');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  const stmt = db.prepare(`SELECT * FROM family_contacts WHERE owner_id IN (${placeholders}) ORDER BY name ASC`);
+  stmt.bind(accessibleIds);
+  
+  const contacts = [];
+  while (stmt.step()) {
+    contacts.push(stmt.getAsObject());
+  }
+  stmt.free();
+  
+  res.json(contacts);
+});
+
+app.post('/api/contacts', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, relationship, phone, email, address, notes } = req.body;
+  
+  if (!name) {
+    return res.status(400).json({ error: 'El nombre es obligatorio' });
+  }
+  
+  const stmt = db.prepare(`
+    INSERT INTO family_contacts (owner_id, name, relationship, phone, email, address, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  
+  try {
+    stmt.run([userId, name, relationship || null, phone || null, email || null, address || null, notes || null]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error inserting contact:', error);
+    res.status(500).json({ error: 'Error insertando contacto' });
+  }
+});
+
+app.post('/api/contacts/import', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { contacts } = req.body;
+  
+  if (!Array.isArray(contacts) || contacts.length === 0) {
+    return res.status(400).json({ error: 'No se proporcionaron contactos' });
+  }
+  
+  let imported = 0;
+  let skipped = 0;
+  const errors = [];
+  
+  for (let i = 0; i < contacts.length; i++) {
+    const contact = contacts[i];
+    
+    if (!contact.name) {
+      skipped++;
+      errors.push({ row: i + 1, error: 'Falta el nombre' });
+      continue;
+    }
+    
+    try {
+      const stmt = db.prepare(`
+        INSERT INTO family_contacts (owner_id, name, relationship, phone, email, address, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run([
+        userId,
+        contact.name,
+        contact.relationship || null,
+        contact.phone || null,
+        contact.email || null,
+        contact.address || null,
+        contact.notes || null
+      ]);
+      stmt.free();
+      imported++;
+    } catch (e) {
+      errors.push({ row: i + 1, error: e.message });
+    }
+  }
+  
+  saveDb();
+  
+  res.json({
+    success: true,
+    summary: { total: contacts.length, imported, skipped: skipped + errors.length },
+    details: { errors }
+  });
+});
+
+app.delete('/api/contacts/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM family_contacts WHERE id = ?');
+  checkStmt.bind([id]);
+  const owner = checkStmt.step() ? checkStmt.getAsObject() : null;
+  checkStmt.free();
+  
+  if (!owner || owner.owner_id !== userId) {
+    return res.status(403).json({ error: 'No autorizado' });
+  }
+  
+  db.run('DELETE FROM family_contacts WHERE id = ?', [id]);
+  saveDb();
+  res.json({ success: true });
+});
+
 await initDb();
+
+const loadNotificationSettings = db.prepare('SELECT DISTINCT notify_time, notify_timezone FROM notification_settings WHERE email_enabled = 1 LIMIT 1');
+if (loadNotificationSettings.step()) {
+  const settings = loadNotificationSettings.getAsObject();
+  if (settings.notify_time) {
+    scheduleNotification(settings.notify_time, settings.notify_timezone || 'Europe/Madrid');
+  }
+}
+loadNotificationSettings.free();
+
+app.get('/api/gallery/photos', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const stmt = db.prepare('SELECT * FROM family_gallery WHERE owner_id = ? ORDER BY created_at DESC');
+  stmt.bind([userId]);
+
+  const photos = [];
+  while (stmt.step()) {
+    photos.push(stmt.getAsObject());
+  }
+  stmt.free();
+
+  res.json(photos);
+});
+
+app.post('/api/gallery/photos', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const { title, description, image_data, album } = req.body;
+
+  if (!title || !image_data) {
+    return res.status(400).json({ error: 'El título y la imagen son obligatorios' });
+  }
+
+  try {
+    const stmt = db.prepare('INSERT INTO family_gallery (owner_id, title, description, image_data, album) VALUES (?, ?, ?, ?, ?)');
+    stmt.run([userId, title, description || null, image_data, album || 'General']);
+    stmt.free();
+    saveDb();
+
+    const newStmt = db.prepare('SELECT * FROM family_gallery WHERE owner_id = ? ORDER BY id DESC LIMIT 1');
+    newStmt.bind([userId]);
+    let newPhoto = null;
+    if (newStmt.step()) newPhoto = newStmt.getAsObject();
+    newStmt.free();
+
+    res.json({ success: true, photo: newPhoto });
+  } catch (error) {
+    console.error('Error inserting photo:', error);
+    res.status(500).json({ error: 'Error insertando foto' });
+  }
+});
+
+app.delete('/api/gallery/photos/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const { id } = req.params;
+
+  const checkStmt = db.prepare('SELECT owner_id FROM family_gallery WHERE id = ?');
+  checkStmt.bind([id]);
+  let photo = null;
+  if (checkStmt.step()) photo = checkStmt.getAsObject();
+  checkStmt.free();
+
+  if (!photo) return res.status(404).json({ error: 'Foto no encontrada' });
+  if (photo.owner_id !== userId) return res.status(403).json({ error: 'No tienes permisos' });
+
+  try {
+    db.run('DELETE FROM family_gallery WHERE id = ?', [id]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting photo:', error);
+    res.status(500).json({ error: 'Error eliminando foto' });
+  }
+});
+
+app.get('/api/gallery/albums', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const stmt = db.prepare('SELECT album as name, COUNT(*) as count FROM family_gallery WHERE owner_id = ? GROUP BY album ORDER BY album');
+  stmt.bind([userId]);
+
+  const albums = [];
+  while (stmt.step()) {
+    albums.push(stmt.getAsObject());
+  }
+  stmt.free();
+
+  res.json(albums);
+});
+
+app.post('/api/contact', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  const { name, email, subject, message } = req.body;
+  if (!message) return res.status(400).json({ error: 'El mensaje es obligatorio' });
+  try {
+    const stmt = db.prepare('INSERT INTO contact_messages (owner_id, name, email, subject, message) VALUES (?, ?, ?, ?, ?)');
+    stmt.run([userId || null, name || '', email || '', subject || '', message]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error creating contact message:', error);
+    res.status(500).json({ error: 'Error enviando mensaje' });
+  }
+});
+
+app.get('/api/contact', (req, res) => {
+  const { username, password } = req.headers || {};
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  try {
+    const messagesStmt = db.prepare('SELECT * FROM contact_messages ORDER BY created_at DESC');
+    const messages = [];
+    while (messagesStmt.step()) messages.push(messagesStmt.getAsObject());
+    messagesStmt.free();
+    res.json(messages);
+  } catch (error) {
+    console.error('Error fetching contact messages:', error);
+    res.status(500).json({ error: 'Error fetching messages' });
+  }
+});
+
+app.put('/api/contact/:id', (req, res) => {
+  const { username, password } = req.headers || {};
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  const { id } = req.params;
+  const { status } = req.body;
+  try {
+    const updateStmt = db.prepare('UPDATE contact_messages SET status = ? WHERE id = ?');
+    updateStmt.run([status || 'pending', id]);
+    updateStmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating contact message:', error);
+    res.status(500).json({ error: 'Error actualizando mensaje' });
+  }
+});
+
+app.delete('/api/contact/:id', (req, res) => {
+  const { username, password } = req.headers || {};
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  const { id } = req.params;
+  try {
+    db.run('DELETE FROM contact_messages WHERE id = ?', [id]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting contact message:', error);
+    res.status(500).json({ error: 'Error eliminando mensaje' });
+  }
+});
+
+app.post('/api/sales-contact', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  const { companyName, contactName, email, phone, employees, message } = req.body;
+  if (!message) return res.status(400).json({ error: 'El mensaje es obligatorio' });
+  try {
+    const stmt = db.prepare('INSERT INTO sales_contacts (owner_id, company_name, contact_name, email, phone, employees, message) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    stmt.run([userId || null, companyName || '', contactName || '', email || '', phone || '', employees || '', message]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error creating sales contact:', error);
+    res.status(500).json({ error: 'Error enviando solicitud' });
+  }
+});
+
+app.get('/api/sales-contact', (req, res) => {
+  const { username, password } = req.headers || {};
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  try {
+    const contactsStmt = db.prepare('SELECT * FROM sales_contacts ORDER BY created_at DESC');
+    const contacts = [];
+    while (contactsStmt.step()) contacts.push(contactsStmt.getAsObject());
+    contactsStmt.free();
+    res.json(contacts);
+  } catch (error) {
+    console.error('Error fetching sales contacts:', error);
+    res.status(500).json({ error: 'Error fetching contacts' });
+  }
+});
+
+app.put('/api/sales-contact/:id', (req, res) => {
+  const { username, password } = req.headers || {};
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  const { id } = req.params;
+  const { status } = req.body;
+  try {
+    const updateStmt = db.prepare('UPDATE sales_contacts SET status = ? WHERE id = ?');
+    updateStmt.run([status || 'pending', id]);
+    updateStmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating sales contact:', error);
+    res.status(500).json({ error: 'Error actualizando contacto' });
+  }
+});
+
+app.delete('/api/sales-contact/:id', (req, res) => {
+  const { username, password } = req.headers || {};
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  const { id } = req.params;
+  try {
+    db.run('DELETE FROM sales_contacts WHERE id = ?', [id]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting sales contact:', error);
+    res.status(500).json({ error: 'Error eliminando contacto' });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`API server running on port ${PORT}`);

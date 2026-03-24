@@ -149,6 +149,10 @@ export function Agenda() {
       alert('Selecciona al menos un día de la semana para eventos recurrentes');
       return;
     }
+    if (formData.recurrence === 'daily' && formData.days_of_week.length === 0) {
+      alert('Selecciona al menos un día para el evento diario');
+      return;
+    }
 
     const id = editingEvent?.id ?? Math.random().toString(36).substring(2, 9);
     const payload = {
@@ -162,7 +166,7 @@ export function Agenda() {
       type: formData.type,
       location: formData.location,
       recurrence: formData.recurrence || null,
-      days_of_week: formData.recurrence === 'weekly' && formData.days_of_week.length > 0 ? formData.days_of_week.sort((a,b) => a-b).join(',') : null,
+      days_of_week: (formData.recurrence === 'weekly' || formData.recurrence === 'daily') && formData.days_of_week.length > 0 ? formData.days_of_week.sort((a,b) => a-b).join(',') : null,
     };
 
     try {
@@ -482,6 +486,11 @@ export function Agenda() {
                           🔄 Semanal {ev.days_of_week ? `(${getDaysLabel(ev.days_of_week)})` : ''}
                         </p>
                       )}
+                      {ev.recurrence === 'daily' && ev.days_of_week && (
+                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                          🔄 Diario ({getDaysLabel(ev.days_of_week)})
+                        </p>
+                      )}
                       {ev.end_date && (
                         <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
                           📅 Varios días: hasta {new Date(ev.end_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
@@ -705,7 +714,65 @@ export function Agenda() {
                   <p className="text-xs text-gray-500 mt-2">Se repetirá el mismo día cada mes</p>
                 )}
                 {formData.recurrence === 'daily' && (
-                  <p className="text-xs text-gray-500 mt-2">Se repetirá cada día</p>
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500 mb-2">Selecciona los días específicos:</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        { num: 1, label: 'Lun' },
+                        { num: 2, label: 'Mar' },
+                        { num: 3, label: 'Mié' },
+                        { num: 4, label: 'Jue' },
+                        { num: 5, label: 'Vie' },
+                        { num: 6, label: 'Sáb' },
+                        { num: 0, label: 'Dom' },
+                      ].map(({ num, label }) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => {
+                            const current = formData.days_of_week;
+                            const updated = current.includes(num)
+                              ? current.filter(d => d !== num)
+                              : [...current, num];
+                            setFormData({ ...formData, days_of_week: updated });
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            formData.days_of_week.includes(num)
+                              ? 'bg-primary text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, days_of_week: [1, 2, 3, 4, 5] })}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Entre semana (L-V)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, days_of_week: [6, 0] })}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Fines de semana
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, days_of_week: [1, 2, 3, 4, 5, 6, 0] })}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Todos los días
+                      </button>
+                    </div>
+                    {formData.days_of_week.length === 0 && (
+                      <p className="text-xs text-red-500 mt-1">Selecciona al menos un día</p>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="flex gap-3 pt-4">

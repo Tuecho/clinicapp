@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Settings, Zap, Brain, X, Eye, EyeOff, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { Send, Bot, User, Loader2, Settings, Zap, Brain, X, Eye, EyeOff, CheckCircle, AlertCircle, ExternalLink, RotateCcw } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -24,6 +24,14 @@ const suggestedQuestions = [
   '¿Cuáles son los mayores gastos?',
   '¿Cuánto queda de presupuesto?',
   'Análisis de gastos familiares',
+  '¿Qué tareas pendientes tengo?',
+  '¿Qué hay en la lista de la compra?',
+  'buscar nota cumple',
+  'buscar producto leche',
+  'buscar gasto supermercado',
+  '¿Qué notas tengo guardadas?',
+  'ver transacciones recientes',
+  'balance total acumulado',
 ];
 
 const GROQ_MODELS = [
@@ -320,6 +328,11 @@ export function ChatBotPage() {
     setMessages([]);
   };
 
+  const resetConversation = () => {
+    if (messages.length > 0 && !window.confirm('¿Borrar la conversación actual?')) return;
+    setMessages([]);
+  };
+
   const canUseAdvanced = llmSettings?.configured;
 
   return (
@@ -378,6 +391,15 @@ export function ChatBotPage() {
               >
                 <Settings size={20} />
               </button>
+              {messages.length > 0 && (
+                <button
+                  onClick={resetConversation}
+                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Nueva conversación"
+                >
+                  <RotateCcw size={20} />
+                </button>
+              )}
             </div>
           </div>
         </div>

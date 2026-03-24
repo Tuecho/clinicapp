@@ -1,69 +1,116 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, Pencil, Filter, X, Calendar, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, Loader2, Pencil, Filter, X, Settings, Upload, Check, AlertCircle } from 'lucide-react';
 import { useStore } from '../store';
 import type { Transaction } from '../types';
 import { formatDateEs, formatMoneyEs } from '../utils/format';
 import { ImportExcel } from '../components/ImportExcel';
 import { ImportPDF } from '../components/ImportPDF';
 
-const MONTHS_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
 export function Accounting() {
-  const { transactions, concepts, fetchConcepts, addTransaction, updateTransaction, deleteTransaction, getMonthlyTransactions, fetchTransactions, loading, selectedMonth, selectedYear } = useStore();
+  const { transactions, concepts, fetchConcepts, addTransaction, updateTransaction, deleteTransaction, getMonthlyTransactions, fetchTransactions, loading, selectedMonth, selectedYear, addConcept, updateConceptLabel, deleteConcept } = useStore();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [filterConcept, setFilterConcept] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
-  const [filterMonth, setFilterMonth] = useState<string>(`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`);
-  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
-  const [monthOptions, setMonthOptions] = useState<{value: string, label: string}[]>([]);
-  
-  const fetchMonthsWithData = async () => {
-    try {
-      const headers = getAuthHeaders();
-      const resp = await fetch(`${API_URL}/api/transactions/months`, { headers });
-      const data = await resp.json();
-      
-      const options = data.map((m: { year: number; month: number }) => ({
-        value: `${m.year}-${String(m.month).padStart(2, '0')}`,
-        label: `${MONTHS_ES[m.month - 1]} ${m.year}`
-      }));
-      
-      setMonthOptions(options);
-      
-      if (options.length > 0 && !options.find(o => o.value === filterMonth)) {
-        setFilterMonth(options[0].value);
-      }
-    } catch (error) {
-      console.error('Error fetching months:', error);
-    }
-  };
-  
-  useEffect(() => {
-    fetchMonthsWithData();
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.month-dropdown')) {
-        setShowMonthDropdown(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
-  
-  const selectedMonthLabel = monthOptions.find(o => o.value === filterMonth)?.label || 'Seleccionar mes';
+  const [showConceptModal, setShowConceptModal] = useState(false);
+  const [newConceptLabel, setNewConceptLabel] = useState('');
+  const [conceptError, setConceptError] = useState('');
+  const [editingConceptKey, setEditingConceptKey] = useState<string | null>(null);
+  const [editingConceptLabel, setEditingConceptLabel] = useState('');
+  const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchConcepts();
   }, [fetchConcepts]);
 
-  useEffect(() => {
-    const [year, month] = filterMonth.split('-').map(Number);
-    fetchTransactions({ month, year });
-  }, [filterMonth, fetchTransactions]);
+  const slugifyKey = (text: string) => {
+    return text.toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/(^_|_$)/g, '');
+  };
+
+  const handleAddConcept = async () => {
+    setConceptError('');
+    const label = newConceptLabel.trim();
+    if (label.length < 2) {
+      setConceptError('El nombre debe tener al menos 2 caracteres');
+      return;
+    }
+    const key = slugifyKey(label);
+    if (!key || key.length < 2) {
+      setConceptError('No se pudo generar una clave válida');
+      return;
+    }
+    if (concepts.some((c) => c.key === key)) {
+      setConceptError('Ya existe un concepto con esa clave');
+      return;
+    }
+    await addConcept({ key, label });
+    setNewConceptLabel('');
+  };
+
+  const handleUpdateConcept = async (key: string) => {
+    if (!editingConceptLabel.trim()) return;
+    await updateConceptLabel(key, editingConceptLabel.trim());
+    setEditingConceptKey(null);
+    setEditingConceptLabel('');
+  };
+
+  const handleDeleteConcept = async (key: string) => {
+    const res = await deleteConcept(key);
+    if (!res.success) {
+      setConceptError(res.error || 'No se pudo eliminar');
+    }
+  };
+
+  const handleImportConcepts = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      const errors: string[] = [];
+      let success = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line || i === 0) continue;
+
+        const parts = line.split(',').map(p => p.trim().replace(/"/g, ''));
+        const label = parts[0];
+        
+        if (!label) {
+          errors.push(`Fila ${i + 1}: Falta nombre`);
+          continue;
+        }
+
+        const key = slugifyKey(label);
+        if (!key) {
+          errors.push(`Fila ${i + 1}: Clave inválida`);
+          continue;
+        }
+
+        if (concepts.some((c) => c.key === key)) {
+          errors.push(`Fila ${i + 1}: Ya existe "${label}"`);
+          continue;
+        }
+
+        await addConcept({ key, label });
+        success++;
+      }
+
+      setImportResult({ success, errors: errors.slice(0, 10) });
+      fetchConcepts();
+    } catch (err) {
+      setImportResult({ success: 0, errors: ['Error al procesar el archivo'] });
+    }
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const [formData, setFormData] = useState({
     type: 'expense' as 'income' | 'expense',
@@ -189,34 +236,6 @@ export function Accounting() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative month-dropdown">
-              <button
-                onClick={() => setShowMonthDropdown(!showMonthDropdown)}
-                className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 transition-colors min-w-[160px]"
-              >
-                <Calendar size={16} className="text-gray-500" />
-                <span className="flex-1 text-left capitalize">{selectedMonthLabel}</span>
-                <ChevronDown size={16} className="text-gray-400" />
-              </button>
-              {showMonthDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-[300px] overflow-y-auto min-w-[180px]">
-                  {monthOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setFilterMonth(option.value);
-                        setShowMonthDropdown(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors capitalize ${
-                        option.value === filterMonth ? 'bg-primary/10 text-primary font-medium' : 'text-gray-700'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
             <div className="border-l border-gray-300 pl-4 flex items-center gap-2 text-gray-600">
               <Filter size={18} />
               <span className="text-sm font-medium">Filtrar:</span>
@@ -240,6 +259,13 @@ export function Accounting() {
                 <option key={c.key} value={c.key}>{c.label}</option>
               ))}
             </select>
+            <button
+              onClick={() => setShowConceptModal(true)}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Gestionar conceptos"
+            >
+              <Settings size={18} />
+            </button>
             {hasFilters && (
               <button
                 onClick={clearFilters}
@@ -488,6 +514,131 @@ export function Accounting() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showConceptModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Gestionar Conceptos</h2>
+              <button
+                onClick={() => {
+                  setShowConceptModal(false);
+                  setConceptError('');
+                  setNewConceptLabel('');
+                }}
+                className="p-1 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 border-b">
+              <div className="flex gap-2">
+                <input
+                  value={newConceptLabel}
+                  onChange={(e) => setNewConceptLabel(e.target.value)}
+                  placeholder="Nuevo concepto (ej. Guardería)"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddConcept()}
+                />
+                <button
+                  onClick={handleAddConcept}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                >
+                  Añadir
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+                  title="Importar desde CSV"
+                >
+                  <Upload size={18} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.txt"
+                  onChange={handleImportConcepts}
+                  className="hidden"
+                />
+              </div>
+
+              {importResult && (
+                <div className={`p-3 rounded-lg mb-3 ${importResult.success > 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                  <div className="flex items-center gap-2">
+                    {importResult.success > 0 ? <Check size={16} className="text-green-600" /> : <AlertCircle size={16} className="text-red-600" />}
+                    <span className={importResult.success > 0 ? 'text-green-700' : 'text-red-700'}>
+                      {importResult.success} conceptos importados
+                    </span>
+                  </div>
+                  {importResult.errors.length > 0 && (
+                    <p className="text-xs text-red-600 mt-1">{importResult.errors[0]}</p>
+                  )}
+                </div>
+              )}
+
+              {conceptError && <p className="text-sm text-red-500 mt-2">{conceptError}</p>}
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              <div className="divide-y">
+                {concepts.map((c) => (
+                  <div key={c.key} className="p-3 flex items-center gap-2">
+                    {editingConceptKey === c.key ? (
+                      <>
+                        <input
+                          value={editingConceptLabel}
+                          onChange={(e) => setEditingConceptLabel(e.target.value)}
+                          className="flex-1 px-2 py-1 border border-gray-300 rounded"
+                          autoFocus
+                          onKeyDown={(e) => e.key === 'Enter' && handleUpdateConcept(c.key)}
+                        />
+                        <button
+                          onClick={() => handleUpdateConcept(c.key)}
+                          className="text-green-600 hover:bg-green-50 px-2 py-1 rounded"
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingConceptKey(null);
+                            setEditingConceptLabel('');
+                          }}
+                          className="text-gray-500 hover:bg-gray-50 px-2 py-1 rounded"
+                        >
+                          Cancelar
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex-1">
+                          <span className="font-medium">{c.label}</span>
+                          <span className="text-gray-400 text-sm ml-2">({c.key})</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEditingConceptKey(c.key);
+                            setEditingConceptLabel(c.label);
+                          }}
+                          className="text-gray-400 hover:text-primary p-1"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteConcept(c.key)}
+                          className="text-gray-400 hover:text-red-500 p-1"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}

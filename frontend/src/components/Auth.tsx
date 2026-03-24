@@ -213,7 +213,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
         setError(data?.error || 'No se pudo crear el usuario');
         return;
       }
-      setSuccess('Usuario creado. Espera aprobación del administrador.');
+      setSuccess(data.message || 'Usuario creado correctamente.');
       setTimeout(() => {
         setShowRegister(false);
         setUsername('');
@@ -797,6 +797,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.addEventListener(event, resetTimer, { passive: true });
     });
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        clearTimeout(timeoutId);
+      } else {
+        resetTimer();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     resetTimer();
 
     return () => {
@@ -804,6 +813,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       events.forEach(event => {
         window.removeEventListener(event, resetTimer);
       });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isAuthenticated, logout]);
 

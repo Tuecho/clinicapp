@@ -2,21 +2,30 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { Accounting } from './pages/Accounting';
-import { ChatBotPage } from './pages/ChatBotPage';
+
 import { Budgets } from './pages/Budgets';
 import { Profile } from './pages/Profile';
 import { Agenda } from './pages/Agenda';
 import { ShoppingList } from './pages/ShoppingList';
 import { FamilyTasks } from './pages/FamilyTasks';
 import { Notes } from './pages/Notes';
+import { MealPlanning } from './pages/MealPlanning';
 import { AdminPage } from './pages/AdminPage';
-import { FAQ } from './pages/FAQ';
 import { About } from './pages/About';
+import { HowItWorks } from './pages/HowItWorks';
+import { FavoriteRestaurants } from './pages/FavoriteRestaurants';
+import { FamilyGallery } from './pages/FamilyGallery';
+import { ChatBotPage } from './pages/ChatBotPage';
+import { Premium } from './pages/Premium';
+import { SalesContact } from './pages/SalesContact';
+import { Terms } from './pages/Terms';
+import { Privacy } from './pages/Privacy';
+import { Contact } from './pages/Contact';
 import { ChatWidget } from './components/ChatWidget';
 import { Login, useAuth, AuthProvider } from './components/Auth';
 import { Menu, X } from 'lucide-react';
 
-type PageType = 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'faq' | 'about';
+type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'premium' | 'terms' | 'privacy' | 'contact' | 'meals' | 'chatbot' | 'sales';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<PageType>(() => {
@@ -91,22 +100,31 @@ function AppContent() {
       
       <main className={`transition-all duration-200 pt-14 lg:pt-0 ${isSidebarHovered ? 'lg:ml-60' : 'lg:ml-16'} ml-0 min-h-screen`}>
         <div className="p-3 sm:p-4 md:p-6 max-w-7xl mx-auto">
-          {activePage === 'dashboard' && <Dashboard />}
+          {activePage === 'dashboard' && <Dashboard onNavigate={handleNavigate} />}
           {activePage === 'accounting' && <Accounting />}
           {activePage === 'budgets' && <Budgets />}
-          {activePage === 'chatbot' && <ChatBotPage />}
+
           {activePage === 'profile' && <Profile />}
           {activePage === 'agenda' && <Agenda />}
           {activePage === 'shopping' && <ShoppingList />}
           {activePage === 'tasks' && <FamilyTasks />}
           {activePage === 'notes' && <Notes />}
+          {activePage === 'meals' && <MealPlanning />}
           {activePage === 'admin' && isAdmin && <AdminPage />}
-          {activePage === 'faq' && <FAQ />}
           {activePage === 'about' && <About />}
+          {activePage === 'howitworks' && <HowItWorks />}
+          {activePage === 'restaurants' && <FavoriteRestaurants />}
+          {activePage === 'gallery' && <FamilyGallery />}
+          {activePage === 'premium' && <Premium />}
+          {activePage === 'sales' && <SalesContact />}
+          {activePage === 'chatbot' && <ChatBotPage />}
+          {activePage === 'terms' && <Terms />}
+          {activePage === 'privacy' && <Privacy />}
+          {activePage === 'contact' && <Contact />}
         </div>
       </main>
 
-      <ChatWidget hidden={activePage === 'chatbot'} />
+      <ChatWidget hidden={activePage === 'premium'} />
     </div>
   );
 }

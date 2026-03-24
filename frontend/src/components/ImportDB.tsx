@@ -4,7 +4,7 @@ import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-export function ImportDB({ onImportComplete }: { onImportComplete?: () => void }) {
+export function ImportDB({ onImportComplete, isAdmin = false }: { onImportComplete?: () => void; isAdmin?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -13,6 +13,8 @@ export function ImportDB({ onImportComplete }: { onImportComplete?: () => void }
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  if (!isAdmin) return null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];

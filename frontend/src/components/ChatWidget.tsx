@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Loader2 } from 'lucide-react';
+import { MessageCircle, X, Send, Loader2, RotateCcw } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -78,6 +78,11 @@ export function ChatWidget({ hidden }: { hidden?: boolean }) {
     }
   };
 
+  const resetConversation = () => {
+    if (chatMessages.length > 0 && !window.confirm('¿Borrar la conversación actual?')) return;
+    setChatMessages([]);
+  };
+
   return (
     <>
       <button
@@ -92,12 +97,23 @@ export function ChatWidget({ hidden }: { hidden?: boolean }) {
         <div className="fixed bottom-6 right-6 w-80 h-96 bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col z-50">
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <h3 className="font-semibold text-gray-800">Asistente Familiar</h3>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-2">
+              {chatMessages.length > 0 && (
+                <button
+                  onClick={resetConversation}
+                  className="text-gray-500 hover:text-gray-700"
+                  title="Nueva conversación"
+                >
+                  <RotateCcw size={18} />
+                </button>
+              )}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3">

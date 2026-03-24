@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Wallet, Bot, Target, MessageCircle, User, Shield, HelpCircle, Info, CheckSquare, StickyNote, ShoppingCart, ListChecks, LogOut } from 'lucide-react';
+import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, Crown, UtensilsCrossed, BookOpen, FileText, ShieldCheck, Mail, ChefHat, Image, ChevronDown, ChevronRight, Bot, DollarSign, Users } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -11,8 +11,8 @@ interface Profile {
 }
 
 interface SidebarProps {
-  activePage: 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'faq' | 'about';
-  onNavigate: (page: 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'faq' | 'about') => void;
+  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'premium' | 'terms' | 'privacy' | 'contact' | 'meals' | 'chatbot' | 'sales';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'premium' | 'terms' | 'privacy' | 'contact' | 'meals' | 'chatbot' | 'sales') => void;
   onLogout?: () => void;
   isAdmin?: boolean;
   isMobile?: boolean;
@@ -21,6 +21,7 @@ interface SidebarProps {
 export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }: SidebarProps) {
   const [profile, setProfile] = useState<Profile>({ name: '', avatar: null, family_name: 'Mi Familia' });
   const [isHovered, setIsHovered] = useState(false);
+  const [isPremiumOpen, setIsPremiumOpen] = useState(false);
 
   useEffect(() => {
     fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() })
@@ -151,18 +152,97 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
           </li>
           <li>
             <button
-              onClick={() => onNavigate('chatbot')}
+              onClick={() => onNavigate('meals')}
               className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
-                activePage === 'chatbot'
+                activePage === 'meals'
                   ? 'bg-primary text-white'
                   : 'text-gray-600 hover:bg-gray-100'
               } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
-              title={isExpanded ? undefined : 'Chat IA'}
+              title={isExpanded ? undefined : 'Comidas'}
             >
-              <Bot size={18} />
-              {isExpanded && <span className="text-sm">Chat IA</span>}
+              <ChefHat size={18} />
+              {isExpanded && <span className="text-sm">Comidas</span>}
             </button>
           </li>
+          <li>
+            <button
+              onClick={() => onNavigate('restaurants')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'restaurants'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Restaurantes'}
+            >
+              <UtensilsCrossed size={18} />
+              {isExpanded && <span className="text-sm">Restaurantes</span>}
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => setIsPremiumOpen(!isPremiumOpen)}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors bg-gradient-to-r from-amber-500 to-yellow-400 text-white shadow-lg shadow-amber-500/20 ${
+                isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'
+              }`}
+              title={isExpanded ? undefined : 'Premium'}
+            >
+              <Crown size={18} className="text-white" />
+              {isExpanded && (
+                <>
+                  <span className="text-sm font-semibold flex-1">PREMIUM</span>
+                  {isPremiumOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </>
+              )}
+            </button>
+          </li>
+          {isPremiumOpen && isExpanded && (
+            <li className="ml-2 space-y-1">
+              <button
+                onClick={() => onNavigate('gallery')}
+                className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                  activePage === 'gallery'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                } px-3 py-2`}
+                title={isExpanded ? undefined : 'Galería'}
+              >
+                <Image size={16} />
+                <span className="text-sm">Galería</span>
+              </button>
+              <button
+                onClick={() => onNavigate('premium')}
+                className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                  activePage === 'premium'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                } px-3 py-2`}
+                title={isExpanded ? undefined : 'Contactos'}
+              >
+                <Users size={16} />
+                <span className="text-sm">Contactos</span>
+              </button>
+              <button
+                onClick={() => onNavigate('chatbot')}
+                className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                  activePage === 'chatbot'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                } px-3 py-2`}
+                title={isExpanded ? undefined : 'Chat IA'}
+              >
+                <Bot size={16} />
+                <span className="text-sm">Chat IA</span>
+              </button>
+              <button
+                onClick={() => onNavigate('sales')}
+                className="w-full flex items-center gap-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-100 px-3 py-2"
+                title={isExpanded ? undefined : 'Ventas'}
+              >
+                <DollarSign size={16} />
+                <span className="text-sm">Ventas</span>
+              </button>
+            </li>
+          )}
           {isAdmin && (
             <li>
               <button
@@ -181,16 +261,16 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
           )}
           <li>
             <button
-              onClick={() => onNavigate('faq')}
+              onClick={() => onNavigate('howitworks')}
               className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
-                activePage === 'faq'
+                activePage === 'howitworks'
                   ? 'bg-primary text-white'
                   : 'text-gray-600 hover:bg-gray-100'
               } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
-              title={isExpanded ? undefined : 'FAQ'}
+              title={isExpanded ? undefined : 'Cómo funciona'}
             >
-              <HelpCircle size={18} />
-              {isExpanded && <span className="text-sm">FAQ</span>}
+              <BookOpen size={18} />
+              {isExpanded && <span className="text-sm">Cómo funciona</span>}
             </button>
           </li>
           <li>
@@ -205,6 +285,48 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
             >
               <Info size={18} />
               {isExpanded && <span className="text-sm">Acerca de</span>}
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => onNavigate('terms')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'terms'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Términos'}
+            >
+              <FileText size={18} />
+              {isExpanded && <span className="text-sm">Términos</span>}
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => onNavigate('privacy')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'privacy'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Privacidad'}
+            >
+              <ShieldCheck size={18} />
+              {isExpanded && <span className="text-sm">Privacidad</span>}
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => onNavigate('contact')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'contact'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Contacto'}
+            >
+              <Mail size={18} />
+              {isExpanded && <span className="text-sm">Contacto</span>}
             </button>
           </li>
           <li>

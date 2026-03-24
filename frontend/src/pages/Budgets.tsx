@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, TrendingUp, TrendingDown, Pencil, RefreshCw, Copy } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, TrendingUp, TrendingDown, Pencil, RefreshCw, Copy, ArrowRight, ChevronLeft, ChevronRight, Upload, X, Check, AlertCircle } from 'lucide-react';
 import { useStore } from '../store';
 import type { ExpenseConceptItem } from '../types';
 import { formatMoneyEs } from '../utils/format';
@@ -77,14 +77,17 @@ function ProgressCircle({ percentage, size = 120, strokeWidth = 10 }: { percenta
 }
 
 export function Budgets() {
-  const { concepts, fetchConcepts, addConcept, updateConceptLabel, deleteConcept } = useStore();
-  const [budgets, setBudgets] = useState<BudgetWithSpending[]>([]);
+  const { concepts, fetchConcepts, addConcept, updateConceptLabel, deleteConcept, budgets, selectedMonth, selectedYear, setSelectedMonthYear } = useStore();
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<BudgetWithSpending | null>(null);
   const [showConceptsModal, setShowConceptsModal] = useState(false);
   const [conceptError, setConceptError] = useState<string>('');
   const [newConceptLabel, setNewConceptLabel] = useState('');
+  const [showImportConcepts, setShowImportConcepts] = useState(false);
+  const [importingConcepts, setImportingConcepts] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     concept: 'comida',
     amount: '',
@@ -93,31 +96,29 @@ export function Budgets() {
     recurring: false
   });
 
-  const fetchBudgets = async () => {
+  const fetchBudgets = () => {
     setLoading(true);
-    try {
-      const month = String(new Date().getMonth() + 1).padStart(2, '0');
-      const year = new Date().getFullYear();
-      const headers = getAuthHeaders();
-      
-      const response = await fetch(`${API_URL}/api/budgets/with-spending?month=${month}&year=${year}`, { headers });
-      const data = await response.json();
-      setBudgets(data);
-    } catch (error) {
-      console.error('Error fetching budgets:', error);
-    }
-    setLoading(false);
+    const headers = getAuthHeaders();
+    fetch(`${API_URL}/api/budgets/with-spending?month=${selectedMonth}&year=${selectedYear}`, { headers })
+      .then(res => res.json())
+      .then(data => {
+        useStore.setState({ budgets: data });
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Error fetching budgets:', error);
+        setLoading(false);
+      });
   };
 
   useEffect(() => {
     fetchConcepts();
     fetchBudgets();
-  }, [fetchConcepts]);
+  }, [fetchConcepts, selectedMonth, selectedYear]);
 
   const copyRecurringBudgets = async () => {
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const currentMonth = selectedMonth;
+    const currentYear = selectedYear;
     const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
     const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
 
@@ -140,6 +141,66 @@ export function Budgets() {
       }
     } catch (error) {
       console.error('Error copying recurring budgets:', error);
+    }
+  };
+
+  const moveToNextMonth = async (budget: BudgetWithSpending, copyToAllFollowing = false) => {
+    const currentMonth = budget.month;
+    const currentYear = budget.year;
+
+    if (budget.recurring === 1) {
+      const confirmMsg = copyToAllFollowing 
+        ? '¿Copiar este presupuesto recurrente a todos los meses siguientes?'
+        : '¿Copiar este presupuesto recurrente al siguiente mes? (Se mantendrá en el mes actual)';
+      if (!window.confirm(confirmMsg)) return;
+
+      try {
+        const monthsToCopy = copyToAllFollowing ? 12 : 1;
+        for (let i = 1; i <= monthsToCopy; i++) {
+          let targetMonth = currentMonth + i;
+          let targetYear = currentYear;
+          while (targetMonth > 12) {
+            targetMonth -= 12;
+            targetYear += 1;
+          }
+
+          await fetch(`${API_URL}/api/budgets`, {
+            method: 'POST',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: Math.random().toString(36).substring(2, 9),
+              concept: budget.concept,
+              amount: budget.amount,
+              month: targetMonth,
+              year: targetYear,
+              recurring: 1
+            })
+          });
+        }
+        fetchBudgets();
+      } catch (error) {
+        console.error('Error copying budget:', error);
+      }
+    } else {
+      const nextMonth = budget.month === 12 ? 1 : budget.month + 1;
+      const nextYear = budget.month === 12 ? budget.year + 1 : budget.year;
+
+      try {
+        await fetch(`${API_URL}/api/budgets/${budget.id}`, {
+          method: 'PUT',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            concept: budget.concept,
+            amount: budget.amount,
+            month: nextMonth,
+            year: nextYear,
+            recurring: budget.recurring
+          })
+        });
+        fetchBudgets();
+      } catch (error) {
+        console.error('Error moving budget:', error);
+      }
     }
   };
 
@@ -198,8 +259,9 @@ export function Budgets() {
     setFormData({
       concept: 'comida',
       amount: '',
-      month: String(new Date().getMonth() + 1),
-      year: String(new Date().getFullYear())
+      month: String(selectedMonth),
+      year: String(selectedYear),
+      recurring: false
     });
     setShowModal(true);
   };
@@ -210,7 +272,8 @@ export function Budgets() {
       concept: b.concept,
       amount: String(b.amount),
       month: String(b.month).padStart(2, '0'),
-      year: String(b.year)
+      year: String(b.year),
+      recurring: b.recurring === 1
     });
     setShowModal(true);
   };
@@ -240,15 +303,115 @@ export function Budgets() {
     setNewConceptLabel('');
   };
 
+  const handleImportConcepts = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportingConcepts(true);
+    setImportResult(null);
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      const errors: string[] = [];
+      let success = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line || i === 0) continue;
+
+        const parts = line.split(',').map(p => p.trim().replace(/"/g, ''));
+        const label = parts[0];
+        
+        if (!label) {
+          errors.push(`Fila ${i + 1}: Falta nombre`);
+          continue;
+        }
+
+        const key = slugifyKey(label);
+        if (!key) {
+          errors.push(`Fila ${i + 1}: Clave inválida`);
+          continue;
+        }
+
+        if (concepts.some((c) => c.key === key)) {
+          errors.push(`Fila ${i + 1}: Ya existe "${label}"`);
+          continue;
+        }
+
+        await addConcept({ key, label });
+        success++;
+      }
+
+      setImportResult({ success, errors: errors.slice(0, 10) });
+      fetchConcepts();
+    } catch (err) {
+      setImportResult({ success: 0, errors: ['Error al procesar el archivo'] });
+    }
+
+    setImportingConcepts(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const totalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
   const totalSpent = budgets.reduce((sum, b) => sum + b.spent, 0);
   const totalRemaining = totalBudget - totalSpent;
   const totalPercentage = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
+  const sortedBudgets = [...budgets].sort((a, b) => b.percentage - a.percentage);
+
+  const monthLabel = new Date(selectedYear, selectedMonth - 1, 1).toLocaleDateString('es-ES', {
+    month: 'long',
+    year: 'numeric'
+  });
+
+  const changeMonth = (delta: number) => {
+    const d = new Date(selectedYear, selectedMonth - 1, 1);
+    d.setMonth(d.getMonth() + delta);
+    setSelectedMonthYear(d.getMonth() + 1, d.getFullYear());
+  };
+
+  const isCurrentMonth = () => {
+    const now = new Date();
+    return selectedMonth === now.getMonth() + 1 && selectedYear === now.getFullYear();
+  };
+
   return (
     <div className="p-3 sm:p-4 md:p-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Presupuestos</h2>
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Presupuestos</h2>
+          <div className="flex items-center gap-1 mt-2">
+            <button
+              onClick={() => changeMonth(-1)}
+              className="p-1 rounded hover:bg-gray-100"
+              title="Mes anterior"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span className="px-2 font-medium text-gray-600 capitalize text-sm">
+              {monthLabel}
+            </span>
+            <button
+              onClick={() => changeMonth(1)}
+              className="p-1 rounded hover:bg-gray-100"
+              title="Mes siguiente"
+            >
+              <ChevronRight size={18} />
+            </button>
+            {!isCurrentMonth() && (
+              <button
+                onClick={() => {
+                  const now = new Date();
+                  setSelectedMonthYear(now.getMonth() + 1, now.getFullYear());
+                }}
+                className="ml-2 px-2 py-1 rounded text-xs border border-primary text-primary hover:bg-primary/5"
+              >
+                Hoy
+              </button>
+            )}
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={copyRecurringBudgets}
@@ -316,7 +479,7 @@ export function Budgets() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4">
-          {budgets.map((budget) => (
+          {sortedBudgets.map((budget) => (
             <div key={budget.id} className="bg-white rounded-lg p-4 sm:p-5 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <div className="flex items-center gap-2">
@@ -328,6 +491,38 @@ export function Budgets() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  {budget.recurring === 1 ? (
+                    <div className="relative group">
+                      <button
+                        className="text-gray-400 hover:text-primary transition-colors p-1"
+                        title="Mover al siguiente mes"
+                      >
+                        <ArrowRight size={16} />
+                      </button>
+                      <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg hidden group-hover:block z-10 min-w-[180px]">
+                        <button
+                          onClick={() => moveToNextMonth(budget, false)}
+                          className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 whitespace-nowrap"
+                        >
+                          Copiar al siguiente mes
+                        </button>
+                        <button
+                          onClick={() => moveToNextMonth(budget, true)}
+                          className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 whitespace-nowrap"
+                        >
+                          Copiar a todos los meses siguientes
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => moveToNextMonth(budget)}
+                      className="text-gray-400 hover:text-primary transition-colors p-1"
+                      title="Mover al siguiente mes"
+                    >
+                      <ArrowRight size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={() => openEdit(budget)}
                     className="text-gray-400 hover:text-primary transition-colors p-1"
@@ -485,7 +680,7 @@ export function Budgets() {
               </button>
             </div>
 
-            <div className="flex gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-3">
               <input
                 value={newConceptLabel}
                 onChange={(e) => setNewConceptLabel(e.target.value)}
@@ -498,7 +693,36 @@ export function Budgets() {
               >
                 Añadir
               </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+                title="Importar desde CSV"
+              >
+                <Upload size={18} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.txt"
+                onChange={handleImportConcepts}
+                className="hidden"
+              />
             </div>
+
+            {importResult && (
+              <div className={`p-3 rounded-lg mb-3 ${importResult.success > 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                <div className="flex items-center gap-2">
+                  {importResult.success > 0 ? <Check size={16} className="text-green-600" /> : <AlertCircle size={16} className="text-red-600" />}
+                  <span className={importResult.success > 0 ? 'text-green-700' : 'text-red-700'}>
+                    {importResult.success} conceptos importados
+                  </span>
+                </div>
+                {importResult.errors.length > 0 && (
+                  <p className="text-xs text-red-600 mt-1">{importResult.errors[0]}</p>
+                )}
+              </div>
+            )}
+
             {conceptError && <p className="text-sm text-expense mb-3">{conceptError}</p>}
 
             <div className="border border-gray-200 rounded-lg overflow-hidden">

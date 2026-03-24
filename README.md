@@ -48,6 +48,10 @@ Aplicación web para la gestión de la economía familiar, agenda y planificaci�
 - **Modo avanzado**: Usa IA generativa con Groq para preguntas complejas
 
 ### Extra
+- **Planificación de comidas**: Gestiona recetas y planifica el menú semanal
+- **Restaurantes favoritos**: Guarda tus restaurantes favoritos con valoración
+- **Galería de fotos**: Álbum familiar para guardar momentos especiales
+- **Premium**: Contactos familiares, Chat IA y ventas
 - **Recordar posición**: Al recargar la app se mantiene en la misma página
 - **Widget chat oculto**: El widget flotante se oculta automáticamente en la página de Chat IA
 - **Recuperar contraseña**: Sistema de recuperación por código que caduca en 15 minutos
@@ -114,6 +118,55 @@ La aplicación estará disponible en:
 - **`.env` excluido de Git**: Contiene claves sensibles
 
 ## Changelog
+
+### v2.0.0 (Marzo 2026)
+
+#### Nuevas Funcionalidades
+
+**Premium (Sección mejorada)**
+- **Galería de Fotos Familiar**: Nueva sección para guardar los mejores momentos de tu familia
+  - Álbumes para organizar fotos
+  - Subir fotos desde el dispositivo
+  - Vista en pantalla completa (lightbox)
+  - Eliminar fotos
+- **Contactos Familiares**: Gestión de contactos importables desde CSV
+- **Chat IA**: Asistente conversacional integrado en Premium
+- **Ventas**: Formulario de contacto comercial
+
+**Contabilidad y Presupuestos**
+- **Gestión de Conceptos**: Crear, editar y eliminar conceptos directamente desde Contabilidad
+- **Importar Conceptos desde CSV**: Añade múltiples conceptos de una vez desde un archivo
+- Los conceptos se comparten entre Contabilidad y Presupuestos
+
+**Tareas Familiares**
+- **Asignar a miembro**: Ahora puedes asignar tareas a cualquier miembro de la familia
+- Incluye opción "Yo" (usuario actual) y familiares con quienes compartes datos
+
+**Panel de Administración**
+- **Backup y Restauración**: Ahora incluye formato JSON además de .db
+- **Backup JSON**: Descargar todos los datos en formato JSON
+- **Restaurar JSON**: Importar datos desde archivo JSON
+- **Zona de Peligro mejorada**: Diseño más limpio y profesional
+- **Backup/Restauración movidos**: Funciones movidas desde Perfil al Panel de Administración
+
+**Planificación de Comidas**
+- **Gestión de Recetas**: Crea y organiza tus recetas familiares
+  - Categorías: Principal, Aperitivo, Postre, Bebida, Desayuno
+  - Tiempos de preparación y cocción
+  - Restricciones alimentarias: Vegetariano, Vegano, Sin gluten, Sin lactosa
+  - Ingredientes y instrucciones
+- **Planificación Semanal**: Organiza las comidas de la semana
+  - Arrastra y suelta recetas en el calendario
+  - Vista por días y tipos de comida
+
+**Mejoras del Sidebar**
+- Menú Premium expandible con submenú: Galería, Contactos, Chat IA, Ventas
+- Navegación más organizada para funciones premium
+
+#### Cambios Técnicos
+- Tablas de base de datos: `family_gallery`, `recipes`, `meal_plans`
+- Endpoints API para galería de fotos y recetas
+- Importación de conceptos en CSV para Contabilidad y Presupuestos
 
 ### v1.0.5 (Marzo 2026)
 - **Múltiples listas de compra**: Crea, edita y elimina listas con nombre y color personalizado
