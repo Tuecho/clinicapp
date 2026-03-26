@@ -3,7 +3,7 @@ import { Lock, Eye, EyeOff, User, UserPlus, X, Check, Clock, Shield, AlertCircle
 
 const STORAGE_KEY = 'family_agent_auth';
 const API_URL = import.meta.env.VITE_API_URL || '';
-const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
+const INACTIVITY_TIMEOUT = 15 * 60 * 1000;
 
 interface AuthUser {
   id: number;
@@ -777,8 +777,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated) return;
 
     let timeoutId: NodeJS.Timeout;
+    let intervalId: NodeJS.Timeout;
+
+    const checkInactivity = () => {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const auth = JSON.parse(stored);
+        const lastActivity = auth.lastActivity || 0;
+        const now = Date.now();
+        
+        if (now - lastActivity >= INACTIVITY_TIMEOUT) {
+          logout();
+          return true;
+        }
+      }
+      return false;
+    };
 
     const resetTimer = () => {
+      if (checkInactivity()) return;
+
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const auth = JSON.parse(stored);
@@ -792,24 +810,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, INACTIVITY_TIMEOUT);
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Al volver a la app, comprobamos si el tiempo ha expirado en "tiempo real"
+        if (!checkInactivity()) {
+          resetTimer();
+        }
+      }
+    };
+
     const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
     events.forEach(event => {
       window.addEventListener(event, resetTimer, { passive: true });
     });
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        clearTimeout(timeoutId);
-      } else {
-        resetTimer();
-      }
-    };
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Verificación periódica cada 30 segundos como respaldo
+    intervalId = setInterval(checkInactivity, 30000);
 
     resetTimer();
 
     return () => {
       clearTimeout(timeoutId);
+      clearInterval(intervalId);
       events.forEach(event => {
         window.removeEventListener(event, resetTimer);
       });

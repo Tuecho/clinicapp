@@ -491,6 +491,16 @@ export function Agenda() {
                           🔄 Diario ({getDaysLabel(ev.days_of_week)})
                         </p>
                       )}
+                      {ev.recurrence === 'monthly' && (
+                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                          Mensual
+                        </p>
+                      )}
+                      {ev.recurrence === 'annual' && (
+                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                          Anual
+                        </p>
+                      )}
                       {ev.end_date && (
                         <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
                           📅 Varios días: hasta {new Date(ev.end_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
@@ -626,7 +636,7 @@ export function Agenda() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Repetición
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, recurrence: '', days_of_week: [] })}
@@ -671,6 +681,17 @@ export function Agenda() {
                   >
                     Mensualmente
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, recurrence: 'annual', days_of_week: [] })}
+                    className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                      formData.recurrence === 'annual' 
+                        ? 'bg-primary text-white' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Anualmente
+                  </button>
                 </div>
                 {formData.recurrence === 'weekly' && (
                   <div className="mt-3">
@@ -712,6 +733,9 @@ export function Agenda() {
                 )}
                 {formData.recurrence === 'monthly' && (
                   <p className="text-xs text-gray-500 mt-2">Se repetirá el mismo día cada mes</p>
+                )}
+                {formData.recurrence === 'annual' && (
+                  <p className="text-xs text-gray-500 mt-2">Se repetira el mismo dia y mes cada ano, ideal para cumpleanos</p>
                 )}
                 {formData.recurrence === 'daily' && (
                   <div className="mt-3">

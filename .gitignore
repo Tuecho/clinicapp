@@ -13,6 +13,9 @@ node_modules/
 *.db-wal
 *.db-shm
 
+# Backups
+backend/backups/
+
 # Docker volumes (contain persistent data)
 npm/data/
 npm/letsencrypt/

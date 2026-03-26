@@ -15,8 +15,10 @@ interface Photo {
 }
 
 interface Album {
+  id?: number;
   name: string;
-  count: number;
+  count?: number;
+  description?: string;
 }
 
 export function FamilyGallery() {
@@ -119,8 +121,68 @@ export function FamilyGallery() {
     e.preventDefault();
     if (!newAlbumName.trim()) return;
 
-    setNewAlbumName('');
-    setShowAlbumModal(false);
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/gallery/albums`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: newAlbumName.trim() })
+      });
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (err) {
+        throw new Error('La respuesta del servidor no fue válida. El álbum podría haberse creado.');
+      }
+
+      if (!response.ok) {
+        alert(data.error || 'Error creando álbum');
+        return;
+      }
+
+      setNewAlbumName('');
+      setShowAlbumModal(false);
+      setSelectedAlbum(newAlbumName.trim());
+      await fetchAlbums();
+    } catch (error: any) {
+      console.error('Error creating album:', error);
+      alert(error.message || 'Error de conexión creando álbum. Verifica si ya fue creado.');
+    } finally {
+      // Intentar refrescar la lista por si el álbum se creó a pesar del error de conexión
+      fetchAlbums();
+    }
+  };
+
+  const handleDeleteAlbum = async (album: Album) => {
+    if (!album.id) return;
+    
+    const confirmMessage = `¿Estás seguro de que quieres borrar el álbum "${album.name}"?\n\n¡ATENCION! Se borrarán permanentemente todas las fotos que contiene este álbum.`;
+    
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/gallery/albums/${album.id}`, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Error eliminando álbum');
+        return;
+      }
+
+      if (selectedAlbum === album.name) {
+        setSelectedAlbum('all');
+      }
+      fetchAlbums();
+      fetchPhotos();
+    } catch (error) {
+      console.error('Error deleting album:', error);
+      alert('Error eliminando álbum');
+    }
   };
 
   const filteredPhotos = selectedAlbum === 'all'
@@ -190,17 +252,27 @@ export function FamilyGallery() {
           Todas ({photos.length})
         </button>
         {albums.map((album) => (
-          <button
-            key={album.name}
-            onClick={() => setSelectedAlbum(album.name)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              selectedAlbum === album.name
-                ? 'bg-primary text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-            }`}
-          >
-            {album.name} ({album.count})
-          </button>
+          <div key={album.name} className="flex items-center gap-1">
+            <button
+              onClick={() => setSelectedAlbum(album.name)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                selectedAlbum === album.name
+                  ? 'bg-primary text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+              }`}
+            >
+              {album.name} {album.count !== undefined && `(${album.count})`}
+            </button>
+            {album.id && (
+              <button
+                onClick={() => handleDeleteAlbum(album)}
+                className="p-2 text-red-500 hover:bg-red-50 transition-colors rounded-lg flex-shrink-0"
+                title="Eliminar álbum y sus fotos"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
         ))}
       </div>
 
@@ -243,7 +315,7 @@ export function FamilyGallery() {
                   e.stopPropagation();
                   handleDelete(photo.id);
                 }}
-                className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg transition-colors hover:bg-red-600 shadow-sm"
               >
                 <Trash2 size={14} />
               </button>

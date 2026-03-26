@@ -4495,18 +4495,41 @@ function expandRecurringEvents(events, startDate, endDate) {
 
 async function runDailyNotification() {
   try {
-    const usersStmt = db.prepare('SELECT owner_id FROM notification_settings WHERE email_enabled = 1');
-    const users = [];
+    const usersStmt = db.prepare('SELECT owner_id, notify_time, notify_timezone FROM notification_settings WHERE email_enabled = 1');
+    const usersToNotify = [];
+    const now = new Date();
+    
     while (usersStmt.step()) {
-      users.push(usersStmt.getAsObject().owner_id);
+      const settings = usersStmt.getAsObject();
+      const tz = settings.notify_timezone || 'Europe/Madrid';
+      
+      try {
+        const parts = new Intl.DateTimeFormat('en-GB', {
+          timeZone: tz,
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).formatToParts(now);
+        
+        const hour = parts.find(p => p.type === 'hour').value;
+        const minute = parts.find(p => p.type === 'minute').value;
+        const userLocalTime = `${hour}:${minute}`;
+        
+        if (userLocalTime === settings.notify_time) {
+          usersToNotify.push(settings.owner_id);
+        }
+      } catch (err) {
+        console.error(`Error checking timezone ${tz} for user ${settings.owner_id}:`, err);
+      }
     }
     usersStmt.free();
 
-    for (const userId of users) {
+    for (const userId of usersToNotify) {
+      console.log(`[Notification] Sending scheduled notification to user ${userId} (User Time match: ${now.toISOString()})`);
       await sendUserNotification(userId);
     }
   } catch (error) {
-    console.error('Error in daily notification:', error);
+    console.error('Error in daily notification dispatcher:', error);
   }
 }
 
@@ -4558,7 +4581,7 @@ async function sendUserNotification(userId) {
     const budgetsStmt = db.prepare(`
       SELECT b.*, COALESCE(SUM(CASE WHEN t.type = 'expense' AND t.date LIKE ? THEN t.amount ELSE 0 END), 0) as spent
       FROM budgets b
-      LEFT JOIN transactions t ON t.concept = b.concept_key AND t.owner_id = b.owner_id
+      LEFT JOIN transactions t ON t.concept = b.concept AND t.owner_id = b.owner_id
       WHERE b.owner_id = ?
       GROUP BY b.id
     `);
@@ -4744,7 +4767,7 @@ app.post('/api/notifications/settings', (req, res) => {
     saveDb();
 
     if (notify_time) {
-      scheduleNotification(notify_time, timezone);
+      scheduleNotification();
     }
 
     res.json({ success: true });
@@ -4752,6 +4775,23 @@ app.post('/api/notifications/settings', (req, res) => {
     console.error('Error saving notification settings:', error);
     res.status(500).json({ error: 'Error guardando configuración' });
   }
+});
+
+app.get('/api/debug/time', (req, res) => {
+  const now = new Date();
+  const serverTime = now.toISOString();
+  const madridTime = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Madrid',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(now);
+  
+  res.json({
+    iso: serverTime,
+    madrid: madridTime,
+    helper: `Configura tu hora de notificación a '${madridTime}' para probar el disparo automático en el próximo minuto.`
+  });
 });
 
 app.post('/api/notifications/test', async (req, res) => {
@@ -4885,24 +4925,18 @@ app.post('/api/tasks/send-email', async (req, res) => {
 
 let notificationTask = null;
 
-function scheduleNotification(timeStr, timezone = 'Europe/Madrid') {
-  const [hours, minutes] = timeStr.split(':');
-  const cronExpr = `${minutes} ${hours} * * *`;
-  
+function scheduleNotification() {
   if (notificationTask) {
     notificationTask.stop();
   }
   
   try {
-    notificationTask = cron.schedule(cronExpr, async () => {
-      console.log('Running daily notification job...');
+    notificationTask = cron.schedule('* * * * *', async () => {
       await runDailyNotification();
-    }, {
-      timezone: timezone
     });
-    console.log(`Notification scheduled for ${timeStr} (${timezone})`);
+    console.log(`[Notification] Dispatcher started (running every minute)`);
   } catch (e) {
-    console.error('Error scheduling notification:', e);
+    console.error('[Notification] Error starting dispatcher:', e);
   }
 }
 
@@ -5025,14 +5059,7 @@ app.delete('/api/contacts/:id', (req, res) => {
 
 await initDb();
 
-const loadNotificationSettings = db.prepare('SELECT DISTINCT notify_time, notify_timezone FROM notification_settings WHERE email_enabled = 1 LIMIT 1');
-if (loadNotificationSettings.step()) {
-  const settings = loadNotificationSettings.getAsObject();
-  if (settings.notify_time) {
-    scheduleNotification(settings.notify_time, settings.notify_timezone || 'Europe/Madrid');
-  }
-}
-loadNotificationSettings.free();
+scheduleNotification();
 
 app.get('/api/gallery/photos', (req, res) => {
   const userId = getCurrentUserId(req.headers);

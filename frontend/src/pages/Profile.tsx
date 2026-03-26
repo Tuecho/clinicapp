@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X, Download, Upload, Settings } from 'lucide-react';
+import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X, Download, Upload, Settings, Calendar } from 'lucide-react';
 import { NotificationSettings } from '../components/NotificationSettings';
 import { ImportDB } from '../components/ImportDB';
 import { useAuth } from '../components/Auth';
@@ -13,6 +13,8 @@ interface Profile {
   avatar: string | null;
   email: string | null;
   phone: string | null;
+  sex: string | null;
+  birth_date: string | null;
   family_name: string;
   city: string | null;
   currency: string;
@@ -67,6 +69,8 @@ export function Profile() {
     avatar: null,
     email: null,
     phone: null,
+    sex: null,
+    birth_date: null,
     family_name: 'Mi Familia',
     city: null,
     currency: 'EUR'
@@ -517,6 +521,37 @@ export function Profile() {
                   onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="+34 600 000 000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <User size={14} className="inline mr-1" />
+                  Sexo
+                </label>
+                <select
+                  value={profile.sex || ''}
+                  onChange={(e) => setProfile({ ...profile, sex: e.target.value || null })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  <option value="">No especificado</option>
+                  <option value="mujer">Mujer</option>
+                  <option value="hombre">Hombre</option>
+                  <option value="otro">Otro</option>
+                  <option value="prefiero_no_decirlo">Prefiero no decirlo</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <Calendar size={14} className="inline mr-1" />
+                  Fecha de nacimiento
+                </label>
+                <input
+                  type="date"
+                  value={profile.birth_date || ''}
+                  onChange={(e) => setProfile({ ...profile, birth_date: e.target.value || null })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
 

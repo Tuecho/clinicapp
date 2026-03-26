@@ -18,8 +18,10 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./backend/server.js:/app/server.js
-      - api-db:/app
+      # Mapeamos la carpeta completa para que los cambios en el código se vean al instante y use la BD local
+      - ./backend:/app
+      # Volumen para persistencia de otros datos si fuera necesario
+      - api-db:/app/database 
     env_file:
       - .env
     networks:
