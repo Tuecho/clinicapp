@@ -65,11 +65,15 @@ async function initDb() {
       family_name TEXT DEFAULT 'Mi Familia',
       city TEXT,
       currency TEXT DEFAULT 'EUR',
+      sex TEXT,
+      birth_date TEXT,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
   try { db.run(`ALTER TABLE user_profile ADD COLUMN city TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_profile ADD COLUMN sex TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_profile ADD COLUMN birth_date TEXT`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS auth_user (
@@ -1865,7 +1869,10 @@ app.put('/api/profile', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { name, avatar, email, phone, family_name, city, currency } = req.body;
+  try { db.run(`ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS sex TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS birth_date TEXT`); } catch(e) {}
+  
+  const { name, avatar, email, phone, family_name, city, currency, sex, birth_date } = req.body;
   
   try {
     const checkStmt = db.prepare('SELECT id FROM user_profile WHERE owner_id = ?');
@@ -1876,17 +1883,17 @@ app.put('/api/profile', (req, res) => {
     if (hasRows) {
       const stmt = db.prepare(`
         UPDATE user_profile 
-        SET name = ?, avatar = ?, email = ?, phone = ?, family_name = ?, city = ?, currency = ?, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, avatar = ?, email = ?, phone = ?, family_name = ?, city = ?, currency = ?, sex = ?, birth_date = ?, updated_at = CURRENT_TIMESTAMP
         WHERE owner_id = ?
       `);
-      stmt.run([name || null, avatar || null, email || null, phone || null, family_name || 'Mi Familia', city || null, currency || 'EUR', userId]);
+      stmt.run([name || null, avatar || null, email || null, phone || null, family_name || 'Mi Familia', city || null, currency || 'EUR', sex || null, birth_date || null, userId]);
       stmt.free();
     } else {
       const stmt = db.prepare(`
-        INSERT INTO user_profile (owner_id, name, avatar, email, phone, family_name, city, currency)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO user_profile (owner_id, name, avatar, email, phone, family_name, city, currency, sex, birth_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run([userId, name || 'Usuario', avatar || null, email || null, phone || null, family_name || 'Mi Familia', city || null, currency || 'EUR']);
+      stmt.run([userId, name || 'Usuario', avatar || null, email || null, phone || null, family_name || 'Mi Familia', city || null, currency || 'EUR', sex || null, birth_date || null]);
       stmt.free();
     }
     
@@ -1904,7 +1911,7 @@ app.put('/api/profile', (req, res) => {
     }
   } catch (error) {
     console.error('Error updating profile:', error);
-    res.status(500).json({ error: 'Error updating profile' });
+    res.status(500).json({ error: 'Error updating profile: ' + error.message });
   }
 });
 
@@ -2438,7 +2445,7 @@ app.get('/api/tasks', (req, res) => {
   const accessibleIds = getAccessibleUserIds(userId, 'share_tasks');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
-  const stmt = db.prepare(`SELECT * FROM family_tasks WHERE owner_id IN (${placeholders}) OR owner_id = ? OR assigned_to_id = ? ORDER BY completed ASC, created_at DESC`);
+  const stmt = db.prepare(`SELECT t.*, fm.name as assignee_name FROM family_tasks t LEFT JOIN family_members fm ON t.assigned_to_id = fm.id WHERE t.owner_id IN (${placeholders}) OR t.owner_id = ? OR t.assigned_to_id = ? ORDER BY t.completed ASC, t.created_at DESC`);
   stmt.bind([...accessibleIds, userId, userId]);
   
   const tasks = [];
@@ -2984,8 +2991,10 @@ app.get('/api/family-members/birthdays', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const stmt = db.prepare('SELECT id, name, birthdate FROM family_members WHERE owner_id = ? AND birthdate IS NOT NULL AND birthdate != ""');
-  stmt.bind([userId]);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_family_members');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  const stmt = db.prepare(`SELECT id, name, birthdate, owner_id FROM family_members WHERE owner_id IN (${placeholders}) AND birthdate IS NOT NULL AND birthdate != ""`);
+  stmt.bind(accessibleIds);
   const members = [];
   while (stmt.step()) members.push(stmt.getAsObject());
   stmt.free();
@@ -4392,6 +4401,52 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   const nextWeek = new Date(today);
   nextWeek.setDate(nextWeek.getDate() + 7);
 
+  const motivationalQuotes = [
+    "🏠 La familia es el lugar donde la vida comienza y el amor nunca termina.",
+    "💝 Los momentos más bonitos se comparten con quienes más quieres.",
+    "🌟 Cada día juntos es un regalo que hay que valorar.",
+    "❤️ En familia todo es mejor, incluso los días difíciles.",
+    "🌈 La felicidad se encuentra en las pequeñas cosas de cada día.",
+    "💪 Los keluarga son el equipo más fuerte que existe.",
+    "🌺 Hoy es un buen día para hacer sonreír a los tuyos.",
+    "🎯 Donde está la familia, está la vida.",
+    "✨ Las mejores memorias se crean en familia.",
+    "💖 Família és on comença l'amor i mai s'acaba.",
+    "🌻 Un hogar feliz es el mejor legado.",
+    "❤️‍🔥 El amor familiar es el combustible que nos impulsa.",
+    "🏡 Familia es donde el corazón está.",
+    "🌟 Hoy trae nuevas oportunidades de estar juntos.",
+    "💕 Los recuerdos en familia son los más valiosos."
+  ];
+  const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+  const quoteOfTheDay = motivationalQuotes[dayOfYear % motivationalQuotes.length];
+
+  const headerHtml = `
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 28px; font-family: Arial, sans-serif;">👨‍👩‍👧‍👦 Family Agent</h1>
+      <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">Tu asistente familiar</p>
+    </div>
+  `;
+
+  const footerHtml = `
+    <div style="background: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
+      <p style="color: #6c757d; margin: 0; font-size: 12px;">📅 ${today.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      <p style="color: #adb5bd; margin: 10px 0 0 0; font-size: 11px;">Enviado con ❤️ por Family Agent</p>
+    </div>
+  `;
+
+  const greetingHtml = `
+    <div style="padding: 20px; background: #fff;">
+      <p style="font-size: 18px; color: #333; margin: 0;">¡Hola <strong>${familyName}</strong>! 👋</p>
+    </div>
+  `;
+
+  const quoteHtml = `
+    <div style="background: linear-gradient(to right, #fff9e6, #fff3cd); margin: 0 20px; padding: 16px; border-radius: 12px; border-left: 4px solid #ffc107;">
+      <p style="font-size: 15px; color: #856404; margin: 0; font-style: italic;">${quoteOfTheDay}</p>
+    </div>
+  `;
+
   let htmlContent;
   let textContent;
 
@@ -4457,7 +4512,8 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
       sortedTasks.map(t => {
         const emoji = (t.priority === 'high' || t.priority === 'urgent') ? '🔴' : (t.priority === 'low' ? '🟢' : '🟡');
         const due = t.due_date ? ` (Hasta: ${new Date(t.due_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })})` : '';
-        return `${emoji} ${t.title}${due}`;
+        const assignee = t.assigned_to_id && membersMap[t.assigned_to_id] ? ` [${membersMap[t.assigned_to_id]}]` : '';
+        return `${emoji} ${t.title}${assignee}${due}`;
       }).join('\n');
 
     tasksSection = `
@@ -4468,10 +4524,11 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
             ${sortedTasks.map(t => {
               const emoji = (t.priority === 'high' || t.priority === 'urgent') ? '🔴' : (t.priority === 'low' ? '🟢' : '🟡');
               const due = t.due_date ? `<br><small style="color: #92400e;">Hasta: ${new Date(t.due_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</small>` : '';
+              const assignee = t.assigned_to_id && membersMap[t.assigned_to_id] ? `<br><small style="color: #059669;">Asignado a: ${membersMap[t.assigned_to_id]}</small>` : '';
               return `
                 <tr style="border-bottom: 1px solid #fcd34d;">
                   <td style="padding: 10px 0;">${emoji}</td>
-                  <td style="padding: 10px 0; color: #111827;">${t.title}${due}</td>
+                  <td style="padding: 10px 0; color: #111827;">${t.title}${assignee}${due}</td>
                 </tr>
               `;
             }).join('')}
@@ -4519,10 +4576,10 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   if (hasBirthdays) {
     birthdaysText = `🎂 CUMPLEAÑOS PRÓXIMOS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       birthdays.map(b => {
-        const date = new Date(b.birthdate);
-        const day = date.getDate();
-        const month = date.toLocaleDateString('es-ES', { month: 'long' });
-        return `🎂 ${b.name}: ${day} de ${month} (${b.age} años, ${b.daysUntil} días)`;
+        const [year, month, day] = b.birthdate.split('-');
+        const monthName = new Date(b.birthdate + 'T12:00:00').toLocaleDateString('es-ES', { month: 'long' });
+        const daysText = b.isThisMonth && b.daysUntil > 30 ? 'este mes' : (b.daysUntil === 0 ? '¡HOY!' : b.daysUntil === 1 ? 'mañana' : `${b.daysUntil} días`);
+        return `🎂 ${b.name}: ${parseInt(day)} de ${monthName} (${b.age} años, ${daysText})`;
       }).join('\n');
 
     birthdaysSection = `
@@ -4531,15 +4588,16 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
         <table style="width: 100%; font-size: 14px;">
           <tbody>
             ${birthdays.map(b => {
-              const date = new Date(b.birthdate);
-              const day = date.getDate();
-              const month = date.toLocaleDateString('es-ES', { month: 'long' });
+              const [year, month, day] = b.birthdate.split('-');
+              const monthName = new Date(b.birthdate + 'T12:00:00').toLocaleDateString('es-ES', { month: 'long' });
+              const daysText = b.isThisMonth && b.daysUntil > 30 ? 'este mes' : (b.daysUntil === 0 ? '¡HOY!' : b.daysUntil === 1 ? 'Mañana' : b.daysUntil + ' días');
+              const textColor = b.isThisMonth ? '#059669' : (b.daysUntil <= 7 ? '#dc2626' : '#be185d');
               return `
                 <tr style="border-bottom: 1px solid #fbcfe8;">
                   <td style="padding: 10px 0;">🎂</td>
                   <td style="padding: 10px 0; color: #111827;">${b.name}</td>
-                  <td style="padding: 10px 0; color: #6b7280;">${day} de ${month}</td>
-                  <td style="padding: 10px 0; text-align: right; font-weight: 600; color: ${b.daysUntil <= 7 ? '#dc2626' : '#be185d'};">${b.daysUntil === 0 ? '¡HOY!' : b.daysUntil === 1 ? 'Mañana' : b.daysUntil + ' días'}</td>
+                  <td style="padding: 10px 0; color: #6b7280;">${parseInt(day)} de ${monthName}</td>
+                  <td style="padding: 10px 0; text-align: right; font-weight: 600; color: ${textColor};">${daysText}</td>
                 </tr>
               `;
             }).join('')}
@@ -4554,8 +4612,26 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   const dateRangeStr = `${today.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${nextWeek.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   if (!hasEvents) {
-    textContent = `Hola ${familyName},\n\nNo hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n${tasksText ? '\n\n' + tasksText : ''}\n${budgetsText ? '\n\n' + budgetsText : ''}\n${mealPlansText ? '\n\n' + mealPlansText : ''}\n${birthdaysText ? '\n\n' + birthdaysText : ''}\n\n\u00a1Que tengas un buen d\u00eda!\n\nSaludos,\nFamily Agent`;
-    htmlContent = `<h2>Hola ${familyName}</h2><p>No hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).</p>${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}<p>\u00a1Que tengas un buen d\u00eda!</p><p><em>Saludos,<br>Family Agent</em></p>`;
+    textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\nNo hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n${tasksText ? '\n\n' + tasksText : ''}\n${budgetsText ? '\n\n' + budgetsText : ''}\n${mealPlansText ? '\n\n' + mealPlansText : ''}\n${birthdaysText ? '\n\n' + birthdaysText : ''}\n\n¡Que tengas un buen día!\n\nCon cariño,\nFamily Agent 💕`;
+    htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background: #f5f5f5;">
+  <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    ${headerHtml}
+    ${greetingHtml}
+    ${quoteHtml}
+    <div style="padding: 20px;">
+      <p style="color: #666; font-size: 14px; margin: 0 0 20px 0;">No hay planes para los próximos 7 días (${dateRangeStr}).</p>
+      ${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}
+    </div>
+    ${footerHtml}
+  </div>
+</body>
+</html>`;
   } else {
     const eventsByDay = events.reduce((acc, e) => {
       const dayName = new Date(e.date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -4590,7 +4666,25 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     
     eventsHtml += '</div>';
 
-    htmlContent = `<h2>Hola ${familyName}</h2>${eventsHtml}${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}<p>\u00a1Que disfrutes!</p><p><em>Saludos,<br>Family Agent</em></p>`;
+    htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background: #f5f5f5;">
+  <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    ${headerHtml}
+    ${greetingHtml}
+    ${quoteHtml}
+    <div style="padding: 20px;">
+      <p style="color: #666; font-size: 14px; margin: 0 0 20px 0;">Tienes <strong>${events.length} plan${events.length > 1 ? 'es' : ''}</strong> para los próximos 7 días (${dateRangeStr}):</p>
+      ${eventsHtml}${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}
+    </div>
+    ${footerHtml}
+  </div>
+</body>
+</html>`;
   }
 
   const transporter = nodemailer.createTransport({
@@ -4736,14 +4830,17 @@ async function sendUserNotification(userId) {
     const year = today.getFullYear();
     const monthStr = String(month).padStart(2, '0');
 
+    const budgetConcepts = ['gasolina', 'comida', 'gastos pm', 'gastos m+', 'miguel'];
+    const conceptPlaceholders = budgetConcepts.map(() => 'LOWER(?)').join(',');
+    
     const budgetsStmt = db.prepare(`
       SELECT b.*, COALESCE(SUM(CASE WHEN t.type = 'expense' AND t.date LIKE ? THEN t.amount ELSE 0 END), 0) as spent
       FROM budgets b
-      LEFT JOIN transactions t ON t.concept = b.concept AND t.owner_id = b.owner_id
-      WHERE b.owner_id = ?
+      LEFT JOIN transactions t ON LOWER(t.concept) = LOWER(b.concept) AND t.owner_id = b.owner_id
+      WHERE b.owner_id = ? AND b.month = ? AND b.year = ? AND LOWER(b.concept) IN (${conceptPlaceholders})
       GROUP BY b.id
     `);
-    budgetsStmt.bind([`${year}-${monthStr}%`, userId]);
+    budgetsStmt.bind([`${year}-${monthStr}%`, userId, month, year, ...budgetConcepts]);
     const budgets = [];
     while (budgetsStmt.step()) {
       budgets.push(budgetsStmt.getAsObject());
@@ -4773,8 +4870,10 @@ async function sendUserNotification(userId) {
     }
     mealPlansStmt.free();
 
-    const membersStmt = db.prepare('SELECT id, name, birthdate FROM family_members WHERE owner_id = ?');
-    membersStmt.bind([userId]);
+    const accessibleMemberIds = getAccessibleUserIds(userId, 'share_family_members');
+    const memberPlaceholders = accessibleMemberIds.map(() => '?').join(',');
+    const membersStmt = db.prepare(`SELECT id, name, birthdate, owner_id FROM family_members WHERE owner_id IN (${memberPlaceholders})`);
+    membersStmt.bind(accessibleMemberIds);
     const members = [];
     while (membersStmt.step()) {
       members.push(membersStmt.getAsObject());
@@ -4785,14 +4884,28 @@ async function sendUserNotification(userId) {
       .filter(m => m.birthdate && m.birthdate.trim() !== '')
       .map(m => {
         const birthDate = new Date(m.birthdate);
+        const birthMonth = birthDate.getMonth();
+        const birthDay = birthDate.getDate();
         const currentYear = today.getFullYear();
-        let birthdayThisYear = new Date(currentYear, birthDate.getMonth(), birthDate.getDate());
-        let nextBirthday = new Date(currentYear + 1, birthDate.getMonth(), birthDate.getDate());
+        const currentMonth = today.getMonth();
+        
+        let nextBirthday = new Date(currentYear + 1, birthMonth, birthDay);
+        let birthdayThisYear = new Date(currentYear, birthMonth, birthDay);
+        let isThisMonth = false;
         
         if (birthdayThisYear < today) {
-          nextBirthday = new Date(currentYear + 1, birthDate.getMonth(), birthDate.getDate());
+          nextBirthday = new Date(currentYear + 1, birthMonth, birthDay);
         } else {
           nextBirthday = birthdayThisYear;
+        }
+        
+        if (birthMonth === currentMonth) {
+          isThisMonth = true;
+          if (birthdayThisYear < today) {
+            nextBirthday = new Date(currentYear + 1, birthMonth, birthDay);
+          } else {
+            nextBirthday = birthdayThisYear;
+          }
         }
         
         const age = nextBirthday.getFullYear() - birthDate.getFullYear();
@@ -4802,11 +4915,16 @@ async function sendUserNotification(userId) {
           name: m.name,
           birthdate: m.birthdate,
           age: age,
-          daysUntil: daysUntil
+          daysUntil: daysUntil,
+          isThisMonth: isThisMonth
         };
       })
-      .filter(b => b.daysUntil <= 30)
-      .sort((a, b) => a.daysUntil - b.daysUntil);
+      .filter(b => b.isThisMonth || b.daysUntil <= 30)
+      .sort((a, b) => {
+        if (a.isThisMonth && !b.isThisMonth) return -1;
+        if (!a.isThisMonth && b.isThisMonth) return 1;
+        return a.daysUntil - b.daysUntil;
+      });
 
     await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays);
   } catch (error) {

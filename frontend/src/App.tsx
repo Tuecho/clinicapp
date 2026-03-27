@@ -18,6 +18,7 @@ import { HowItWorks } from './pages/HowItWorks';
 import { FavoriteRestaurants } from './pages/FavoriteRestaurants';
 import { FamilyGallery } from './pages/FamilyGallery';
 import { Premium } from './pages/Premium';
+import { ChatBotPage } from './pages/ChatBotPage';
 import { SalesContact } from './pages/SalesContact';
 import { Terms } from './pages/Terms';
 import { Privacy } from './pages/Privacy';
@@ -27,7 +28,7 @@ import { ChatWidget } from './components/ChatWidget';
 import { Login, useAuth, AuthProvider } from './components/Auth';
 import { Menu, X } from 'lucide-react';
 
-type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'premium' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts';
+type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<PageType>(() => {
@@ -119,7 +120,8 @@ function AppContent() {
           {activePage === 'howitworks' && <HowItWorks />}
           {activePage === 'restaurants' && <FavoriteRestaurants />}
           {activePage === 'gallery' && <FamilyGallery />}
-          {(activePage === 'premium' || activePage === 'chatbot') && <Premium activePage={activePage} />}
+          {activePage === 'contacts' && <Premium />}
+          {activePage === 'chatbot' && <ChatBotPage />}
           {activePage === 'gifts' && <Gifts />}
           {activePage === 'sales' && <SalesContact />}
           {activePage === 'terms' && <Terms />}
@@ -128,7 +130,7 @@ function AppContent() {
         </div>
       </main>
 
-      <ChatWidget hidden={activePage === 'premium'} />
+      <ChatWidget hidden={activePage === 'contacts'} />
     </div>
   );
 }

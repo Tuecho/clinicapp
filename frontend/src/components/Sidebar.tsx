@@ -11,8 +11,8 @@ interface Profile {
 }
 
 interface SidebarProps {
-  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'premium' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts';
-  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'premium' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts') => void;
+  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts') => void;
   onLogout?: () => void;
   isAdmin?: boolean;
   isMobile?: boolean;
@@ -31,7 +31,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
   }, []);
 
   useEffect(() => {
-    const premiumPages = ['gallery', 'premium', 'chatbot', 'sales', 'gifts'];
+    const premiumPages = ['gallery', 'chatbot', 'sales', 'gifts'];
     if (premiumPages.includes(activePage)) {
       setIsPremiumOpen(true);
     }
@@ -229,22 +229,16 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
           </li>
           <li>
             <button
-              onClick={() => {
-                setIsPremiumOpen(!isPremiumOpen);
-                onNavigate('premium');
-              }}
-              className={`w-full flex items-center gap-3 rounded-lg transition-colors bg-gradient-to-r from-amber-500 to-yellow-400 text-white shadow-lg shadow-amber-500/20 ${
-                isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'
-              }`}
-              title={isExpanded ? undefined : 'Premium'}
+              onClick={() => onNavigate('contacts')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'contacts'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Contactos'}
             >
-              <Crown size={18} className="text-white" />
-              {isExpanded && (
-                <>
-                  <span className="text-sm font-semibold flex-1">PREMIUM</span>
-                  {isPremiumOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </>
-              )}
+              <Users size={18} />
+              {isExpanded && <span className="text-sm">Contactos</span>}
             </button>
           </li>
           {isPremiumOpen && isExpanded && (
@@ -260,18 +254,6 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
               >
                 <Image size={16} />
                 <span className="text-sm">Galería</span>
-              </button>
-              <button
-                onClick={() => onNavigate('premium')}
-                className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
-                  activePage === 'premium'
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                } px-3 py-2`}
-                title={isExpanded ? undefined : 'Contactos'}
-              >
-                <Users size={16} />
-                <span className="text-sm">Contactos</span>
               </button>
               <button
                 onClick={() => onNavigate('chatbot')}
