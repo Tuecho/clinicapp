@@ -481,113 +481,189 @@ export function Premium() {
             </div>
           )}
 
-          {showAdd && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold flex items-center gap-2">
-                    <Plus className="text-primary" size={24} />
-                    Nuevo Contacto
-                  </h3>
-                  <button onClick={() => { setShowAdd(false); setError(null); }} className="text-gray-500 hover:text-gray-700">
-                    <X size={24} />
-                  </button>
-                </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold text-gray-800">Contactos</h2>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-400 text-white rounded-lg hover:from-amber-600 hover:to-yellow-500 transition-colors"
+          >
+            <Upload size={18} />
+            Importar
+          </button>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={18} />
+            Nuevo
+          </button>
+        </div>
+      </div>
 
-                {error && (
-                  <div className="flex items-center gap-2 text-expense bg-expense/10 p-3 rounded-lg mb-4">
-                    <AlertCircle size={20} />
-                    <span>{error}</span>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="text"
+            placeholder="Buscar contactos..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12 text-gray-500">Cargando...</div>
+      ) : filteredContacts.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">
+          <Users size={48} className="mx-auto mb-4 text-gray-300" />
+          <p>No hay contactos</p>
+          <p className="text-sm">Importa un archivo o agrega contactos manualmente</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredContacts.map(contact => (
+            <div key={contact.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary font-semibold">
+                    {contact.name[0].toUpperCase()}
                   </div>
-                )}
-
-                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-                    <input
-                      type="text"
-                      value={newContact.name}
-                      onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                      placeholder="Nombre completo"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Relación</label>
-                    <input
-                      type="text"
-                      value={newContact.relationship}
-                      onChange={(e) => setNewContact({ ...newContact, relationship: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                      placeholder="familia, amigo, trabajo..."
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                      <input
-                        type="tel"
-                        value={newContact.phone}
-                        onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                        placeholder="+34..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                      <input
-                        type="email"
-                        value={newContact.email}
-                        onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                        placeholder="email@ejemplo.com"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
-                    <input
-                      type="text"
-                      value={newContact.address}
-                      onChange={(e) => setNewContact({ ...newContact, address: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                      placeholder="Calle, número, ciudad..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-                    <textarea
-                      value={newContact.notes}
-                      onChange={(e) => setNewContact({ ...newContact, notes: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                      rows={2}
-                      placeholder="Notas adicionales..."
-                    />
+                    <h3 className="font-semibold text-gray-800">{contact.name}</h3>
+                    {contact.relationship && (
+                      <p className="text-sm text-gray-500">{contact.relationship}</p>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex gap-3 pt-4 mt-4 border-t">
-                  <button
-                    onClick={() => { setShowAdd(false); setError(null); }}
-                    className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleAddContact}
-                    className="flex-1 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
-                  >
-                    Guardar
-                  </button>
+                <button
+                  onClick={() => handleDeleteContact(contact.id)}
+                  className="text-red-400 hover:text-red-600"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+              {contact.phone && (
+                <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                  <Phone size={14} />
+                  <a href={`tel:${contact.phone}`} className="hover:text-primary">{contact.phone}</a>
                 </div>
+              )}
+              {contact.email && (
+                <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
+                  <Mail size={14} />
+                  <a href={`mailto:${contact.email}`} className="hover:text-primary">{contact.email}</a>
+                </div>
+              )}
+              {contact.address && (
+                <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
+                  <MapPin size={14} />
+                  <span>{contact.address}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800">Nuevo Contacto</h3>
+              <button onClick={() => { setShowAdd(false); setError(null); }} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                <input
+                  type="text"
+                  value={newContact.name}
+                  onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="Nombre del contacto"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Relación</label>
+                <input
+                  type="text"
+                  value={newContact.relationship}
+                  onChange={(e) => setNewContact({ ...newContact, relationship: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="Amigo, Familiar, etc."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                <input
+                  type="tel"
+                  value={newContact.phone}
+                  onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="+34 600 000 000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={newContact.email}
+                  onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="email@ejemplo.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                <input
+                  type="text"
+                  value={newContact.address}
+                  onChange={(e) => setNewContact({ ...newContact, address: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="Dirección"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                <textarea
+                  value={newContact.notes}
+                  onChange={(e) => setNewContact({ ...newContact, notes: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  rows={2}
+                  placeholder="Notas adicionales..."
+                />
               </div>
             </div>
-          )}
-        </>
+
+            <div className="flex gap-3 pt-4 mt-4 border-t">
+              <button
+                onClick={() => { setShowAdd(false); setError(null); }}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAddContact}
+                className="flex-1 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
