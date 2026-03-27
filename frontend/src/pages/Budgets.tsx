@@ -164,6 +164,9 @@ export function Budgets() {
             targetYear += 1;
           }
 
+          const exists = budgets.some(b => b.month === targetMonth && b.year === targetYear && b.concept === budget.concept);
+          if (exists) continue;
+
           await fetch(`${API_URL}/api/budgets`, {
             method: 'POST',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Users, Upload, Plus, Trash2, Phone, Mail, MapPin, X, CheckCircle, AlertCircle, Search, Crown } from 'lucide-react';
+import { Users, Upload, Plus, Trash2, Phone, Mail, MapPin, X, CheckCircle, AlertCircle, Search, Crown, Bot } from 'lucide-react';
+import { ChatBotPage } from './ChatBotPage';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -20,7 +21,7 @@ interface ImportResult {
   details: { errors: { row: number; error: string }[] };
 }
 
-export function Premium() {
+export function Premium({ activePage }: { activePage?: string }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
@@ -30,7 +31,15 @@ export function Premium() {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'contacts' | 'chatbot'>(
+    activePage === 'chatbot' ? 'chatbot' : 'contacts'
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (activePage === 'chatbot') setActiveTab('chatbot');
+    else if (activePage === 'premium') setActiveTab('contacts');
+  }, [activePage]);
 
   const [newContact, setNewContact] = useState({
     name: '',
@@ -209,13 +218,42 @@ export function Premium() {
             <Crown className="text-white" size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">Premium</h1>
-            <p className="text-gray-500 text-sm">Gestión de contactos familiares</p>
+            <h1 className="text-2xl font-bold text-gray-800 uppercase tracking-wider">Premium Suite</h1>
+            <p className="text-gray-500 text-sm font-medium">Herramientas exclusivas para tu familia</p>
           </div>
         </div>
       </div>
 
-      {(
+      <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 mb-6">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setActiveTab('contacts')}
+            className={`flex-1 min-w-[140px] px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'contacts' 
+                ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' 
+                : 'text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            <Users size={18} />
+            Contactos
+          </button>
+          <button
+            onClick={() => setActiveTab('chatbot')}
+            className={`flex-1 min-w-[140px] px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'chatbot' 
+                ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' 
+                : 'text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            <Bot size={18} />
+            Chat IA
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'chatbot' && <ChatBotPage />}
+
+      {activeTab === 'contacts' && (
         <>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

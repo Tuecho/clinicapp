@@ -11,8 +11,14 @@ export function formatMoneyEs(amount: number) {
 }
 
 export function formatTime24(timeHHMM?: string) {
-  // Stored as "HH:MM" already, keep it (24h)
   if (!timeHHMM) return '';
-  return timeHHMM.slice(0, 5);
+  
+  const [hours, minutes] = timeHHMM.split(':');
+  const h = parseInt(hours, 10);
+  const m = minutes || '00';
+  
+  if (h >= 24 || isNaN(h)) return '';
+  
+  return `${h.toString().padStart(2, '0')}:${m}`;
 }
 

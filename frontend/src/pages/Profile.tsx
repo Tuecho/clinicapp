@@ -45,6 +45,9 @@ interface SharedUser {
   share_recipes: number;
   share_restaurants: number;
   share_family_members: number;
+  share_gifts: number;
+  share_books: number;
+  share_movies: number;
 }
 
 interface SharePreferences {
@@ -59,6 +62,9 @@ interface SharePreferences {
   share_recipes: boolean;
   share_restaurants: boolean;
   share_family_members: boolean;
+  share_gifts: boolean;
+  share_books: boolean;
+  share_movies: boolean;
 }
 
 export function Profile() {
@@ -98,7 +104,10 @@ export function Profile() {
     share_contacts: false,
     share_recipes: false,
     share_restaurants: false,
-    share_family_members: false
+    share_family_members: false,
+    share_gifts: false,
+    share_books: false,
+    share_movies: false
   });
 
   useEffect(() => {
@@ -177,7 +186,10 @@ export function Profile() {
           share_contacts: false,
           share_recipes: false,
           share_restaurants: false,
-          share_family_members: false
+          share_family_members: false,
+          share_gifts: false,
+          share_books: false,
+          share_movies: false
         });
         fetchInvitations();
       } else {
@@ -223,7 +235,10 @@ export function Profile() {
       share_contacts: !!share.share_contacts,
       share_recipes: !!share.share_recipes,
       share_restaurants: !!share.share_restaurants,
-      share_family_members: !!share.share_family_members
+      share_family_members: !!share.share_family_members,
+      share_gifts: !!share.share_gifts,
+      share_books: !!share.share_books,
+      share_movies: !!share.share_movies
     });
     setShowShareModal(true);
   };
@@ -241,7 +256,10 @@ export function Profile() {
       share_contacts: false,
       share_recipes: false,
       share_restaurants: false,
-      share_family_members: false
+      share_family_members: false,
+      share_gifts: false,
+      share_books: false,
+      share_movies: false
     });
     setInviteUsername('');
     setAvailableUsers([]);
@@ -534,11 +552,9 @@ export function Profile() {
                   onChange={(e) => setProfile({ ...profile, sex: e.target.value || null })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="">No especificado</option>
-                  <option value="mujer">Mujer</option>
+                  <option value="">Seleccionar...</option>
                   <option value="hombre">Hombre</option>
-                  <option value="otro">Otro</option>
-                  <option value="prefiero_no_decirlo">Prefiero no decirlo</option>
+                  <option value="mujer">Mujer</option>
                 </select>
               </div>
 
@@ -767,7 +783,10 @@ export function Profile() {
                       { key: 'share_contacts', label: 'Contactos', color: 'indigo' },
                       { key: 'share_recipes', label: 'Recetas', color: 'red' },
                       { key: 'share_restaurants', label: 'Restaurantes', color: 'amber' },
-                      { key: 'share_family_members', label: 'Miembros familia', color: 'cyan' },
+                      { key: 'share_family_members', label: 'Miembros familia (cumpleaños)', color: 'cyan' },
+                      { key: 'share_gifts', label: 'Regalos', color: 'rose' },
+                      { key: 'share_books', label: 'Libros', color: 'indigo' },
+                      { key: 'share_movies', label: 'Películas', color: 'purple' },
                     ].map((item) => (
                       <label key={item.key} className="flex items-center gap-3 cursor-pointer">
                         <input

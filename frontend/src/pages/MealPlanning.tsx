@@ -12,6 +12,7 @@ interface FamilyMember {
   allergies: string;
   intolerances: string;
   notes: string;
+  birthdate: string;
 }
 
 interface Recipe {
@@ -88,7 +89,7 @@ function getWeekStart(date: Date): string {
 }
 
 export function MealPlanning() {
-  const [activeTab, setActiveTab] = useState<'planning' | 'recipes' | 'members'>('planning');
+  const [activeTab, setActiveTab] = useState<'planning' | 'recipes' | 'members' | 'birthdays'>('planning');
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
@@ -101,9 +102,10 @@ export function MealPlanning() {
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{day: number; meal: string} | null>(null);
   const [shoppingList, setShoppingList] = useState<{name: string; amount: number; unit: string}[]>([]);
+  const [birthdays, setBirthdays] = useState<{id: number; name: string; birthdate: string; nextBirthday: string; age: number; daysUntil: number; month: number; day: number}[]>([]);
   
   const [memberForm, setMemberForm] = useState({
-    name: '', age_group: 'adult', restrictions: [] as string[], allergies: '', intolerances: '', notes: ''
+    name: '', age_group: 'adult', restrictions: [] as string[], allergies: '', intolerances: '', notes: '', birthdate: ''
   });
   
   const [recipeForm, setRecipeForm] = useState({
@@ -114,6 +116,7 @@ export function MealPlanning() {
 
   useEffect(() => {
     fetchMembers();
+    fetchBirthdays();
     fetchRecipes();
     fetchMealPlans();
   }, [weekStart]);
@@ -123,6 +126,14 @@ export function MealPlanning() {
       const res = await fetch(`${API_URL}/api/family-members`, { headers: getAuthHeaders() });
       const data = await res.json();
       setMembers(data);
+    } catch (e) { console.error(e); }
+  };
+
+  const fetchBirthdays = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/family-members/birthdays`, { headers: getAuthHeaders() });
+      const data = await res.json();
+      setBirthdays(data);
     } catch (e) { console.error(e); }
   };
 
@@ -159,7 +170,8 @@ export function MealPlanning() {
         restrictions: memberForm.restrictions.join(','),
         allergies: memberForm.allergies,
         intolerances: memberForm.intolerances,
-        notes: memberForm.notes
+        notes: memberForm.notes,
+        birthdate: memberForm.birthdate
       };
       
       if (editingMember) {
@@ -338,14 +350,6 @@ export function MealPlanning() {
                 <ChevronRight size={20} />
               </button>
             </div>
-            <button
-              onClick={() => { fetchShoppingList(); setShowShoppingModal(true); }}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
-            >
-              <ShoppingCart size={18} />
-              <span className="hidden sm:inline">Lista de compra</span>
-              <span className="sm:hidden">Compra</span>
-            </button>
           </div>
 
           {members.length > 0 && (
@@ -537,7 +541,7 @@ export function MealPlanning() {
           <div className="flex justify-between items-center mb-4">
             <p className="text-gray-600">Gestiona los miembros de la familia y sus restricciones dietéticas</p>
             <button
-              onClick={() => { setEditingMember(null); setMemberForm({ name: '', age_group: 'adult', restrictions: [], allergies: '', intolerances: '', notes: '' }); setShowMemberModal(true); }}
+              onClick={() => { setEditingMember(null); setMemberForm({ name: '', age_group: 'adult', restrictions: [], allergies: '', intolerances: '', notes: '', birthdate: '' }); setShowMemberModal(true); }}
               className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
             >
               <Plus size={18} /> Nuevo miembro
@@ -560,7 +564,7 @@ export function MealPlanning() {
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      <button onClick={() => { setEditingMember(member); setMemberForm({ name: member.name, age_group: member.age_group, restrictions: member.restrictions.split(','), allergies: member.allergies, intolerances: member.intolerances, notes: member.notes }); setShowMemberModal(true); }} className="p-1 text-gray-400 hover:text-blue-500">
+                      <button onClick={() => { setEditingMember(member); setMemberForm({ name: member.name, age_group: member.age_group, restrictions: member.restrictions.split(','), allergies: member.allergies, intolerances: member.intolerances, notes: member.notes, birthdate: member.birthdate || '' }); setShowMemberModal(true); }} className="p-1 text-gray-400 hover:text-blue-500">
                         <Edit2 size={18} />
                       </button>
                       <button onClick={() => handleDeleteMember(member.id)} className="p-1 text-gray-400 hover:text-red-500">
@@ -612,6 +616,15 @@ export function MealPlanning() {
                   onChange={e => setMemberForm({ ...memberForm, name: e.target.value })}
                   className="w-full px-4 py-2 border rounded-lg"
                   placeholder="Ej: María, Juan..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Fecha de nacimiento</label>
+                <input
+                  type="date"
+                  value={memberForm.birthdate}
+                  onChange={e => setMemberForm({ ...memberForm, birthdate: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg"
                 />
               </div>
               <div>
@@ -684,7 +697,49 @@ export function MealPlanning() {
               <button onClick={() => setShowMemberModal(false)} className="flex-1 py-2 border rounded-lg">Cancelar</button>
               <button onClick={handleSaveMember} className="flex-1 py-2 bg-orange-500 text-white rounded-lg">Guardar</button>
             </div>
+            </div>
           </div>
+        )}
+
+      {activeTab === 'birthdays' && (
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold">Cumpleaños</h2>
+          </div>
+          
+          {birthdays.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <Baby size={48} className="mx-auto mb-4 opacity-50" />
+              <p>No hay cumpleaños próximos</p>
+              <p className="text-sm">Añade la fecha de nacimiento en los miembros de la familia</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {birthdays.map(b => (
+                <div key={b.id} className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-xl p-4 border border-pink-100">
+                  <div className="flex items-center gap-3">
+                    <div className="text-3xl">🎂</div>
+                    <div>
+                      <p className="font-bold text-lg">{b.name}</p>
+                      <p className="text-sm text-gray-600">{b.day}/{b.month}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      b.daysUntil === 0 ? 'bg-red-500 text-white' :
+                      b.daysUntil <= 7 ? 'bg-orange-500 text-white' :
+                      'bg-pink-200 text-pink-800'
+                    }`}>
+                      {b.daysUntil === 0 ? '¡HOY!' : 
+                       b.daysUntil === 1 ? 'Mañana' : 
+                       `${b.daysUntil} días`}
+                    </span>
+                    <span className="text-gray-500">{b.age} años</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

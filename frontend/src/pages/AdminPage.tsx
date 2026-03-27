@@ -311,6 +311,12 @@ export function AdminPage() {
   };
 
   const handleSuggestionAction = async (id: number, action: 'read' | 'delete') => {
+    if (action === 'delete') {
+      if (!confirm('¿Estás seguro de que quieres borrar esta sugerencia?')) {
+        return;
+      }
+    }
+    
     try {
       const headers = getAuthHeaders();
       if (action === 'read') {

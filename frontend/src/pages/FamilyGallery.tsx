@@ -155,21 +155,22 @@ export function FamilyGallery() {
   };
 
   const handleDeleteAlbum = async (album: Album) => {
-    if (!album.id) return;
+    if (!album.name || album.name === 'General') return;
     
-    const confirmMessage = `¿Estás seguro de que quieres borrar el álbum "${album.name}"?\n\n¡ATENCION! Se borrarán permanentemente todas las fotos que contiene este álbum.`;
+    const confirmMessage = `¿Estás seguro de que quieres borrar el álbum "${album.name}"?\n\n¡ATENCIÓN! Las fotos se moverán al álbum "General".`;
     
     if (!confirm(confirmMessage)) return;
 
     try {
       const headers = getAuthHeaders();
-      const response = await fetch(`${API_URL}/api/gallery/albums/${album.id}`, {
+      const response = await fetch(`${API_URL}/api/gallery/albums/${encodeURIComponent(album.name)}`, {
         method: 'DELETE',
-        headers
+        headers: { ...headers, 'Content-Type': 'application/json' }
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        const data = await response.json();
         alert(data.error || 'Error eliminando álbum');
         return;
       }

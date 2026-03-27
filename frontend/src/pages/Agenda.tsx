@@ -615,9 +615,11 @@ export function Agenda() {
                   </label>
                   <input
                     type="time"
+                    step="1800"
                     value={formData.start_time}
                     onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    style={{ '--webkit-appearance': 'none' } as React.CSSProperties}
                   />
                 </div>
                 <div>
@@ -626,9 +628,11 @@ export function Agenda() {
                   </label>
                   <input
                     type="time"
+                    step="1800"
                     value={formData.end_time}
                     onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    style={{ '--webkit-appearance': 'none' } as React.CSSProperties}
                   />
                 </div>
               </div>

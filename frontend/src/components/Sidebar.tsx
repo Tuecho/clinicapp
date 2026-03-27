@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, Crown, UtensilsCrossed, BookOpen, FileText, ShieldCheck, Mail, ChefHat, Image, ChevronDown, ChevronRight, Bot, DollarSign, Users } from 'lucide-react';
+import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, Crown, UtensilsCrossed, BookOpen, FileText, ShieldCheck, Mail, ChefHat, Image, ChevronDown, ChevronRight, Bot, DollarSign, Users, Cake, Gift, Film } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -11,8 +11,8 @@ interface Profile {
 }
 
 interface SidebarProps {
-  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'premium' | 'terms' | 'privacy' | 'contact' | 'meals' | 'chatbot' | 'sales';
-  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'premium' | 'terms' | 'privacy' | 'contact' | 'meals' | 'chatbot' | 'sales') => void;
+  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'premium' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'premium' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts') => void;
   onLogout?: () => void;
   isAdmin?: boolean;
   isMobile?: boolean;
@@ -29,6 +29,13 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
       .then(data => setProfile(data))
       .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    const premiumPages = ['gallery', 'premium', 'chatbot', 'sales', 'gifts'];
+    if (premiumPages.includes(activePage)) {
+      setIsPremiumOpen(true);
+    }
+  }, [activePage]);
 
   const isExpanded = isMobile || isHovered;
 
@@ -164,6 +171,48 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
               {isExpanded && <span className="text-sm">Comidas</span>}
             </button>
           </li>
+          <li key="birthdays">
+            <button
+              onClick={() => onNavigate('birthdays')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'birthdays'
+                  ? 'bg-pink-500 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Cumpleaños'}
+            >
+              <Cake size={18} />
+              {isExpanded && <span className="text-sm">Cumpleaños</span>}
+            </button>
+          </li>
+          <li key="books_movies">
+            <button
+              onClick={() => onNavigate('books_movies')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'books_movies'
+                  ? 'bg-indigo-500 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined: 'Libros y Películas'}
+            >
+              <BookOpen size={18} />
+              {isExpanded && <span className="text-sm">Libros y Películas</span>}
+            </button>
+          </li>
+          <li key="gifts">
+            <button
+              onClick={() => onNavigate('gifts')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'gifts'
+                  ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Regalos'}
+            >
+              <Gift size={18} className={activePage === 'gifts' ? 'text-white' : 'text-amber-500'} />
+              {isExpanded && <span className="text-sm font-medium">Regalos</span>}
+            </button>
+          </li>
           <li>
             <button
               onClick={() => onNavigate('restaurants')}
@@ -180,7 +229,10 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
           </li>
           <li>
             <button
-              onClick={() => setIsPremiumOpen(!isPremiumOpen)}
+              onClick={() => {
+                setIsPremiumOpen(!isPremiumOpen);
+                onNavigate('premium');
+              }}
               className={`w-full flex items-center gap-3 rounded-lg transition-colors bg-gradient-to-r from-amber-500 to-yellow-400 text-white shadow-lg shadow-amber-500/20 ${
                 isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'
               }`}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home, ListChecks, Calendar, AlertCircle, Cake } from 'lucide-react';
 import { useStore } from '../store';
 import { formatMoneyEs } from '../utils/format';
 import { getAuthHeaders } from '../utils/auth';
@@ -515,6 +515,32 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [currentMonthBudgets, setCurrentMonthBudgets] = useState<any[]>([]);
   const [weather, setWeather] = useState<{ city: string; temperature: number; description: string; isRainy: boolean; isSnowy: boolean } | null>(null);
   const [weatherError, setWeatherError] = useState<string | null>(null);
+  const [pendingTasks, setPendingTasks] = useState<any[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tomorrowPlans, setTomorrowPlans] = useState<any[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [monthBirthdays, setMonthBirthdays] = useState<any[]>([]);
+  const [birthdaysLoading, setBirthdaysLoading] = useState(false);
+  
+  const quotes = [
+    "La familia es el corazón de la vida.",
+    "Cada día es una nueva oportunidad para estar juntos.",
+    "El amor familiar es el mayores tesoros.",
+    "Las pequenas cosas de la vida son las mas importantes.",
+    "La felicidad es estar en familia.",
+    "Un hogar feliz es el mejor legado.",
+    "El tiempo en familia es tiempo bien invertido.",
+    "La familia es donde la vida comienza y el amor nunca termina.",
+    "Familia significa nadie se queda atras o olvidado.",
+    "La familia es lo primero.",
+    "Los momentos juntos son los mas Preciados.",
+    "Donde hay familia, hay amor.",
+    "Cuidar la familia es nuestra mayor responsabilidad.",
+    "La fuerza de una familia esta en el amor que se comparten.",
+    "Juntos somos mas fuertes."
+  ];
+  
+  const [dailyQuote] = useState(() => quotes[Math.floor(Math.random() * quotes.length)]);
   
   useEffect(() => {
     fetchTransactions({ month: selectedMonth, year: selectedYear });
@@ -527,9 +553,52 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         setCurrentMonthBudgets(sortedBudgets);
       })
       .catch(err => console.error('Error fetching budgets:', err));
+    
     fetchMonthlyData();
     fetchProfile();
     fetchWeather();
+    
+    setTasksLoading(true);
+    fetch(`${API_URL}/api/tasks`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        const sorted = (Array.isArray(data) ? data : [])
+          .filter((t: any) => !t.completed && !t.shopping_list_id)
+          .sort((a: any, b: any) => {
+            if (!a.due_date && !b.due_date) return 0;
+            if (!a.due_date) return 1;
+            if (!b.due_date) return -1;
+            return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+          })
+          .slice(0, 5);
+        setPendingTasks(sorted);
+        setTasksLoading(false);
+      })
+      .catch(() => setTasksLoading(false));
+    
+    setPlansLoading(true);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    fetch(`${API_URL}/api/events?from=${tomorrowStr}&to=${tomorrowStr}`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        setTomorrowPlans(Array.isArray(data) ? data : []);
+        setPlansLoading(false);
+      })
+      .catch(() => setPlansLoading(false));
+    
+    setBirthdaysLoading(true);
+    fetch(`${API_URL}/api/family-members/birthdays`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        const currentMonth = new Date().getMonth() + 1;
+        const monthBirthdays = (Array.isArray(data) ? data : []).filter((b: any) => b.month === currentMonth);
+        setMonthBirthdays(monthBirthdays);
+        setBirthdaysLoading(false);
+      })
+      .catch(() => setBirthdaysLoading(false));
   }, [fetchTransactions, fetchMonthlyData, selectedMonth, selectedYear]);
 
   const fetchProfile = async () => {
@@ -667,7 +736,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 🏠 {profile.family_name}
               </h2>
               <p className="text-gray-500 mt-1 text-xs sm:text-sm">
-                💰 Gestionando las finanzas con <span className="font-semibold text-primary">Family Agent</span> 💖
+                💰 Gestionando los asuntos familiares con <span className="font-semibold text-primary">Family Agent</span> 💖
               </p>
             </div>
             <Heart className="text-pink-500 animate-pulse hidden sm:block" size={24} />
@@ -713,15 +782,126 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <h3 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6 text-center">Ingresos vs Gastos</h3>
-          <div className="flex justify-center">
-            <DonutChart income={totals.income} expense={totals.expense} balance={totals.balance} size={160} strokeWidth={24} />
-          </div>
+          <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
+            <ListChecks size={20} className="text-orange-500" />
+            Tareas Pendientes
+          </h3>
+          {tasksLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="animate-spin text-gray-400" size={24} />
+            </div>
+          ) : pendingTasks.length === 0 ? (
+            <div className="text-center py-8">
+              <span className="text-4xl mb-2 block">✅</span>
+              <p className="text-gray-500 text-sm">No hay tareas pendientes</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {pendingTasks.map((task) => (
+                <div key={task.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                  <div className={`w-2 h-2 rounded-full ${task.priority === 'high' || task.priority === 'urgent' ? 'bg-red-500' : task.priority === 'normal' ? 'bg-orange-500' : 'bg-gray-300'}`}></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{task.title}</p>
+                    {task.due_date && (
+                      <p className={`text-xs flex items-center gap-1 ${new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
+                        <Calendar size={12} />
+                        {new Date(task.due_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                      </p>
+                    )}
+                  </div>
+                  {task.assignee_name && (
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{task.assignee_name}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {pendingTasks.length > 0 && (
+            <p className="text-xs text-gray-400 mt-2 text-center">{pendingTasks.length} tarea{pendingTasks.length !== 1 ? 's' : ''} pendiente{pendingTasks.length !== 1 ? 's' : ''}</p>
+          )}
         </div>
         
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <h3 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6">Balance Mensual</h3>
-          <BalanceBar balance={totals.balance} income={totals.income} expense={totals.expense} />
+          <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
+            <Calendar size={20} className="text-purple-500" />
+            Planes para mañana
+          </h3>
+          {plansLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="animate-spin text-gray-400" size={24} />
+            </div>
+          ) : tomorrowPlans.length === 0 ? (
+            <div className="text-center py-8">
+              <span className="text-4xl mb-2 block">📅</span>
+              <p className="text-gray-500 text-sm">No hay planes para mañana</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {tomorrowPlans.map((plan) => (
+                <div key={plan.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                  <div className={`w-2 h-2 rounded-full ${plan.type === 'work' ? 'bg-blue-500' : plan.type === 'family' ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{plan.title}</p>
+                    {plan.start_time && (
+                      <p className="text-xs text-gray-400">
+                        {plan.start_time}{plan.end_time ? ` - ${plan.end_time}` : ''}
+                      </p>
+                    )}
+                  </div>
+                  {plan.location && (
+                    <span className="text-xs text-gray-400 truncate max-w-[100px]">{plan.location}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {tomorrowPlans.length > 0 && (
+            <p className="text-xs text-gray-400 mt-2 text-center">{tomorrowPlans.length} plan{ tomorrowPlans.length !== 1 ? 'es' : ''} para mañana</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+          <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
+            <Cake size={20} className="text-pink-500" />
+            Cumpleaños del mes
+          </h3>
+          {birthdaysLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="animate-spin text-gray-400" size={24} />
+            </div>
+          ) : monthBirthdays.length === 0 ? (
+            <div className="text-center py-8">
+              <span className="text-4xl mb-2 block">🎂</span>
+              <p className="text-gray-500 text-sm">No hay cumpleaños este mes</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {monthBirthdays.map((b: any) => (
+                <div key={b.id} className="flex items-center gap-3 p-2 rounded-lg bg-pink-50 border border-pink-100">
+                  <span className="text-2xl">🎂</span>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{b.name}</p>
+                    <p className="text-xs text-gray-500">{b.day} de {new Date(b.birthdate).toLocaleDateString('es-ES', { month: 'long' })}</p>
+                  </div>
+                  <span className="text-xs bg-pink-200 text-pink-700 px-2 py-0.5 rounded-full">
+                    {b.age} años
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        <div className="bg-gray-50 rounded-xl p-4 sm:p-6 border border-gray-200">
+          <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
+            <Heart size={20} />
+            Frase del día
+          </h3>
+          <div className="flex flex-col items-center justify-center h-full py-4">
+            <p className="text-lg sm:text-xl font-medium text-center italic">"{dailyQuote}"</p>
+          </div>
         </div>
       </div>
 

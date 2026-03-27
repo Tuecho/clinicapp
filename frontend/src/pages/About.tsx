@@ -312,6 +312,16 @@ export function About() {
                   Buy Me a Coffee
                   <ExternalLink size={14} />
                 </a>
+                <a
+                  href="https://paypal.me/familyagent"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#003087] text-white rounded-lg hover:bg-[#0044aa] transition-colors text-sm font-medium"
+                >
+                  <Coffee size={16} />
+                  PayPal
+                  <ExternalLink size={14} />
+                </a>
               </div>
             </div>
 

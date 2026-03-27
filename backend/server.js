@@ -174,6 +174,9 @@ async function initDb() {
   try { db.run(`ALTER TABLE invitations ADD COLUMN share_recipes INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE invitations ADD COLUMN share_restaurants INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE invitations ADD COLUMN share_family_members INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_gifts INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_books INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_movies INTEGER DEFAULT 0`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS user_shares (
@@ -203,6 +206,9 @@ async function initDb() {
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_recipes INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_restaurants INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_family_members INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_gifts INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_books INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_movies INTEGER DEFAULT 0`); } catch(e) {}
 
   try { db.run(`ALTER TABLE family_events ADD COLUMN recurrence TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE family_events ADD COLUMN days_of_week TEXT`); } catch(e) {}
@@ -299,9 +305,11 @@ async function initDb() {
       allergies TEXT,
       intolerances TEXT,
       notes TEXT,
+      birthdate TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+try { db.run(`ALTER TABLE family_members ADD COLUMN birthdate TEXT`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS meal_plans (
@@ -386,6 +394,37 @@ async function initDb() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS books (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      author TEXT,
+      genre TEXT,
+      status TEXT DEFAULT 'pending',
+      rating INTEGER,
+      notes TEXT,
+      cover_url TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS movies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      director TEXT,
+      genre TEXT,
+      year INTEGER,
+      status TEXT DEFAULT 'pending',
+      rating INTEGER,
+      notes TEXT,
+      poster_url TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 try { db.run(`ALTER TABLE family_gallery ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
 
   db.run(`
@@ -449,6 +488,22 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS family_gifts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      person_name TEXT NOT NULL,
+      gift_name TEXT NOT NULL,
+      occasion TEXT,
+      date TEXT,
+      notes TEXT,
+      price REAL,
+      status TEXT DEFAULT 'idea',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try { db.run(`ALTER TABLE family_gifts ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
 
   saveDb();
 }
@@ -1661,14 +1716,27 @@ app.post('/api/budgets/copy-recurring', (req, res) => {
   const targetYear = toYear || (sourceMonth === 12 ? sourceYear + 1 : sourceYear);
   
   try {
+    const checkExisting = db.prepare('SELECT concept FROM budgets WHERE owner_id = ? AND month = ? AND year = ?');
+    checkExisting.bind([userId, targetMonth, targetYear]);
+    const existingConcepts = new Set();
+    while (checkExisting.step()) {
+      existingConcepts.add(checkExisting.getAsObject().concept);
+    }
+    checkExisting.free();
+    
     const stmt = db.prepare('SELECT * FROM budgets WHERE recurring = 1 AND owner_id = ? AND month = ? AND year = ?');
     stmt.bind([userId, sourceMonth, sourceYear]);
     
     const newStmt = db.prepare('INSERT INTO budgets (id, owner_id, concept, amount, month, year, recurring) VALUES (?, ?, ?, ?, ?, ?, 1)');
     
     let copied = 0;
+    let skipped = 0;
     while (stmt.step()) {
       const budget = stmt.getAsObject();
+      if (existingConcepts.has(budget.concept)) {
+        skipped++;
+        continue;
+      }
       newStmt.run([
         crypto.randomUUID(),
         userId,
@@ -1683,7 +1751,7 @@ app.post('/api/budgets/copy-recurring', (req, res) => {
     newStmt.free();
     saveDb();
     
-    res.json({ success: true, copied, month: targetMonth, year: targetYear });
+    res.json({ success: true, copied, skipped, month: targetMonth, year: targetYear });
   } catch (error) {
     console.error('Error copying recurring budgets:', error);
     res.status(500).json({ error: 'Error copying recurring budgets' });
@@ -1932,6 +2000,7 @@ app.get('/api/export', (req, res) => {
       { name: 'expense_concepts', query: 'SELECT * FROM expense_concepts WHERE owner_id = ? OR owner_id = 0' },
       { name: 'family_tasks', query: 'SELECT * FROM family_tasks WHERE owner_id = ?' },
       { name: 'family_members', query: 'SELECT * FROM family_members WHERE owner_id = ?' },
+      { name: 'birthdays', query: 'SELECT id, name, birthdate FROM family_members WHERE owner_id = ? AND birthdate IS NOT NULL AND birthdate != ""' },
       { name: 'family_notes', query: 'SELECT * FROM family_notes WHERE owner_id = ? ORDER BY updated_at DESC' },
       { name: 'note_boards', query: 'SELECT * FROM note_boards WHERE owner_id = ?' },
       { name: 'shopping_lists', query: 'SELECT * FROM shopping_lists WHERE owner_id = ?' },
@@ -2881,10 +2950,10 @@ app.get('/api/family-members', (req, res) => {
 app.post('/api/family-members', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
-  const { name, age_group, restrictions, allergies, intolerances, notes } = req.body;
+  const { name, age_group, restrictions, allergies, intolerances, notes, birthdate } = req.body;
   if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
-  const stmt = db.prepare('INSERT INTO family_members (owner_id, name, age_group, restrictions, allergies, intolerances, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
-  stmt.run([userId, name, age_group || 'adult', restrictions || '', allergies || '', intolerances || '', notes || '']);
+  const stmt = db.prepare('INSERT INTO family_members (owner_id, name, age_group, restrictions, allergies, intolerances, notes, birthdate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, name, age_group || 'adult', restrictions || '', allergies || '', intolerances || '', notes || '', birthdate || '']);
   stmt.free();
   saveDb();
   res.json({ success: true });
@@ -2894,9 +2963,9 @@ app.put('/api/family-members/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   const { id } = req.params;
-  const { name, age_group, restrictions, allergies, intolerances, notes } = req.body;
-  const stmt = db.prepare('UPDATE family_members SET name = ?, age_group = ?, restrictions = ?, allergies = ?, intolerances = ?, notes = ? WHERE id = ? AND owner_id = ?');
-  stmt.run([name, age_group || 'adult', restrictions || '', allergies || '', intolerances || '', notes || '', id, userId]);
+  const { name, age_group, restrictions, allergies, intolerances, notes, birthdate } = req.body;
+  const stmt = db.prepare('UPDATE family_members SET name = ?, age_group = ?, restrictions = ?, allergies = ?, intolerances = ?, notes = ?, birthdate = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, age_group || 'adult', restrictions || '', allergies || '', intolerances || '', notes || '', birthdate || '', id, userId]);
   stmt.free();
   saveDb();
   res.json({ success: true });
@@ -2909,6 +2978,49 @@ app.delete('/api/family-members/:id', (req, res) => {
   db.run('DELETE FROM family_members WHERE id = ? AND owner_id = ?', [id, userId]);
   saveDb();
   res.json({ success: true });
+});
+
+app.get('/api/family-members/birthdays', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT id, name, birthdate FROM family_members WHERE owner_id = ? AND birthdate IS NOT NULL AND birthdate != ""');
+  stmt.bind([userId]);
+  const members = [];
+  while (stmt.step()) members.push(stmt.getAsObject());
+  stmt.free();
+  
+  const today = new Date();
+  const birthdays = members
+    .filter(m => m.birthdate && m.birthdate.trim() !== '')
+    .map(m => {
+      const birthDate = new Date(m.birthdate);
+      const currentYear = today.getFullYear();
+      let birthdayThisYear = new Date(currentYear, birthDate.getMonth(), birthDate.getDate());
+      let nextBirthday = new Date(currentYear + 1, birthDate.getMonth(), birthDate.getDate());
+      
+      if (birthdayThisYear < today) {
+        nextBirthday = new Date(currentYear + 1, birthDate.getMonth(), birthDate.getDate());
+      } else {
+        nextBirthday = birthdayThisYear;
+      }
+      
+      const age = nextBirthday.getFullYear() - birthDate.getFullYear();
+      const daysUntil = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
+      
+      return {
+        id: m.id,
+        name: m.name,
+        birthdate: m.birthdate,
+        day: birthDate.getDate(),
+        month: birthDate.getMonth() + 1,
+        age: age,
+        daysUntil: daysUntil
+      };
+    })
+    .sort((a, b) => a.month - b.month || a.day - b.day);
+  
+  res.json(birthdays);
 });
 
 app.get('/api/recipes', (req, res) => {
@@ -3233,7 +3345,7 @@ app.post('/api/invitations', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members } = req.body;
+  const { to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies } = req.body;
   if (!to_username) return res.status(400).json({ error: 'Falta el nombre de usuario' });
   
   const targetStmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
@@ -3267,7 +3379,7 @@ app.post('/api/invitations', (req, res) => {
   
   try {
     const inviteStmt = db.prepare(`
-      INSERT INTO invitations (from_user_id, to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members) 
+      INSERT INTO invitations (from_user_id, to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     inviteStmt.run([
@@ -3283,7 +3395,10 @@ app.post('/api/invitations', (req, res) => {
       share_contacts ? 1 : 0,
       share_recipes ? 1 : 0,
       share_restaurants ? 1 : 0,
-      share_family_members ? 1 : 0
+      share_family_members ? 1 : 0,
+      share_gifts ? 1 : 0,
+      share_books ? 1 : 0,
+      share_movies ? 1 : 0
     ]);
     inviteStmt.free();
     saveDb();
@@ -3333,7 +3448,10 @@ app.put('/api/invitations/:id/accept', (req, res) => {
         invite.share_contacts || 0,
         invite.share_recipes || 0,
         invite.share_restaurants || 0,
-        invite.share_family_members || 0
+        invite.share_family_members || 0,
+        invite.share_gifts || 0,
+        invite.share_books || 0,
+        invite.share_movies || 0
       ]);
       shareStmt.free();
     }
@@ -3399,12 +3517,12 @@ app.put('/api/shares/:sharedWithId', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { sharedWithId } = req.params;
-  const { share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members } = req.body;
+  const { share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies } = req.body;
   
   try {
     db.run(`
       UPDATE user_shares 
-      SET share_dashboard = ?, share_accounting = ?, share_budgets = ?, share_agenda = ?, share_tasks = ?, share_notes = ?, share_shopping = ?, share_contacts = ?, share_recipes = ?, share_restaurants = ?, share_family_members = ?
+      SET share_dashboard = ?, share_accounting = ?, share_budgets = ?, share_agenda = ?, share_tasks = ?, share_notes = ?, share_shopping = ?, share_contacts = ?, share_recipes = ?, share_restaurants = ?, share_family_members = ?, share_gifts = ?, share_books = ?, share_movies = ?
       WHERE owner_id = ? AND shared_with_id = ?
     `, [
       share_dashboard ? 1 : 0,
@@ -3418,6 +3536,9 @@ app.put('/api/shares/:sharedWithId', (req, res) => {
       share_recipes ? 1 : 0,
       share_restaurants ? 1 : 0,
       share_family_members ? 1 : 0,
+      share_gifts ? 1 : 0,
+      share_books ? 1 : 0,
+      share_movies ? 1 : 0,
       userId,
       sharedWithId
     ]);
@@ -4252,12 +4373,13 @@ Ejemplos: "buscar nota reunion", "gastos de comida", "últimos movimientos"
 - Balance: ${balance.toFixed(2)}€\n\n📋 ${tasks.length} tareas | 🛒 ${shoppingItems.length} productos | 📝 ${notes.length} notas\n\n💡 Prueba: "ayuda" para ver todo lo que puedo buscar`;
 }
 
-async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = []) {
+async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = []) {
   if (!settings.email_enabled || !settings.email_to || !settings.smtp_user || !settings.smtp_password) {
     return { success: false, reason: 'Email notifications not configured' };
   }
 
   const profileData = profile || { name: 'Usuario', family_name: 'Mi Familia' };
+  const membersMap = members.reduce((acc, m) => { acc[m.id] = m.name; return acc; }, {});
   
   if (!events || !Array.isArray(events)) events = [];
   if (!budgets || !Array.isArray(budgets)) budgets = [];
@@ -4277,11 +4399,14 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   const hasBudgets = budgets && budgets.length > 0;
   const hasTasks = tasks.length > 0;
   const hasMealPlans = mealPlans && mealPlans.length > 0;
+  const hasBirthdays = birthdays && birthdays.length > 0;
 
   let budgetsSection = '';
   let budgetsText = '';
   let tasksSection = '';
   let tasksText = '';
+  let birthdaysSection = '';
+  let birthdaysText = '';
   if (hasBudgets) {
     const totalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
     const totalSpent = budgets.reduce((sum, b) => sum + (b.spent || 0), 0);
@@ -4391,13 +4516,46 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     `;
   }
 
+  if (hasBirthdays) {
+    birthdaysText = `🎂 CUMPLEAÑOS PRÓXIMOS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      birthdays.map(b => {
+        const date = new Date(b.birthdate);
+        const day = date.getDate();
+        const month = date.toLocaleDateString('es-ES', { month: 'long' });
+        return `🎂 ${b.name}: ${day} de ${month} (${b.age} años, ${b.daysUntil} días)`;
+      }).join('\n');
+
+    birthdaysSection = `
+      <div style="background: #fdf2f8; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <h3 style="margin: 0 0 16px 0; color: #be185d;">🎂 Cumpleaños Próximos</h3>
+        <table style="width: 100%; font-size: 14px;">
+          <tbody>
+            ${birthdays.map(b => {
+              const date = new Date(b.birthdate);
+              const day = date.getDate();
+              const month = date.toLocaleDateString('es-ES', { month: 'long' });
+              return `
+                <tr style="border-bottom: 1px solid #fbcfe8;">
+                  <td style="padding: 10px 0;">🎂</td>
+                  <td style="padding: 10px 0; color: #111827;">${b.name}</td>
+                  <td style="padding: 10px 0; color: #6b7280;">${day} de ${month}</td>
+                  <td style="padding: 10px 0; text-align: right; font-weight: 600; color: ${b.daysUntil <= 7 ? '#dc2626' : '#be185d'};">${b.daysUntil === 0 ? '¡HOY!' : b.daysUntil === 1 ? 'Mañana' : b.daysUntil + ' días'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   const familyName = profileData.family_name || 'Familia';
   
   const dateRangeStr = `${today.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${nextWeek.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   if (!hasEvents) {
-    textContent = `Hola ${familyName},\n\nNo hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n${mealPlansText ? '\n' + mealPlansText : ''}\n${budgetsText}\n${tasksText ? '\n' + tasksText : ''}\n\n\u00a1Que tengas un buen d\u00eda!\n\nSaludos,\nFamily Agent`;
-    htmlContent = `<h2>Hola ${familyName}</h2><p>No hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).</p>${mealPlansSection}${tasksSection}${budgetsSection}<p>\u00a1Que tengas un buen d\u00eda!</p><p><em>Saludos,<br>Family Agent</em></p>`;
+    textContent = `Hola ${familyName},\n\nNo hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n${tasksText ? '\n\n' + tasksText : ''}\n${budgetsText ? '\n\n' + budgetsText : ''}\n${mealPlansText ? '\n\n' + mealPlansText : ''}\n${birthdaysText ? '\n\n' + birthdaysText : ''}\n\n\u00a1Que tengas un buen d\u00eda!\n\nSaludos,\nFamily Agent`;
+    htmlContent = `<h2>Hola ${familyName}</h2><p>No hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).</p>${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}<p>\u00a1Que tengas un buen d\u00eda!</p><p><em>Saludos,<br>Family Agent</em></p>`;
   } else {
     const eventsByDay = events.reduce((acc, e) => {
       const dayName = new Date(e.date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -4432,7 +4590,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     
     eventsHtml += '</div>';
 
-    htmlContent = `<h2>Hola ${familyName}</h2>${mealPlansSection}${eventsHtml}${tasksSection}${budgetsSection}<p>\u00a1Que disfrutes!</p><p><em>Saludos,<br>Family Agent</em></p>`;
+    htmlContent = `<h2>Hola ${familyName}</h2>${eventsHtml}${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}<p>\u00a1Que disfrutes!</p><p><em>Saludos,<br>Family Agent</em></p>`;
   }
 
   const transporter = nodemailer.createTransport({
@@ -4615,7 +4773,42 @@ async function sendUserNotification(userId) {
     }
     mealPlansStmt.free();
 
-    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans);
+    const membersStmt = db.prepare('SELECT id, name, birthdate FROM family_members WHERE owner_id = ?');
+    membersStmt.bind([userId]);
+    const members = [];
+    while (membersStmt.step()) {
+      members.push(membersStmt.getAsObject());
+    }
+    membersStmt.free();
+
+    const birthdays = members
+      .filter(m => m.birthdate && m.birthdate.trim() !== '')
+      .map(m => {
+        const birthDate = new Date(m.birthdate);
+        const currentYear = today.getFullYear();
+        let birthdayThisYear = new Date(currentYear, birthDate.getMonth(), birthDate.getDate());
+        let nextBirthday = new Date(currentYear + 1, birthDate.getMonth(), birthDate.getDate());
+        
+        if (birthdayThisYear < today) {
+          nextBirthday = new Date(currentYear + 1, birthDate.getMonth(), birthDate.getDate());
+        } else {
+          nextBirthday = birthdayThisYear;
+        }
+        
+        const age = nextBirthday.getFullYear() - birthDate.getFullYear();
+        const daysUntil = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
+        
+        return {
+          name: m.name,
+          birthdate: m.birthdate,
+          age: age,
+          daysUntil: daysUntil
+        };
+      })
+      .filter(b => b.daysUntil <= 30)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+
+    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays);
   } catch (error) {
     console.error('Error sending notification to user', userId, error);
   }
@@ -5147,6 +5340,126 @@ app.get('/api/gallery/albums', (req, res) => {
   res.json(albums);
 });
 
+app.get('/api/books', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_books');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  const stmt = db.prepare(`SELECT * FROM books WHERE owner_id IN (${placeholders}) ORDER BY created_at DESC`);
+  stmt.bind(accessibleIds);
+  const books = [];
+  while (stmt.step()) books.push(stmt.getAsObject());
+  stmt.free();
+  res.json(books);
+});
+
+app.post('/api/books', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { title, author, genre, status, rating, notes, cover_url } = req.body;
+  if (!title) return res.status(400).json({ error: 'El título es obligatorio' });
+  
+  const stmt = db.prepare('INSERT INTO books (owner_id, title, author, genre, status, rating, notes, cover_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, title, author || '', genre || '', status || 'pending', rating || 0, notes || '', cover_url || '']);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.put('/api/books/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { title, author, genre, status, rating, notes, cover_url } = req.body;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM books WHERE id = ?');
+  checkStmt.bind([id]);
+  let book = null;
+  if (checkStmt.step()) book = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!book || book.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos' });
+  }
+  
+  const stmt = db.prepare('UPDATE books SET title = ?, author = ?, genre = ?, status = ?, rating = ?, notes = ?, cover_url = ? WHERE id = ?');
+  stmt.run([title, author || '', genre || '', status || 'pending', rating || 0, notes || '', cover_url || '', id]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/books/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  
+  db.run('DELETE FROM books WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/movies', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_movies');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  const stmt = db.prepare(`SELECT * FROM movies WHERE owner_id IN (${placeholders}) ORDER BY created_at DESC`);
+  stmt.bind(accessibleIds);
+  const movies = [];
+  while (stmt.step()) movies.push(stmt.getAsObject());
+  stmt.free();
+  res.json(movies);
+});
+
+app.post('/api/movies', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { title, director, genre, year, status, rating, notes, poster_url } = req.body;
+  if (!title) return res.status(400).json({ error: 'El título es obligatorio' });
+  
+  const stmt = db.prepare('INSERT INTO movies (owner_id, title, director, genre, year, status, rating, notes, poster_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, title, director || '', genre || '', year || null, status || 'pending', rating || 0, notes || '', poster_url || '']);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.put('/api/movies/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { title, director, genre, year, status, rating, notes, poster_url } = req.body;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM movies WHERE id = ?');
+  checkStmt.bind([id]);
+  let movie = null;
+  if (checkStmt.step()) movie = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!movie || movie.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos' });
+  }
+  
+  const stmt = db.prepare('UPDATE movies SET title = ?, director = ?, genre = ?, year = ?, status = ?, rating = ?, notes = ?, poster_url = ? WHERE id = ?');
+  stmt.run([title, director || '', genre || '', year || null, status || 'pending', rating || 0, notes || '', poster_url || '', id]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/movies/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  
+  db.run('DELETE FROM movies WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
 app.post('/api/contact', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   const { name, email, subject, message } = req.body;
@@ -5304,6 +5617,100 @@ app.delete('/api/sales-contact/:id', (req, res) => {
   } catch (error) {
     console.error('Error deleting sales contact:', error);
     res.status(500).json({ error: 'Error eliminando contacto' });
+  }
+});
+
+app.get('/api/gifts', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const accessibleIds = getAccessibleUserIds(userId, 'share_contacts'); // Reusing contact sharing for gifts for now
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  const stmt = db.prepare(`SELECT * FROM family_gifts WHERE owner_id IN (${placeholders}) ORDER BY created_at DESC`);
+  stmt.bind(accessibleIds);
+
+  const gifts = [];
+  while (stmt.step()) {
+    gifts.push(stmt.getAsObject());
+  }
+  stmt.free();
+
+  res.json(gifts);
+});
+
+app.post('/api/gifts', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const { person_name, gift_name, occasion, date, notes, price, status } = req.body;
+
+  if (!person_name || !gift_name) {
+    return res.status(400).json({ error: 'El nombre de la persona y el regalo son obligatorios' });
+  }
+
+  try {
+    const stmt = db.prepare('INSERT INTO family_gifts (owner_id, person_name, gift_name, occasion, date, notes, price, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run([userId, person_name, gift_name, occasion || null, date || null, notes || null, price || 0, status || 'idea']);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error inserting gift:', error);
+    res.status(500).json({ error: 'Error insertando regalo' });
+  }
+});
+
+app.put('/api/gifts/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const { id } = req.params;
+  const { person_name, gift_name, occasion, date, notes, price, status } = req.body;
+
+  const checkStmt = db.prepare('SELECT owner_id FROM family_gifts WHERE id = ?');
+  checkStmt.bind([id]);
+  let gift = null;
+  if (checkStmt.step()) gift = checkStmt.getAsObject();
+  checkStmt.free();
+
+  if (!gift) return res.status(404).json({ error: 'Regalo no encontrado' });
+  if (gift.owner_id !== userId) return res.status(403).json({ error: 'No tienes permisos' });
+
+  try {
+    const stmt = db.prepare('UPDATE family_gifts SET person_name = ?, gift_name = ?, occasion = ?, date = ?, notes = ?, price = ?, status = ? WHERE id = ?');
+    stmt.run([person_name, gift_name, occasion, date, notes, price, status, id]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating gift:', error);
+    res.status(500).json({ error: 'Error actualizando regalo' });
+  }
+});
+
+app.delete('/api/gifts/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const { id } = req.params;
+
+  const checkStmt = db.prepare('SELECT owner_id FROM family_gifts WHERE id = ?');
+  checkStmt.bind([id]);
+  let gift = null;
+  if (checkStmt.step()) gift = checkStmt.getAsObject();
+  checkStmt.free();
+
+  if (!gift) return res.status(404).json({ error: 'Regalo no encontrado' });
+  if (gift.owner_id !== userId) return res.status(403).json({ error: 'No tienes permisos' });
+
+  try {
+    db.run('DELETE FROM family_gifts WHERE id = ?', [id]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting gift:', error);
+    res.status(500).json({ error: 'Error eliminando regalo' });
   }
 });
 
