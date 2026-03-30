@@ -4963,7 +4963,7 @@ async function sendUserNotification(userId) {
     nextWeek.setDate(nextWeek.getDate() + 7);
     const nextWeekStr = nextWeek.toISOString().split('T')[0];
 
-    const accessibleEventIds = getAccessibleUserIds(userId, 'share_events');
+    const accessibleEventIds = getAccessibleUserIds(userId, 'share_agenda');
     const eventPlaceholders = accessibleEventIds.map(() => '?').join(',');
     const eventsStmt = db.prepare(`SELECT * FROM family_events WHERE owner_id IN (${eventPlaceholders}) AND ((date >= ? AND date <= ?) OR recurrence = ?) ORDER BY date ASC, start_time ASC`);
     eventsStmt.bind([...accessibleEventIds, tomorrowStr, nextWeekStr, 'weekly']);
