@@ -225,8 +225,16 @@ export function Agenda() {
   const { days } = generateMonthGrid(currentDate);
 
   const eventsByDate: Record<string, FamilyEvent[]> = events.reduce((acc, ev) => {
-    if (!acc[ev.date]) acc[ev.date] = [];
-    acc[ev.date].push(ev);
+    const startDate = new Date(ev.date);
+    const endDate = ev.end_date ? new Date(ev.end_date) : startDate;
+    const current = new Date(startDate);
+    
+    while (current <= endDate) {
+      const key = formatISODate(current);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(ev);
+      current.setDate(current.getDate() + 1);
+    }
     return acc;
   }, {} as Record<string, FamilyEvent[]>);
 

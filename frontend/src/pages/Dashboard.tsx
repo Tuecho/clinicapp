@@ -964,7 +964,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
       <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-4 sm:mb-6">
-          <Target className="text-primary" size={20} className="sm:w-6 sm:h-6" />
+          <Target className="text-primary sm:w-6 sm:h-6" size={20} />
           <h3 className="text-base sm:text-lg font-semibold">Presupuestos del Mes</h3>
         </div>
         
@@ -985,7 +985,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
       <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 mt-3 sm:mt-6">
         <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="text-primary" size={20} className="sm:w-6 sm:h-6" />
+          <TrendingUp className="text-primary sm:w-6 sm:h-6" size={20} />
           <h3 className="text-base sm:text-lg font-semibold">Evolución (6 meses)</h3>
         </div>
         <MonthlyTrendCards data={monthlyData} />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, Crown, UtensilsCrossed, BookOpen, FileText, ShieldCheck, Mail, ChefHat, Image, ChevronDown, ChevronRight, Bot, DollarSign, Users, Cake, Gift, Film } from 'lucide-react';
+import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, Crown, UtensilsCrossed, BookOpen, FileText, ShieldCheck, Mail, ChefHat, Image, ChevronDown, ChevronRight, Bot, DollarSign, Users, Cake, Gift, Film, CheckCircle } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -11,8 +11,8 @@ interface Profile {
 }
 
 interface SidebarProps {
-  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts';
-  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts') => void;
+  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits') => void;
   onLogout?: () => void;
   isAdmin?: boolean;
   isMobile?: boolean;
@@ -135,6 +135,20 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
             >
               <ListChecks size={18} />
               {isExpanded && <span className="text-sm">Tareas</span>}
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => onNavigate('habits')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'habits'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Hábitos'}
+            >
+              <CheckCircle size={18} />
+              {isExpanded && <span className="text-sm">Hábitos</span>}
             </button>
           </li>
           <li>

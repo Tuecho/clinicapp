@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X, Download, Upload, Settings, Calendar } from 'lucide-react';
+import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X, Download, Upload, Settings, Calendar, Palette } from 'lucide-react';
 import { NotificationSettings } from '../components/NotificationSettings';
 import { ImportDB } from '../components/ImportDB';
 import { useAuth } from '../components/Auth';
 import { getAuthHeaders } from '../utils/auth';
+import { useTheme, ThemeName } from '../store/theme';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -69,6 +70,7 @@ interface SharePreferences {
 
 export function Profile() {
   const { logout, isAdmin } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [profile, setProfile] = useState<Profile>({
     id: 1,
     name: '',
@@ -623,6 +625,38 @@ export function Profile() {
 
           <div className="mt-8">
             <NotificationSettings />
+          </div>
+
+          <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center gap-2 mb-3 sm:mb-4">
+              <Palette size={18} className="text-primary" />
+              Tema
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { id: 'default' as ThemeName, name: 'Clásico', colors: ['#4F46E5', '#10B981', '#EF4444'] },
+                { id: 'ocean' as ThemeName, name: 'Océano', colors: ['#0EA5E9', '#14B8A6', '#F43F5E'] },
+                { id: 'forest' as ThemeName, name: 'Bosque', colors: ['#059669', '#65A30D', '#DC2626'] },
+                { id: 'night' as ThemeName, name: 'Noche', colors: ['#818CF8', '#34D399', '#F87171'] },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTheme(t.id)}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    theme === t.id
+                      ? 'border-primary bg-primary/5'
+                      : 'border-gray-200 hover:border-primary/50'
+                  }`}
+                >
+                  <div className="flex gap-1 justify-center mb-2">
+                    {t.colors.map((c, i) => (
+                      <div key={i} className="w-4 h-4 rounded-full" style={{ backgroundColor: c }} />
+                    ))}
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">{t.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">

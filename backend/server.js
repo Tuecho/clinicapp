@@ -8,8 +8,17 @@ import nodemailer from 'nodemailer';
 import pkg from 'node-cron';
 import multer from 'multer';
 import pdf from 'pdf-parse/lib/pdf-parse.js';
+import webpush from 'web-push';
 const cron = pkg;
 const upload = multer({ storage: multer.memoryStorage() });
+
+// VAPID keys for web push notifications
+// Generate your own keys with: npx web-push generate-vapid-keys
+const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+const VAPID_PRIVATE_KEY = 'UUxI4O8-FbRouAf7-7OTt9GH4o-4I8_z5r6K7J3Z2Xk';
+const VAPID_SUBJECT = 'mailto:tuecho85@gmail.com';
+
+webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -134,6 +143,8 @@ async function initDb() {
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_budgets INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_meals INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_birthdays INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN push_enabled INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN push_subscription TEXT`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS family_events (
@@ -530,6 +541,37 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS habits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      icon TEXT,
+      color TEXT DEFAULT '#22c55e',
+      target_type TEXT DEFAULT 'boolean',
+      target_value INTEGER DEFAULT 1,
+      recurrence TEXT DEFAULT 'daily',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try { db.run(`ALTER TABLE habits ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE habits ADD COLUMN recurrence TEXT DEFAULT 'daily'`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS habit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      habit_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      value INTEGER DEFAULT 1,
+      completed INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(owner_id, habit_id, date)
+    )
+  `);
+  try { db.run(`ALTER TABLE habit_logs ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
 
   saveDb();
 }
@@ -1274,14 +1316,14 @@ app.get('/api/events', (req, res) => {
   const params = [...accessibleIds];
 
   if (from && to) {
-    query += ' AND (date BETWEEN ? AND ? OR recurrence IN (?, ?))';
-    params.push(String(from), String(to), 'weekly', 'daily');
+    query += ' AND (date BETWEEN ? AND ? OR end_date BETWEEN ? AND ? OR (date <= ? AND end_date >= ?) OR recurrence IN (?, ?))';
+    params.push(String(from), String(to), String(from), String(to), String(from), String(to), 'weekly', 'daily');
   } else if (from) {
-    query += ' AND (date >= ? OR recurrence IN (?, ?))';
-    params.push(String(from), 'weekly', 'daily');
+    query += ' AND (date >= ? OR end_date >= ? OR recurrence IN (?, ?))';
+    params.push(String(from), String(from), 'weekly', 'daily');
   } else if (to) {
-    query += ' AND (date <= ? OR recurrence IN (?, ?))';
-    params.push(String(to), 'weekly', 'daily');
+    query += ' AND (date <= ? OR end_date <= ? OR recurrence IN (?, ?))';
+    params.push(String(to), String(to), 'weekly', 'daily');
   }
 
   query += ' ORDER BY date ASC, start_time ASC';
@@ -2018,44 +2060,25 @@ app.get('/api/export', (req, res) => {
   try {
     const exportData = {
       exported_at: new Date().toISOString(),
-      version: '2.0'
+      version: '2.1',
+      full_backup: true
     };
     
     const tables = [
-      { name: 'user_profile', query: 'SELECT * FROM user_profile WHERE owner_id = ?' },
-      { name: 'transactions', query: 'SELECT * FROM transactions WHERE owner_id = ? ORDER BY date DESC' },
-      { name: 'budgets', query: 'SELECT * FROM budgets WHERE owner_id = ?' },
-      { name: 'family_events', query: 'SELECT * FROM family_events WHERE owner_id = ? ORDER BY date ASC' },
-      { name: 'expense_concepts', query: 'SELECT * FROM expense_concepts WHERE owner_id = ? OR owner_id = 0' },
-      { name: 'family_tasks', query: 'SELECT * FROM family_tasks WHERE owner_id = ?' },
-      { name: 'family_members', query: 'SELECT * FROM family_members WHERE owner_id = ?' },
-      { name: 'birthdays', query: 'SELECT * FROM birthdays WHERE owner_id = ?' },
-      { name: 'family_notes', query: 'SELECT * FROM family_notes WHERE owner_id = ? ORDER BY updated_at DESC' },
-      { name: 'note_boards', query: 'SELECT * FROM note_boards WHERE owner_id = ?' },
-      { name: 'shopping_lists', query: 'SELECT * FROM shopping_lists WHERE owner_id = ?' },
-      { name: 'family_contacts', query: 'SELECT * FROM family_contacts WHERE owner_id = ?' },
-      { name: 'family_gifts', query: 'SELECT * FROM family_gifts WHERE owner_id = ?' },
-      { name: 'books', query: 'SELECT * FROM books WHERE owner_id = ?' },
-      { name: 'movies', query: 'SELECT * FROM movies WHERE owner_id = ?' },
-      { name: 'favorite_restaurants', query: 'SELECT * FROM favorite_restaurants WHERE owner_id = ?' },
-      { name: 'recipes', query: 'SELECT * FROM recipes WHERE owner_id = ?' },
-      { name: 'meal_plans', query: 'SELECT * FROM meal_plans WHERE owner_id = ?' },
-      { name: 'family_gallery', query: 'SELECT * FROM family_gallery WHERE owner_id = ?' },
-      { name: 'invitations', query: 'SELECT * FROM invitations WHERE from_user_id = ? OR to_username = (SELECT username FROM auth_user WHERE id = ?)' },
-      { name: 'user_shares', query: 'SELECT * FROM user_shares WHERE owner_id = ? OR shared_with_id = ?' }
+      'auth_user', 'user_profile', 'transactions', 'budgets', 'family_events', 
+      'expense_concepts', 'family_tasks', 'family_members', 'birthdays', 
+      'family_notes', 'note_boards', 'shopping_lists', 'shopping_items',
+      'family_contacts', 'family_gifts', 'books', 'movies', 
+      'favorite_restaurants', 'recipes', 'meal_plans', 'family_gallery',
+      'invitations', 'user_shares', 'habits', 'habit_logs'
     ];
     
     for (const table of tables) {
-      const stmt = db.prepare(table.query);
-      if (table.query.includes('to_user_id') || table.query.includes('shared_with_id')) {
-        stmt.bind([userId, userId]);
-      } else {
-        stmt.bind([userId]);
-      }
       const rows = [];
+      const stmt = db.prepare(`SELECT * FROM ${table}`);
       while (stmt.step()) rows.push(stmt.getAsObject());
       stmt.free();
-      exportData[table.name] = rows;
+      exportData[table] = rows;
     }
     
     res.json(exportData);
@@ -2239,6 +2262,36 @@ app.post('/api/import', (req, res) => {
         try {
           const stmt = db.prepare('INSERT INTO family_gallery (owner_id, title, description, image_data, album, created_at) VALUES (?, ?, ?, ?, ?, ?)');
           stmt.run([userId, g.title || null, g.description || null, g.image_data || '', g.album || 'General', g.created_at || new Date().toISOString()]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.habits && Array.isArray(data.habits)) {
+      for (const h of data.habits) {
+        try {
+          const stmt = db.prepare('INSERT INTO habits (owner_id, name, description, icon, color, target_type, target_value) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, h.name, h.description || null, h.icon || 'target', h.color || '#22c55e', h.target_type || 'boolean', h.target_value || 1]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.habit_logs && Array.isArray(data.habit_logs)) {
+      for (const l of data.habit_logs) {
+        try {
+          const stmt = db.prepare('INSERT INTO habit_logs (owner_id, habit_id, date, value, completed) VALUES (?, ?, ?, ?, ?)');
+          stmt.run([userId, l.habit_id, l.date, l.value || 1, l.completed ? 1 : 0]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.shopping_items && Array.isArray(data.shopping_items)) {
+      for (const i of data.shopping_items) {
+        try {
+          const stmt = db.prepare('INSERT INTO shopping_items (owner_id, list_id, name, quantity, unit, checked, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, i.list_id, i.name, i.quantity || 1, i.unit || null, i.checked ? 1 : 0, i.created_at || new Date().toISOString()]);
           stmt.free();
         } catch (e) {}
       }
@@ -3137,6 +3190,144 @@ app.delete('/api/birthdays/:id', (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/habits', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM habits WHERE owner_id = ? ORDER BY name');
+  stmt.bind([userId]);
+  const habits = [];
+  while (stmt.step()) habits.push(stmt.getAsObject());
+  stmt.free();
+  res.json(habits);
+});
+
+app.post('/api/habits', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { name, description, icon, color, target_type, target_value, recurrence } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const stmt = db.prepare('INSERT INTO habits (owner_id, name, description, icon, color, target_type, target_value, recurrence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, name, description || null, icon || null, color || '#22c55e', target_type || 'boolean', target_value || 1, recurrence || 'daily']);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.put('/api/habits/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { name, description, icon, color, target_type, target_value, recurrence } = req.body;
+  
+  const stmt = db.prepare('UPDATE habits SET name = ?, description = ?, icon = ?, color = ?, target_type = ?, target_value = ?, recurrence = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, description || null, icon || null, color || '#22c55e', target_type || 'boolean', target_value || 1, recurrence || 'daily', id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/habits/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  
+  db.run('DELETE FROM habit_logs WHERE habit_id = ? AND owner_id = ?', [id, userId]);
+  db.run('DELETE FROM habits WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/habits/:id/logs', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { from, to } = req.query;
+  
+  let query = 'SELECT * FROM habit_logs WHERE habit_id = ? AND owner_id = ?';
+  const params = [id, userId];
+  
+  if (from && to) {
+    query += ' AND date BETWEEN ? AND ?';
+    params.push(String(from), String(to));
+  }
+  
+  query += ' ORDER BY date DESC';
+  
+  const stmt = db.prepare(query);
+  stmt.bind(params);
+  const logs = [];
+  while (stmt.step()) logs.push(stmt.getAsObject());
+  stmt.free();
+  res.json(logs);
+});
+
+app.get('/api/habits/logs', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { date } = req.query;
+  
+  const notificationStart = date || new Date().toISOString().split('T')[0];
+  
+  const habitsStmt = db.prepare('SELECT * FROM habits WHERE owner_id = ?');
+  habitsStmt.bind([userId]);
+  const habits = [];
+  while (habitsStmt.step()) habits.push(habitsStmt.getAsObject());
+  habitsStmt.free();
+  
+  const logsStmt = db.prepare('SELECT * FROM habit_logs WHERE owner_id = ? AND date = ?');
+  logsStmt.bind([userId, notificationStart]);
+  const logsMap = {};
+  while (logsStmt.step()) {
+    const log = logsStmt.getAsObject();
+    logsMap[log.habit_id] = log;
+  }
+  logsStmt.free();
+  
+  res.json({ habits, logs: logsMap, date: notificationStart });
+});
+
+app.post('/api/habits/:id/log', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { date, value, completed } = req.body;
+  
+  if (!date) return res.status(400).json({ error: 'La fecha es obligatoria' });
+  
+  const existingStmt = db.prepare('SELECT id FROM habit_logs WHERE habit_id = ? AND owner_id = ? AND date = ?');
+  existingStmt.bind([id, userId, date]);
+  const exists = existingStmt.step();
+  existingStmt.free();
+  
+  if (exists) {
+    const stmt = db.prepare('UPDATE habit_logs SET value = ?, completed = ? WHERE habit_id = ? AND owner_id = ? AND date = ?');
+    stmt.run([value || 1, completed !== undefined ? (completed ? 1 : 0) : 1, id, userId, date]);
+    stmt.free();
+  } else {
+    const stmt = db.prepare('INSERT INTO habit_logs (owner_id, habit_id, date, value, completed) VALUES (?, ?, ?, ?, ?)');
+    stmt.run([userId, id, date, value || 1, completed !== undefined ? (completed ? 1 : 0) : 1]);
+    stmt.free();
+  }
+  
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/habits/:id/log', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { date } = req.body;
+  
+  if (!date) return res.status(400).json({ error: 'La fecha es obligatoria' });
+  
+  db.run('DELETE FROM habit_logs WHERE habit_id = ? AND owner_id = ? AND date = ?', [id, userId, date]);
+  saveDb();
+  res.json({ success: true });
+});
+
 app.get('/api/family-members/birthdays', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -3158,23 +3349,23 @@ app.get('/api/family-members/birthdays', (req, res) => {
   while (stmt2.step()) combined.push(stmt2.getAsObject());
   stmt2.free();
   
-  const today = new Date();
+  const notificationStart = new Date();
   const birthdays = combined
     .filter(m => m.birthdate && m.birthdate.trim() !== '')
     .map(m => {
       const birthDate = new Date(m.birthdate);
-      const currentYear = today.getFullYear();
+      const currentYear = notificationStart.getFullYear();
       let birthdayThisYear = new Date(currentYear, birthDate.getMonth(), birthDate.getDate());
       let nextBirthday = new Date(currentYear + 1, birthDate.getMonth(), birthDate.getDate());
       
-      if (birthdayThisYear < today) {
+      if (birthdayThisYear < notificationStart) {
         nextBirthday = new Date(currentYear + 1, birthDate.getMonth(), birthDate.getDate());
       } else {
         nextBirthday = birthdayThisYear;
       }
       
       const age = nextBirthday.getFullYear() - birthDate.getFullYear();
-      const daysUntil = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
+      const daysUntil = Math.ceil((nextBirthday - notificationStart) / (1000 * 60 * 60 * 24));
       
       return {
         id: m.id,
@@ -4553,7 +4744,7 @@ Ejemplos: "buscar nota reunion", "gastos de comida", "últimos movimientos"
 - Balance: ${balance.toFixed(2)}€\n\n📋 ${tasks.length} tareas | 🛒 ${shoppingItems.length} productos | 📝 ${notes.length} notas\n\n💡 Prueba: "ayuda" para ver todo lo que puedo buscar`;
 }
 
-async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = []) {
+async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = [], startDateParam = null, endDateParam = null) {
   if (!settings.email_enabled || !settings.email_to || !settings.smtp_user || !settings.smtp_password) {
     return { success: false, reason: 'Email notifications not configured' };
   }
@@ -4567,11 +4758,9 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   if (!tasks || !Array.isArray(tasks)) tasks = [];
   if (!mealPlans || !Array.isArray(mealPlans)) mealPlans = [];
 
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const nextWeek = new Date(today);
-  nextWeek.setDate(nextWeek.getDate() + 7);
+  const realToday = new Date();
+  const notificationStart = startDateParam ? new Date(startDateParam) : (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; })();
+  const notificationEnd = endDateParam ? new Date(endDateParam) : (() => { const n = new Date(); n.setDate(n.getDate() + 8); return n; })();
 
   const motivationalQuotes = [
     "🏠 La familia es el lugar donde la vida comienza y el amor nunca termina.",
@@ -4589,7 +4778,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     "🌟 Hoy trae nuevas oportunidades de estar juntos.",
     "💕 Los recuerdos en familia son los más valiosos."
   ];
-  const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+  const dayOfYear = Math.floor((notificationStart - new Date(notificationStart.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
   const quoteOfTheDay = motivationalQuotes[dayOfYear % motivationalQuotes.length];
 
   const headerHtml = `
@@ -4601,7 +4790,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
 
   const footerHtml = `
     <div style="background: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
-      <p style="color: #6c757d; margin: 0; font-size: 12px;">📅 ${today.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      <p style="color: #6c757d; margin: 0; font-size: 12px;">📅 ${notificationStart.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
       <p style="color: #adb5bd; margin: 10px 0 0 0; font-size: 11px;">Enviado con ❤️ por Family Agent</p>
     </div>
   `;
@@ -4644,7 +4833,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     const totalSpent = budgets.reduce((sum, b) => sum + (b.spent || 0), 0);
     const totalRemaining = totalBudget - totalSpent;
 
-    budgetsText = `💰 DISPONIBLE (${today.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })})\n` +
+    budgetsText = `💰 DISPONIBLE (${notificationStart.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })})\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       budgets.map(b => {
         const remaining = b.amount - (b.spent || 0);
@@ -4654,7 +4843,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
 
     budgetsSection = `
       <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin: 16px 0;">
-        <h3 style="margin: 0 0 16px 0; color: #374151;">💰 Disponible (${today.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })})</h3>
+        <h3 style="margin: 0 0 16px 0; color: #374151;">💰 Disponible (${notificationStart.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })})</h3>
         <table style="width: 100%; font-size: 14px;">
           <tbody>
             ${budgets.map(b => {
@@ -4727,7 +4916,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
       return acc;
     }, {});
 
-    mealPlansText = `🍽️ MENÚ DE MAÑANA (${tomorrow.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })})\n` +
+    mealPlansText = `🍽️ MENÚ DE MAÑANA (${notificationStart.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })})\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       Object.entries(mealsByType).map(([type, meals]) => {
         return `  ${mealLabels[type] || type}: ${meals.map(m => m.recipe_name).join(', ')}`;
@@ -4735,7 +4924,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
 
     mealPlansSection = `
       <div style="background: #fff7ed; border-radius: 8px; padding: 16px; margin: 16px 0;">
-        <h3 style="margin: 0 0 16px 0; color: #c2410c;">🍽️ Menú de mañana (${tomorrow.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })})</h3>
+        <h3 style="margin: 0 0 16px 0; color: #c2410c;">🍽️ Menú de mañana (${notificationStart.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })})</h3>
         <table style="width: 100%; font-size: 14px;">
           <tbody>
             ${Object.entries(mealsByType).map(([type, meals]) => `
@@ -4786,7 +4975,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
 
   // Remove previous definition 
   
-  const dateRangeStr = `${today.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${nextWeek.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const dateRangeStr = `${notificationStart.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${notificationEnd.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   if (!hasEvents) {
     textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\nNo hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n${tasksText ? '\n\n' + tasksText : ''}\n${budgetsText ? '\n\n' + budgetsText : ''}\n${mealPlansText ? '\n\n' + mealPlansText : ''}\n${birthdaysText ? '\n\n' + birthdaysText : ''}\n\n¡Que tengas un buen día!\n\nCon cariño,\nFamily Agent 💕`;
@@ -4961,6 +5150,7 @@ async function runDailyNotification() {
     for (const userId of usersToNotify) {
       console.log(`[Notification] MATCH! Sending scheduled notification to user ${userId}`);
       await sendUserNotification(userId);
+      await sendPushNotification(userId, 'Family Agent', 'Tu resumen diario está listo', '/');
     }
   } catch (error) {
     console.error('Error in daily notification dispatcher:', error);
@@ -4973,6 +5163,51 @@ function getWeekStart(date) {
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
   return d.toISOString().split('T')[0];
+}
+
+async function sendPushNotification(userId, title, body, url = '/') {
+  try {
+    const stmt = db.prepare('SELECT push_enabled, push_subscription FROM notification_settings WHERE owner_id = ?');
+    stmt.bind([userId]);
+    let settings = null;
+    if (stmt.step()) settings = stmt.getAsObject();
+    stmt.free();
+    
+    if (!settings?.push_enabled || !settings?.push_subscription) {
+      return;
+    }
+    
+    const subscription = JSON.parse(settings.push_subscription);
+    
+    const pushConfig = {
+      endpoint: subscription.endpoint,
+      keys: {
+        p256dh: subscription.keys?.p256dh || subscription.keys?.auth || '',
+        auth: subscription.keys?.auth || ''
+      }
+    };
+    
+    await webpush.sendNotification(pushConfig, JSON.stringify({
+      title: title,
+      body: body,
+      url: url,
+      icon: '/icon-192.png',
+      badge: '/icon-96.png'
+    }));
+    
+    console.log(`[Push] Notification sent to user ${userId}: ${title}`);
+    
+  } catch (error) {
+    console.error('[Push] Error sending notification:', error.message);
+    if (error.statusCode === 410 || error.statusCode === 404) {
+      // Subscription expired, disable push
+      const stmt = db.prepare('UPDATE notification_settings SET push_enabled = 0, push_subscription = NULL WHERE owner_id = ?');
+      stmt.run([userId]);
+      stmt.free();
+      saveDb();
+      console.log(`[Push] Expired subscription removed for user ${userId}`);
+    }
+  }
 }
 
 async function sendUserNotification(userId) {
@@ -4994,24 +5229,27 @@ async function sendUserNotification(userId) {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
     
-    const nextWeek = new Date(today);
+    const nextWeek = new Date(tomorrow);
     nextWeek.setDate(nextWeek.getDate() + 7);
     const nextWeekStr = nextWeek.toISOString().split('T')[0];
+
+    const notificationStart = today;
+    const notificationStartStr = todayStr;
 
     const accessibleEventIds = getAccessibleUserIds(userId, 'share_agenda');
     const eventPlaceholders = accessibleEventIds.map(() => '?').join(',');
     const eventsStmt = db.prepare(`SELECT * FROM family_events WHERE owner_id IN (${eventPlaceholders}) AND ((date >= ? AND date <= ?) OR recurrence = ?) ORDER BY date ASC, start_time ASC`);
-    eventsStmt.bind([...accessibleEventIds, tomorrowStr, nextWeekStr, 'weekly']);
+    eventsStmt.bind([...accessibleEventIds, notificationStartStr, nextWeekStr, 'weekly']);
     const events = [];
     while (eventsStmt.step()) {
       events.push(eventsStmt.getAsObject());
     }
     eventsStmt.free();
     
-    const expandedEvents = expandRecurringEvents(events, today, nextWeek);
+    const expandedEvents = expandRecurringEvents(events, notificationStart, nextWeek);
 
-    const month = today.getMonth() + 1;
-    const year = today.getFullYear();
+    const month = notificationStart.getMonth() + 1;
+    const year = notificationStart.getFullYear();
     const monthStr = String(month).padStart(2, '0');
 
     const budgetsStmt = db.prepare(`
@@ -5042,9 +5280,9 @@ async function sendUserNotification(userId) {
     }
     tasksStmt.free();
 
-    const weekStart = getWeekStart(tomorrow);
+    const weekStart = getWeekStart(notificationStart);
     const mealPlansStmt = db.prepare('SELECT * FROM meal_plans WHERE week_start = ? AND owner_id = ? AND day_of_week = ? ORDER BY day_of_week, meal_type');
-    mealPlansStmt.bind([weekStart, userId, tomorrow.getDay() === 0 ? 7 : tomorrow.getDay()]);
+    mealPlansStmt.bind([weekStart, userId, notificationStart.getDay() === 0 ? 7 : notificationStart.getDay()]);
     const mealPlans = [];
     while (mealPlansStmt.step()) {
       mealPlans.push(mealPlansStmt.getAsObject());
@@ -5078,14 +5316,14 @@ async function sendUserNotification(userId) {
         const birthDate = new Date(m.birthdate);
         const birthMonth = birthDate.getMonth();
         const birthDay = birthDate.getDate();
-        const currentYear = today.getFullYear();
-        const currentMonth = today.getMonth();
+        const currentYear = notificationStart.getFullYear();
+        const currentMonth = notificationStart.getMonth();
         
         let nextBirthday = new Date(currentYear + 1, birthMonth, birthDay);
         let birthdayThisYear = new Date(currentYear, birthMonth, birthDay);
         let isThisMonth = false;
         
-        if (birthdayThisYear < today) {
+        if (birthdayThisYear < notificationStart) {
           nextBirthday = new Date(currentYear + 1, birthMonth, birthDay);
         } else {
           nextBirthday = birthdayThisYear;
@@ -5093,7 +5331,7 @@ async function sendUserNotification(userId) {
         
         if (birthMonth === currentMonth) {
           isThisMonth = true;
-          if (birthdayThisYear < today) {
+          if (birthdayThisYear < notificationStart) {
             nextBirthday = new Date(currentYear + 1, birthMonth, birthDay);
           } else {
             nextBirthday = birthdayThisYear;
@@ -5101,7 +5339,7 @@ async function sendUserNotification(userId) {
         }
         
         const age = nextBirthday.getFullYear() - birthDate.getFullYear();
-        const daysUntil = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
+        const daysUntil = Math.ceil((nextBirthday - notificationStart) / (1000 * 60 * 60 * 24));
         
         return {
           name: m.name,
@@ -5118,7 +5356,7 @@ async function sendUserNotification(userId) {
         return a.daysUntil - b.daysUntil;
       });
 
-    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays);
+    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays, tomorrow, nextWeek);
   } catch (error) {
     console.error('Error sending notification to user', userId, error);
   }
@@ -5152,7 +5390,7 @@ app.get('/api/notifications/settings', (req, res) => {
   
   if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
 
-  const stmt = db.prepare('SELECT email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before FROM notification_settings WHERE owner_id = ?');
+  const stmt = db.prepare('SELECT email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before, push_enabled, push_subscription FROM notification_settings WHERE owner_id = ?');
   stmt.bind([authUserId]);
   let settings = null;
   if (stmt.step()) settings = stmt.getAsObject();
@@ -5168,6 +5406,119 @@ app.get('/api/notifications/settings', (req, res) => {
   console.log('sending to frontend:', JSON.stringify(settings));
   
   res.json(settings || {});
+});
+
+// Endpoint to get VAPID public key for the frontend
+app.get('/api/notifications/vapid-key', (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
+// Endpoint to subscribe to push notifications
+app.post('/api/notifications/subscribe', (req, res) => {
+  const { username, password, userId } = req.headers || {};
+  
+  let authUserId = null;
+  
+  if (userId) {
+    const numericUserId = parseInt(userId, 10);
+    if (!isNaN(numericUserId)) {
+      const stmt = db.prepare('SELECT id FROM auth_user WHERE id = ?');
+      stmt.bind([numericUserId]);
+      if (stmt.step()) {
+        authUserId = stmt.getAsObject().id;
+      }
+      stmt.free();
+    }
+  }
+  
+  if (!authUserId && username && password) {
+    const stmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
+    stmt.bind([username]);
+    if (stmt.step()) {
+      authUserId = stmt.getAsObject().id;
+    }
+    stmt.free();
+  }
+  
+  if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { subscription } = req.body;
+  
+  if (!subscription) {
+    return res.status(400).json({ error: 'Suscripción requerida' });
+  }
+  
+  try {
+    const subscriptionStr = JSON.stringify(subscription);
+    
+    const checkStmt = db.prepare('SELECT id FROM notification_settings WHERE owner_id = ?');
+    checkStmt.bind([authUserId]);
+    const exists = checkStmt.step();
+    checkStmt.free();
+    
+    if (exists) {
+      const stmt = db.prepare('UPDATE notification_settings SET push_enabled = 1, push_subscription = ? WHERE owner_id = ?');
+      stmt.run([subscriptionStr, authUserId]);
+      stmt.free();
+    } else {
+      const stmt = db.prepare('INSERT INTO notification_settings (owner_id, push_enabled, push_subscription) VALUES (?, 1, ?)');
+      stmt.run([authUserId, subscriptionStr]);
+      stmt.free();
+    }
+    
+    saveDb();
+    
+    console.log(`[Push] User ${authUserId} subscribed to push notifications`);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Push] Error saving subscription:', error);
+    res.status(500).json({ error: 'Error guardando suscripción' });
+  }
+});
+
+// Endpoint to unsubscribe from push notifications
+app.post('/api/notifications/unsubscribe', (req, res) => {
+  const { username, password, userId } = req.headers || {};
+  
+  let authUserId = null;
+  
+  if (userId) {
+    const numericUserId = parseInt(userId, 10);
+    if (!isNaN(numericUserId)) {
+      const stmt = db.prepare('SELECT id FROM auth_user WHERE id = ?');
+      stmt.bind([numericUserId]);
+      if (stmt.step()) {
+        authUserId = stmt.getAsObject().id;
+      }
+      stmt.free();
+    }
+  }
+  
+  if (!authUserId && username && password) {
+    const stmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
+    stmt.bind([username]);
+    if (stmt.step()) {
+      authUserId = stmt.getAsObject().id;
+    }
+    stmt.free();
+  }
+  
+  if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const stmt = db.prepare('UPDATE notification_settings SET push_enabled = 0, push_subscription = NULL WHERE owner_id = ?');
+    stmt.run([authUserId]);
+    stmt.free();
+    saveDb();
+    
+    console.log(`[Push] User ${authUserId} unsubscribed from push notifications`);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Push] Error unsubscribing:', error);
+    res.status(500).json({ error: 'Error al cancelar suscripción' });
+  }
 });
 
 app.post('/api/notifications/settings', (req, res) => {
@@ -5199,7 +5550,7 @@ app.post('/api/notifications/settings', (req, res) => {
   if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
 
   try {
-    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays } = req.body || {};
+    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays, push_enabled, push_subscription } = req.body || {};
 
     console.log('POST /api/notifications/settings - smtp_password received:', !!smtp_password, 'length:', smtp_password?.length);
 
@@ -5237,6 +5588,8 @@ app.post('/api/notifications/settings', (req, res) => {
           notify_budgets = ?,
           notify_meals = ?,
           notify_birthdays = ?,
+          push_enabled = ?,
+          push_subscription = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE owner_id = ?
       `);
@@ -5255,13 +5608,15 @@ app.post('/api/notifications/settings', (req, res) => {
         notify_budgets ?? 1,
         notify_meals ?? 1,
         notify_birthdays ?? 1,
+        push_enabled ? 1 : 0,
+        push_subscription || null,
         authUserId
       ]);
       stmt.free();
     } else {
       const stmt = db.prepare(`
         INSERT INTO notification_settings (owner_id, email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run([
         authUserId,
@@ -5278,7 +5633,9 @@ app.post('/api/notifications/settings', (req, res) => {
         notify_tasks ?? 1,
         notify_budgets ?? 1,
         notify_meals ?? 1,
-        notify_birthdays ?? 1
+        notify_birthdays ?? 1,
+        push_enabled ? 1 : 0,
+        push_subscription || null
       ]);
       stmt.free();
     }
@@ -5404,6 +5761,44 @@ app.post('/api/notifications/test-saved', async (req, res) => {
   } catch (error) {
     console.error('Test-saved notification error:', error);
     res.status(500).json({ error: 'Excepción al enviar email guardado: ' + error.message });
+  }
+});
+
+// Test push notification endpoint
+app.post('/api/notifications/test-push', async (req, res) => {
+  const { username, password, userId } = req.headers || {};
+  
+  let authUserId = null;
+  
+  if (userId) {
+    const numericUserId = parseInt(userId, 10);
+    if (!isNaN(numericUserId)) {
+      const stmt = db.prepare('SELECT id FROM auth_user WHERE id = ?');
+      stmt.bind([numericUserId]);
+      if (stmt.step()) {
+        authUserId = stmt.getAsObject().id;
+      }
+      stmt.free();
+    }
+  }
+  
+  if (!authUserId && username && password) {
+    const stmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
+    stmt.bind([username]);
+    if (stmt.step()) {
+      authUserId = stmt.getAsObject().id;
+    }
+    stmt.free();
+  }
+  
+  if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    await sendPushNotification(authUserId, 'Family Agent - Prueba', 'Esta es una notificación de prueba', '/');
+    res.json({ success: true, message: 'Notificación de prueba enviada' });
+  } catch (error) {
+    console.error('Test push notification error:', error);
+    res.status(500).json({ error: 'Error enviando notificación: ' + error.message });
   }
 });
 

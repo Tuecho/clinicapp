@@ -24,11 +24,12 @@ import { Terms } from './pages/Terms';
 import { Privacy } from './pages/Privacy';
 import { Contact } from './pages/Contact';
 import { Gifts } from './pages/Gifts';
+import { HabitTracker } from './pages/HabitTracker';
 import { ChatWidget } from './components/ChatWidget';
 import { Login, useAuth, AuthProvider } from './components/Auth';
 import { Menu, X } from 'lucide-react';
 
-type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts';
+type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<PageType>(() => {
@@ -123,6 +124,7 @@ function AppContent() {
           {activePage === 'contacts' && <Premium />}
           {activePage === 'chatbot' && <ChatBotPage />}
           {activePage === 'gifts' && <Gifts />}
+          {activePage === 'habits' && <HabitTracker />}
           {activePage === 'sales' && <SalesContact />}
           {activePage === 'terms' && <Terms />}
           {activePage === 'privacy' && <Privacy />}

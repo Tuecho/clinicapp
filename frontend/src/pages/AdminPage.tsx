@@ -55,6 +55,7 @@ export function AdminPage() {
   const [downloadingDb, setDownloadingDb] = useState(false);
   const [uploadingDb, setUploadingDb] = useState(false);
   const [dbMessage, setDbMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [deleteSuggestionId, setDeleteSuggestionId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -312,22 +313,31 @@ export function AdminPage() {
 
   const handleSuggestionAction = async (id: number, action: 'read' | 'delete') => {
     if (action === 'delete') {
-      if (!confirm('¿Estás seguro de que quieres borrar esta sugerencia?')) {
-        return;
-      }
+      setDeleteSuggestionId(id);
+      return;
     }
     
     try {
       const headers = getAuthHeaders();
       if (action === 'read') {
         await fetch(`${API_URL}/api/suggestions/${id}/read`, { method: 'PUT', headers });
-      } else {
-        await fetch(`${API_URL}/api/suggestions/${id}`, { method: 'DELETE', headers });
       }
       fetchSuggestions();
     } catch (error) {
       console.error('Error handling suggestion:', error);
     }
+  };
+
+  const confirmDeleteSuggestion = async () => {
+    if (!deleteSuggestionId) return;
+    try {
+      const headers = getAuthHeaders();
+      await fetch(`${API_URL}/api/suggestions/${deleteSuggestionId}`, { method: 'DELETE', headers });
+      fetchSuggestions();
+    } catch (error) {
+      console.error('Error handling suggestion:', error);
+    }
+    setDeleteSuggestionId(null);
   };
 
   const handleCreateUser = async () => {
@@ -1322,6 +1332,35 @@ export function AdminPage() {
               >
                 {creating ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                 Crear Usuario
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteSuggestionId !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Confirmar eliminación</h3>
+              <button onClick={() => setDeleteSuggestionId(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-gray-600 mb-6">¿Estás seguro de que quieres borrar esta sugerencia? Esta acción no se puede deshacer.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteSuggestionId(null)}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteSuggestion}
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center justify-center gap-2"
+              >
+                <Trash2 size={18} />
+                Eliminar
               </button>
             </div>
           </div>

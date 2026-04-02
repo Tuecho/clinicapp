@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, Mail, Clock, Send, Loader2, Check, X, Globe } from 'lucide-react';
+import { Bell, Mail, Clock, Send, Loader2, Check, X, Globe, Smartphone, BellOff } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -17,6 +17,8 @@ interface NotificationSettings {
   notify_budgets: number;
   notify_meals: number;
   notify_birthdays: number;
+  push_enabled: number;
+  push_subscription: string | null;
 }
 
 const TIMEZONES = [
@@ -46,7 +48,9 @@ export function NotificationSettings() {
     notify_tasks: 1,
     notify_budgets: 1,
     notify_meals: 1,
-    notify_birthdays: 1
+    notify_birthdays: 1,
+    push_enabled: 0,
+    push_subscription: null
   });
   const [smtpPassword, setSmtpPassword] = useState('');
   const [savedPassword, setSavedPassword] = useState('');
@@ -54,11 +58,86 @@ export function NotificationSettings() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
 
   useEffect(() => {
     console.log('NotificationSettings useEffect triggered');
     fetchSettings();
+    checkPushSupport();
   }, []);
+
+  const checkPushSupport = () => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      setPushSupported(true);
+    }
+  };
+
+  const subscribeToPush = async () => {
+    if (!pushSupported) return;
+    
+    setPushLoading(true);
+    try {
+      // Get VAPID public key from server
+      const vapidResp = await fetch(`${API_URL}/api/notifications/vapid-key`, { headers: getAuthHeaders() });
+      const vapidData = await vapidResp.json();
+      
+      // Convert base64 to Uint8Array
+      const vapidKey = Uint8Array.from(atob(vapidData.publicKey.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+      
+      // Register service worker
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      
+      // Subscribe to push
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidKey
+      });
+      
+      // Send subscription to server
+      await fetch(`${API_URL}/api/notifications/subscribe`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription })
+      });
+      
+      setSettings({ ...settings, push_enabled: 1, push_subscription: 'subscribed' });
+      setMessage({ type: 'success', text: 'Notificaciones push activadas' });
+    } catch (error) {
+      console.error('Error subscribing to push:', error);
+      setMessage({ type: 'error', text: 'Error al activar notificaciones push' });
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const unsubscribeFromPush = async () => {
+    setPushLoading(true);
+    try {
+      // Unsubscribe from push
+      await fetch(`${API_URL}/api/notifications/unsubscribe`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      
+      // Unsubscribe from service worker
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          await subscription.unsubscribe();
+        }
+      }
+      
+      setSettings({ ...settings, push_enabled: 0, push_subscription: null });
+      setMessage({ type: 'success', text: 'Notificaciones push desactivadas' });
+    } catch (error) {
+      console.error('Error unsubscribing from push:', error);
+      setMessage({ type: 'error', text: 'Error al desactivar notificaciones push' });
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -207,6 +286,72 @@ export function NotificationSettings() {
         )}
 
         <div className="space-y-4">
+          {/* Push Notifications Section */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Smartphone className="text-blue-600" size={20} />
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-800">Notificaciones en el dispositivo</h3>
+                  <p className="text-sm text-gray-500">Recibe avisos instantáneos en tu navegador</p>
+                </div>
+              </div>
+              {pushSupported ? (
+                settings.push_enabled === 1 ? (
+                  <button
+                    onClick={unsubscribeFromPush}
+                    disabled={pushLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50"
+                  >
+                    {pushLoading ? <Loader2 size={16} className="animate-spin" /> : <BellOff size={16} />}
+                    Desactivar
+                  </button>
+                ) : (
+                  <button
+                    onClick={subscribeToPush}
+                    disabled={pushLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {pushLoading ? <Loader2 size={16} className="animate-spin" /> : <Bell size={16} />}
+                    Activar
+                  </button>
+                )
+              ) : (
+                <span className="text-sm text-gray-400">No disponible</span>
+              )}
+            </div>
+            {!pushSupported && (
+              <p className="text-xs text-gray-400 mt-2">
+                Tu navegador no soporta notificaciones push. Usa Chrome, Firefox o Edge.
+              </p>
+            )}
+            {settings.push_enabled === 1 && pushSupported && (
+              <button
+                onClick={async () => {
+                  try {
+                    const resp = await fetch(`${API_URL}/api/notifications/test-push`, { 
+                      method: 'POST', 
+                      headers: getAuthHeaders() 
+                    });
+                    const data = await resp.json();
+                    if (data.success) {
+                      setMessage({ type: 'success', text: 'Notificación de prueba enviada' });
+                    } else {
+                      setMessage({ type: 'error', text: data.error || 'Error al enviar' });
+                    }
+                  } catch (error) {
+                    setMessage({ type: 'error', text: 'Error de conexión' });
+                  }
+                }}
+                className="mt-3 text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Enviar notificación de prueba
+              </button>
+            )}
+          </div>
+
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
