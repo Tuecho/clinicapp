@@ -59,30 +59,22 @@ export function Birthdays() {
           body: JSON.stringify({ name: form.name, birthdate: form.birthdate })
         });
       } else if (editingId && editingSource === 'family') {
-        // Correctly update family member birthdate
         await fetch(`${API_URL}/api/family-members/${editingId}`, {
           method: 'PUT',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            name: form.name, 
-            birthdate: form.birthdate,
-            // We need to preserve other fields if possible, but the API expects them.
-            // For now, let's keep it simple as the user's focus is on adding NEW ones.
-          })
+          body: JSON.stringify({ name: form.name, birthdate: form.birthdate })
         });
       } else {
-        // Create in the NEW birthdays table
         await fetch(`${API_URL}/api/birthdays`, {
           method: 'POST',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: form.name, birthdate: form.birthdate })
         });
       }
-      
       setShowModal(false);
+      setForm({ name: '', birthdate: '' });
       setEditingId(null);
       setEditingSource(null);
-      setForm({ name: '', birthdate: '' });
       fetchBirthdays();
     } catch (error) {
       console.error('Error saving birthday:', error);
@@ -97,16 +89,23 @@ export function Birthdays() {
   };
 
   const handleDelete = async (b: Birthday) => {
-    if (b.source === 'family') {
-      alert('Para eliminar el cumpleaños de un miembro de la familia, edítalo en la sección de Familia y borra su fecha de nacimiento.');
-      return;
-    }
     if (!confirm('Eliminar este cumpleaños?')) return;
+    
     try {
-      await fetch(`${API_URL}/api/birthdays/${b.id}`, {
+      const url = `${API_URL}/api/birthdays/${b.id}`;
+      const options: RequestInit = {
         method: 'DELETE',
-        headers: getAuthHeaders()
-      });
+        headers: { 
+          ...getAuthHeaders(), 
+          'Content-Type': 'application/json' 
+        }
+      };
+      
+      if (b.source === 'family') {
+        options.body = JSON.stringify({ source: 'family', member_id: b.id });
+      }
+      
+      await fetch(url, options);
       fetchBirthdays();
     } catch (error) {
       console.error('Error deleting birthday:', error);
@@ -128,19 +127,20 @@ export function Birthdays() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold">Cumpleaños</h1>
-              <p className="opacity-90 text-sm">Recibirás notificaciones</p>
+              <p className="text-sm opacity-90">No te olvides de felicitar a los tuyos</p>
             </div>
           </div>
           <button
             onClick={() => {
               setEditingId(null);
+              setEditingSource('additional');
               setForm({ name: '', birthdate: '' });
               setShowModal(true);
             }}
-            className="bg-white text-pink-500 px-3 sm:px-4 py-2 rounded-lg font-medium hover:bg-pink-50 flex items-center gap-2 w-full sm:w-auto justify-center text-sm sm:text-base"
+            className="bg-white text-pink-600 px-4 py-2 rounded-xl font-medium hover:bg-pink-50 transition-colors flex items-center gap-2"
           >
-            <Plus size={18} />
-            Añadir
+            <Plus size={20} />
+            <span>Añadir</span>
           </button>
         </div>
       </div>
@@ -190,7 +190,7 @@ export function Birthdays() {
         <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
           <Cake size={48} className="mx-auto mb-4 text-pink-300" />
           <p className="text-gray-500 mb-2">No hay cumpleaños registrados</p>
-          <p className="text-sm text-gray-400">Aade los cumpleaños de tus seres queridos</p>
+          <p className="text-sm text-gray-400">Añade los cumpleaños de tus seres queridos</p>
         </div>
       )}
 
@@ -203,33 +203,29 @@ export function Birthdays() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Nombre *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
                 <input
                   type="text"
                   value={form.name}
-                  onChange={e => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                  placeholder="Ej: Maria, Juan, Mama..."
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                  placeholder="Nombre de la persona"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Fecha de nacimiento *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de nacimiento</label>
                 <input
                   type="date"
                   value={form.birthdate}
-                  onChange={e => setForm({ ...form, birthdate: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
+                  onChange={(e) => setForm({ ...form, birthdate: e.target.value })}
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent"
                 />
               </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowModal(false)} className="flex-1 py-2 border rounded-lg">Cancelar</button>
-              <button 
-                onClick={handleSave} 
-                disabled={!form.name || !form.birthdate}
-                className="flex-1 py-2 bg-pink-500 text-white rounded-lg disabled:opacity-50"
+              <button
+                onClick={handleSave}
+                className="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white py-3 rounded-xl font-medium hover:opacity-90 transition-opacity"
               >
-                Guardar
+                {editingId ? 'Guardar' : 'Añadir'}
               </button>
             </div>
           </div>

@@ -2512,7 +2512,13 @@ app.get('/api/tasks', (req, res) => {
   const accessibleIds = getAccessibleUserIds(userId, 'share_tasks');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
-  const stmt = db.prepare(`SELECT t.*, COALESCE(fm.name, au.username) as assignee_name FROM family_tasks t LEFT JOIN family_members fm ON t.assigned_to_id = fm.id LEFT JOIN auth_user au ON t.assigned_to_id = au.id WHERE t.owner_id IN (${placeholders}) OR t.owner_id = ? OR t.assigned_to_id = ? ORDER BY t.completed ASC, t.created_at DESC`);
+  const stmt = db.prepare(`SELECT t.*, 
+    COALESCE(fm.name, au.username) as assignee_name
+    FROM family_tasks t 
+    LEFT JOIN family_members fm ON t.assigned_to_id = fm.id 
+    LEFT JOIN auth_user au ON t.assigned_to_id = au.id 
+    WHERE t.owner_id IN (${placeholders}) OR t.owner_id = ? OR t.assigned_to_id = ? 
+    ORDER BY t.completed ASC, t.created_at DESC`);
   stmt.bind([...accessibleIds, userId, userId]);
   
   const tasks = [];
@@ -3115,8 +3121,18 @@ app.delete('/api/birthdays/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   const { id } = req.params;
+  const body = req.body || {};
+  const source = body.source;
+  const member_id = body.member_id;
   
-  db.run('DELETE FROM birthdays WHERE id = ? AND owner_id = ?', [id, userId]);
+  console.log('Delete birthday request:', { id, source, member_id, body });
+  
+  if (source === 'family' && member_id) {
+    db.run('UPDATE family_members SET birthdate = NULL WHERE id = ?', [member_id]);
+  } else {
+    db.run('DELETE FROM birthdays WHERE id = ? AND owner_id = ?', [id, userId]);
+  }
+  
   saveDb();
   res.json({ success: true });
 });
