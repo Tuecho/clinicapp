@@ -156,7 +156,9 @@ export function NotificationSettings() {
         notify_tasks: data.notify_tasks ?? 1,
         notify_budgets: data.notify_budgets ?? 1,
         notify_meals: data.notify_meals ?? 1,
-        notify_birthdays: data.notify_birthdays ?? 1
+        notify_birthdays: data.notify_birthdays ?? 1,
+        push_enabled: data.push_enabled || 0,
+        push_subscription: data.push_subscription || null
       });
       const hasPassword = (data.has_smtp_password === true || data.has_smtp_password === 1) || (data.smtp_user && data.email_to);
       console.log('hasPassword calculated:', hasPassword, 'data.smtp_user:', !!data.smtp_user, 'data.email_to:', !!data.email_to);

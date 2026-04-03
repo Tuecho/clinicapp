@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Plus, Check, Edit2, Trash2, ArrowLeft, ArrowRight, Target, Pill, Apple, BookOpen, Dumbbell, Moon, Coffee, Heart, Clock } from 'lucide-react';
+import { Plus, Check, Edit2, Trash2, ArrowLeft, ArrowRight, Target, Pill, Apple, BookOpen, Dumbbell, Moon, Coffee, Heart, Clock, Folder, ChevronDown, ChevronRight, X, FolderPlus, Cross } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
+
+interface HabitCategory {
+  id: number;
+  name: string;
+  color: string;
+}
 
 interface Habit {
   id: number;
@@ -13,6 +19,7 @@ interface Habit {
   target_type: string;
   target_value: number;
   recurrence: string;
+  category_id: number | null;
 }
 
 interface HabitLog {
@@ -31,6 +38,7 @@ const ICONS = [
   { key: 'moon', icon: Moon, label: 'Dormir' },
   { key: 'coffee', icon: Coffee, label: 'Desayuno' },
   { key: 'heart', icon: Heart, label: 'Salud' },
+  { key: 'cross', icon: Cross, label: 'Religioso' },
   { key: 'target', icon: Target, label: 'Otro' },
 ];
 
@@ -63,11 +71,16 @@ function shouldShowHabitToday(habit: Habit): boolean {
 }
 
 export function HabitTracker() {
+  const [categories, setCategories] = useState<HabitCategory[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<Record<number, HabitLog>>({});
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showForm, setShowForm] = useState(false);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+  const [editingCategory, setEditingCategory] = useState<HabitCategory | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
+  const [showMoveMenu, setShowMoveMenu] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -75,18 +88,35 @@ export function HabitTracker() {
     color: '#22c55e',
     target_type: 'boolean',
     target_value: 1,
-    recurrence: 'daily'
+    recurrence: 'daily',
+    category_id: null as number | null
+  });
+  const [categoryFormData, setCategoryFormData] = useState({
+    name: '',
+    color: '#3b82f6'
   });
 
   const today = currentDate.toISOString().split('T')[0];
 
   useEffect(() => {
+    loadCategories();
     loadHabits();
   }, []);
 
   useEffect(() => {
     loadLogs();
   }, [currentDate]);
+
+  const loadCategories = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/habit-categories`, { headers: getAuthHeaders() });
+      const data = await res.json();
+      console.log('[HabitTracker] Categories loaded:', data);
+      setCategories(data);
+    } catch (err) {
+      console.error('Error loading categories:', err);
+    }
+  };
 
   const loadHabits = async () => {
     try {
@@ -111,14 +141,17 @@ export function HabitTracker() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[HabitTracker] Submitting habit:', formData);
     try {
       if (editingHabit) {
+        console.log('[HabitTracker] Editing habit:', editingHabit.id);
         await fetch(`${API_URL}/api/habits/${editingHabit.id}`, {
           method: 'PUT',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
         });
       } else {
+        console.log('[HabitTracker] Creating new habit');
         await fetch(`${API_URL}/api/habits`, {
           method: 'POST',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
@@ -127,7 +160,7 @@ export function HabitTracker() {
       }
       setShowForm(false);
       setEditingHabit(null);
-      setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily' });
+      setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null });
       loadHabits();
     } catch (err) {
       console.error('Error saving habit:', err);
@@ -177,6 +210,90 @@ export function HabitTracker() {
     setCurrentDate(newDate);
   };
 
+  const handleCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('[HabitTracker] Category form submitted:', categoryFormData);
+    try {
+      let url = `${API_URL}/api/habit-categories`;
+      let method = 'POST';
+      if (editingCategory) {
+        console.log('[HabitTracker] Editing category:', editingCategory.id);
+        url = `${API_URL}/api/habit-categories/${editingCategory.id}`;
+        method = 'PUT';
+      } else {
+        console.log('[HabitTracker] Creating new category');
+      }
+      const res = await fetch(url, {
+        method,
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(categoryFormData)
+      });
+      const data = await res.json();
+      console.log('[HabitTracker] Category response:', res.status, data);
+      if (!res.ok) {
+        alert('Error al guardar categoría: ' + (data.error || 'Error desconocido'));
+        return;
+      }
+      setShowCategoryForm(false);
+      setEditingCategory(null);
+      setCategoryFormData({ name: '', color: '#3b82f6' });
+      loadCategories();
+    } catch (err) {
+      console.error('Error saving category:', err);
+      alert('Error al conectar con el servidor');
+    }
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    if (!confirm('¿Eliminar esta categoría? Los hábitos se moverán a Sin categoría.')) return;
+    try {
+      await fetch(`${API_URL}/api/habit-categories/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      loadCategories();
+      loadHabits();
+    } catch (err) {
+      console.error('Error deleting category:', err);
+    }
+  };
+
+  const moveHabitToCategory = async (habitId: number, categoryId: number | null) => {
+    try {
+      const habit = habits.find(h => h.id === habitId);
+      if (!habit) return;
+      
+      await fetch(`${API_URL}/api/habits/${habitId}`, {
+        method: 'PUT',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: habit.name,
+          description: habit.description,
+          icon: habit.icon,
+          color: habit.color,
+          target_type: habit.target_type,
+          target_value: habit.target_value,
+          recurrence: habit.recurrence,
+          category_id: categoryId
+        })
+      });
+      setShowMoveMenu(null);
+      loadHabits();
+    } catch (err) {
+      console.error('Error moving habit:', err);
+    }
+  };
+
+  const toggleCategoryExpand = (categoryId: number) => {
+    const newExpanded = new Set(expandedCategories);
+    if (newExpanded.has(categoryId)) {
+      newExpanded.delete(categoryId);
+    } else {
+      newExpanded.add(categoryId);
+    }
+    setExpandedCategories(newExpanded);
+  };
+
   const isToday = currentDate.toDateString() === new Date().toDateString();
 
   const getIcon = (iconKey: string) => {
@@ -184,7 +301,14 @@ export function HabitTracker() {
     return iconObj ? iconObj.icon : Target;
   };
 
+  const habitsWithoutCategory = habits.filter(h => !h.category_id && shouldShowHabitToday(h));
   const visibleHabits = habits.filter(shouldShowHabitToday);
+
+  const habitsByCategory = categories.map(cat => ({
+    ...cat,
+    habits: habits.filter(h => h.category_id === cat.id && shouldShowHabitToday(h))
+  }));
+
   const completedCount = visibleHabits.filter(h => logs[h.id]?.completed === 1).length;
 
   return (
@@ -199,14 +323,51 @@ export function HabitTracker() {
             }
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Plus size={18} />
-          <span>Nuevo Hábito</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setEditingCategory(null);
+              setCategoryFormData({ name: '', color: '#3b82f6' });
+              setShowCategoryForm(true);
+            }}
+            className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            <FolderPlus size={18} />
+            <span>Nueva Categoría</span>
+          </button>
+          <button
+            onClick={() => {
+              setEditingHabit(null);
+              setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null });
+              setShowForm(true);
+            }}
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={18} />
+            <span>Nuevo Hábito</span>
+          </button>
+        </div>
       </div>
+
+      {categories.length > 0 && (
+        <div className="mb-6">
+          <p className="text-sm text-gray-500 mb-2">Categorías disponibles:</p>
+          <div className="flex flex-wrap gap-2">
+            {categories.map(cat => (
+              <div key={cat.id} className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 pr-1">
+                <div className="w-3 h-3 rounded-full ml-2" style={{ backgroundColor: cat.color }} />
+                <span className="text-sm px-1">{cat.name}</span>
+                <button
+                  onClick={() => handleDeleteCategory(cat.id)}
+                  className="p-1 text-gray-400 hover:text-red-500"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
         <div className="flex items-center justify-center gap-4">
@@ -236,84 +397,272 @@ export function HabitTracker() {
           </button>
         </div>
       ) : (
-        <div className="grid gap-3">
-          {visibleHabits.map(habit => {
-            const log = logs[habit.id];
-            const isCompleted = log?.completed === 1;
-            const IconComponent = getIcon(habit.icon || 'pill');
-            const recurrenceLabel = RECURRENCE_OPTIONS.find(r => r.key === habit.recurrence)?.label || 'Diario';
+        <div className="space-y-4">
+          {habitsByCategory.map(category => {
+            const isExpanded = expandedCategories.has(category.id);
+            const categoryCompleted = category.habits.filter(h => logs[h.id]?.completed === 1).length;
             
             return (
-              <div
-                key={habit.id}
-                className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-4 transition-all ${
-                  isCompleted ? 'bg-green-50 border-green-200' : ''
-                }`}
-              >
-                <button
-                  onClick={() => toggleHabit(habit)}
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
-                    isCompleted 
-                      ? 'bg-green-500 text-white' 
-                      : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                  }`}
+              <div key={category.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div 
+                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+                  onClick={() => toggleCategoryExpand(category.id)}
                 >
-                  {isCompleted ? <Check size={24} /> : <IconComponent size={24} />}
-                </button>
-                
-                <div className="flex-1">
-                  <h3 className={`font-semibold ${isCompleted ? 'text-green-700 line-through' : 'text-gray-800'}`}>
-                    {habit.name}
-                  </h3>
-                  <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                    <span className="flex items-center gap-1">
-                      <Clock size={12} />
-                      {recurrenceLabel}
-                    </span>
-                    {habit.description && (
-                      <span>{habit.description}</span>
-                    )}
+                  <div className="flex items-center gap-3">
+                    {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                    <div 
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: category.color }}
+                    />
+                    <span className="font-semibold text-gray-800">{category.name}</span>
+                    <span className="text-xs text-gray-500">({categoryCompleted}/{category.habits.length})</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingCategory(category);
+                        setCategoryFormData({ name: category.name, color: category.color });
+                        setShowCategoryForm(true);
+                      }}
+                      className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-lg"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCategory(category.id);
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      setEditingHabit(habit);
-                      setFormData({
-                        name: habit.name,
-                        description: habit.description || '',
-                        icon: habit.icon || 'pill',
-                        color: habit.color,
-                        target_type: habit.target_type,
-                        target_value: habit.target_value,
-                        recurrence: habit.recurrence
-                      });
-                      setShowForm(true);
-                    }}
-                    className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-lg"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(habit.id)}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                {isExpanded && (
+                  <div className="border-t border-gray-100">
+                    {category.habits.map(habit => {
+                      const log = logs[habit.id];
+                      const isCompleted = log?.completed === 1;
+                      const IconComponent = getIcon(habit.icon || 'pill');
+                      const recurrenceLabel = RECURRENCE_OPTIONS.find(r => r.key === habit.recurrence)?.label || 'Diario';
+                      
+                      return (
+                        <div
+                          key={habit.id}
+                          className={`p-4 flex items-center gap-4 transition-all ${
+                            isCompleted ? 'bg-green-50' : ''
+                          }`}
+                        >
+                          <button
+                            onClick={() => toggleHabit(habit)}
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                              isCompleted 
+                                ? 'bg-green-500 text-white' 
+                                : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                            }`}
+                          >
+                            {isCompleted ? <Check size={24} /> : <IconComponent size={24} />}
+                          </button>
+                          
+                          <div className="flex-1">
+                            <h3 className={`font-semibold ${isCompleted ? 'text-green-700 line-through' : 'text-gray-800'}`}>
+                              {habit.name}
+                            </h3>
+                            <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                              <span className="flex items-center gap-1">
+                                <Clock size={12} />
+                                {recurrenceLabel}
+                              </span>
+                              {habit.description && (
+                                <span>{habit.description}</span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <div className="relative">
+                              <button
+                                onClick={() => setShowMoveMenu(showMoveMenu === habit.id ? null : habit.id)}
+                                className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-lg"
+                                title="Mover a otra categoría"
+                              >
+                                <Folder size={16} />
+                              </button>
+                              {showMoveMenu === habit.id && (
+                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[160px]">
+                                  <button
+                                    onClick={() => moveHabitToCategory(habit.id, null)}
+                                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 rounded-t-lg"
+                                  >
+                                    Sin categoría
+                                  </button>
+                                  {categories.map(cat => (
+                                    <button
+                                      key={cat.id}
+                                      onClick={() => moveHabitToCategory(habit.id, cat.id)}
+                                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                                    >
+                                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                                      {cat.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setEditingHabit(habit);
+                                setFormData({
+                                  name: habit.name,
+                                  description: habit.description || '',
+                                  icon: habit.icon || 'pill',
+                                  color: habit.color,
+                                  target_type: habit.target_type,
+                                  target_value: habit.target_value,
+                                  recurrence: habit.recurrence,
+                                  category_id: habit.category_id
+                                });
+                                setShowForm(true);
+                              }}
+                              className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-lg"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(habit.id)}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
+
+          {habitsWithoutCategory.length > 0 && (
+            <div className="space-y-3">
+              {habitsWithoutCategory.map(habit => {
+                const log = logs[habit.id];
+                const isCompleted = log?.completed === 1;
+                const IconComponent = getIcon(habit.icon || 'pill');
+                const recurrenceLabel = RECURRENCE_OPTIONS.find(r => r.key === habit.recurrence)?.label || 'Diario';
+                
+                return (
+                  <div
+                    key={habit.id}
+                    className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-4 transition-all ${
+                      isCompleted ? 'bg-green-50 border-green-200' : ''
+                    }`}
+                  >
+                    <button
+                      onClick={() => toggleHabit(habit)}
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                        isCompleted 
+                          ? 'bg-green-500 text-white' 
+                          : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                      }`}
+                    >
+                      {isCompleted ? <Check size={24} /> : <IconComponent size={24} />}
+                    </button>
+                    
+                    <div className="flex-1">
+                      <h3 className={`font-semibold ${isCompleted ? 'text-green-700 line-through' : 'text-gray-800'}`}>
+                        {habit.name}
+                      </h3>
+                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} />
+                          {recurrenceLabel}
+                        </span>
+                        {habit.description && (
+                          <span>{habit.description}</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowMoveMenu(showMoveMenu === habit.id ? null : habit.id)}
+                          className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-lg"
+                          title="Mover a otra categoría"
+                        >
+                          <Folder size={16} />
+                        </button>
+                        {showMoveMenu === habit.id && (
+                          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[160px]">
+                            <button
+                              onClick={() => moveHabitToCategory(habit.id, null)}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 rounded-t-lg"
+                            >
+                              Sin categoría
+                            </button>
+                            {categories.map(cat => (
+                              <button
+                                key={cat.id}
+                                onClick={() => moveHabitToCategory(habit.id, cat.id)}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                                {cat.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setEditingHabit(habit);
+                          setFormData({
+                            name: habit.name,
+                            description: habit.description || '',
+                            icon: habit.icon || 'pill',
+                            color: habit.color,
+                            target_type: habit.target_type,
+                            target_value: habit.target_value,
+                            recurrence: habit.recurrence,
+                            category_id: habit.category_id
+                          });
+                          setShowForm(true);
+                        }}
+                        className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-lg"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(habit.id)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6">
-            <h2 className="text-xl font-bold mb-4">
-              {editingHabit ? 'Editar Hábito' : 'Nuevo Hábito'}
-            </h2>
+          <div className="bg-white rounded-2xl w-full max-w-md p-6" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">
+                {editingHabit ? 'Editar Hábito' : 'Nuevo Hábito'}
+              </h2>
+              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
@@ -322,7 +671,7 @@ export function HabitTracker() {
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  placeholder="Ej: Tomar vitaminas"
+                  placeholder="Ej: Correr"
                   required
                 />
               </div>
@@ -334,8 +683,22 @@ export function HabitTracker() {
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  placeholder="Ej: 3 pastillas al día"
+                  placeholder="Ej: 30 minutos"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                <select
+                  value={formData.category_id || ''}
+                  onChange={e => setFormData({ ...formData, category_id: e.target.value ? Number(e.target.value) : null })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  <option value="">Sin categoría</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
               </div>
               
               <div>
@@ -402,7 +765,7 @@ export function HabitTracker() {
                   onClick={() => {
                     setShowForm(false);
                     setEditingHabit(null);
-                    setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily' });
+                    setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null });
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
@@ -413,6 +776,71 @@ export function HabitTracker() {
                   className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
                 >
                   {editingHabit ? 'Guardar' : 'Crear'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showCategoryForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">
+                {editingCategory ? 'Editar Categoría' : 'Nueva Categoría'}
+              </h2>
+              <button onClick={() => setShowCategoryForm(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleCategorySubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                <input
+                  type="text"
+                  value={categoryFormData.name}
+                  onChange={e => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="Ej: Deportes"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
+                <div className="flex gap-2">
+                  {COLORS.map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setCategoryFormData({ ...categoryFormData, color: c })}
+                      className={`w-8 h-8 rounded-full transition-all ${
+                        categoryFormData.color === c ? 'ring-2 ring-offset-2 ring-gray-400 scale-110' : ''
+                      }`}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCategoryForm(false);
+                    setEditingCategory(null);
+                    setCategoryFormData({ name: '', color: '#3b82f6' });
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                >
+                  {editingCategory ? 'Guardar' : 'Crear'}
                 </button>
               </div>
             </form>

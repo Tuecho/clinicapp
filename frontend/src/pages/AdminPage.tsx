@@ -540,28 +540,30 @@ export function AdminPage() {
         </button>
       </div>
 
-      <div className="flex gap-4 mb-6 border-b border-gray-200">
+      <div className="flex gap-2 md:gap-4 mb-6 border-b border-gray-200 overflow-x-auto pb-1">
         <button
           onClick={() => setActiveTab('users')}
-          className={`pb-3 px-2 font-medium transition-colors ${
+          className={`pb-3 px-2 font-medium transition-colors whitespace-nowrap ${
             activeTab === 'users'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Users size={16} className="inline mr-2" />
-          Usuarios
+          <Users size={16} className="inline mr-1 md:mr-2" />
+          <span className="hidden sm:inline">Usuarios</span>
+          <span className="sm:hidden text-xs">Usu</span>
         </button>
         <button
           onClick={() => setActiveTab('suggestions')}
-          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-2 ${
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
             activeTab === 'suggestions'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Lightbulb size={16} className="inline mr-1" />
-          Sugerencias
+          <Lightbulb size={16} className="inline" />
+          <span className="hidden sm:inline">Sugerencias</span>
+          <span className="sm:hidden text-xs">Suger</span>
           {suggestions.filter(s => s.status === 'pending').length > 0 && (
             <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-2 py-0.5 rounded-full">
               {suggestions.filter(s => s.status === 'pending').length}
@@ -570,25 +572,27 @@ export function AdminPage() {
         </button>
         <button
           onClick={() => setActiveTab('login')}
-          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-2 ${
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
             activeTab === 'login'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Settings size={16} className="inline mr-1" />
-          Login
+          <Settings size={16} className="inline" />
+          <span className="hidden sm:inline">Login</span>
+          <span className="sm:hidden text-xs">Login</span>
         </button>
         <button
           onClick={() => setActiveTab('database')}
-          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-2 ${
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
             activeTab === 'database'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Database size={16} className="inline mr-1" />
-          Base de Datos
+          <Database size={16} className="inline" />
+          <span className="hidden sm:inline">Base de Datos</span>
+          <span className="sm:hidden text-xs">BBDD</span>
         </button>
       </div>
 

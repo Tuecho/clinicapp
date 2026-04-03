@@ -49,6 +49,7 @@ interface SharedUser {
   share_gifts: number;
   share_books: number;
   share_movies: number;
+  share_habits: number;
 }
 
 interface SharePreferences {
@@ -66,6 +67,7 @@ interface SharePreferences {
   share_gifts: boolean;
   share_books: boolean;
   share_movies: boolean;
+  share_habits: boolean;
 }
 
 export function Profile() {
@@ -109,7 +111,8 @@ export function Profile() {
     share_family_members: false,
     share_gifts: false,
     share_books: false,
-    share_movies: false
+    share_movies: false,
+    share_habits: false
   });
 
   useEffect(() => {
@@ -191,7 +194,8 @@ export function Profile() {
           share_family_members: false,
           share_gifts: false,
           share_books: false,
-          share_movies: false
+          share_movies: false,
+          share_habits: false
         });
         fetchInvitations();
       } else {
@@ -240,7 +244,8 @@ export function Profile() {
       share_family_members: !!share.share_family_members,
       share_gifts: !!share.share_gifts,
       share_books: !!share.share_books,
-      share_movies: !!share.share_movies
+      share_movies: !!share.share_movies,
+      share_habits: !!share.share_habits
     });
     setShowShareModal(true);
   };
@@ -261,7 +266,8 @@ export function Profile() {
       share_family_members: false,
       share_gifts: false,
       share_books: false,
-      share_movies: false
+      share_movies: false,
+      share_habits: false
     });
     setInviteUsername('');
     setAvailableUsers([]);
@@ -821,6 +827,7 @@ export function Profile() {
                       { key: 'share_gifts', label: 'Regalos', color: 'rose' },
                       { key: 'share_books', label: 'Libros', color: 'indigo' },
                       { key: 'share_movies', label: 'Películas', color: 'purple' },
+                      { key: 'share_habits', label: 'Hábitos', color: 'emerald' },
                     ].map((item) => (
                       <label key={item.key} className="flex items-center gap-3 cursor-pointer">
                         <input

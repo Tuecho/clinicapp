@@ -14,8 +14,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // VAPID keys for web push notifications
 // Generate your own keys with: npx web-push generate-vapid-keys
-const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
-const VAPID_PRIVATE_KEY = 'UUxI4O8-FbRouAf7-7OTt9GH4o-4I8_z5r6K7J3Z2Xk';
+const VAPID_PUBLIC_KEY = 'BGqGVGNxoOtt4TQN956DuEMf-WanWGFc_U8LGCGpfK_cItMRdGVLyTFj4T1eg28ZfXwI2FShsZ_K3yoxJlex0F8';
+const VAPID_PRIVATE_KEY = 'hVqHzRbkOXdAdgwJotww_kE878Qt6ekvI-7V4gbe3yg';
 const VAPID_SUBJECT = 'mailto:tuecho85@gmail.com';
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
@@ -236,6 +236,9 @@ async function initDb() {
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_gifts INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_books INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_movies INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_habits INTEGER DEFAULT 0`); } catch(e) {}
+
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_habits INTEGER DEFAULT 0`); } catch(e) {}
 
   try { db.run(`ALTER TABLE family_events ADD COLUMN recurrence TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE family_events ADD COLUMN days_of_week TEXT`); } catch(e) {}
@@ -558,6 +561,18 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
   `);
   try { db.run(`ALTER TABLE habits ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE habits ADD COLUMN recurrence TEXT DEFAULT 'daily'`); } catch(e) {}
+  try { db.run(`ALTER TABLE habits ADD COLUMN category_id INTEGER`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS habit_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT DEFAULT '#3b82f6',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try { db.run(`ALTER TABLE habit_categories ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS habit_logs (
@@ -3194,8 +3209,11 @@ app.get('/api/habits', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const stmt = db.prepare('SELECT * FROM habits WHERE owner_id = ? ORDER BY name');
-  stmt.bind([userId]);
+  const accessibleIds = getAccessibleUserIds(userId, 'share_habits');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  const stmt = db.prepare(`SELECT * FROM habits WHERE owner_id IN (${placeholders}) ORDER BY owner_id, name`);
+  stmt.bind(accessibleIds);
   const habits = [];
   while (stmt.step()) habits.push(stmt.getAsObject());
   stmt.free();
@@ -3204,14 +3222,28 @@ app.get('/api/habits', (req, res) => {
 
 app.post('/api/habits', (req, res) => {
   const userId = getCurrentUserId(req.headers);
-  if (!userId) return res.status(401).json({ error: 'No autorizado' });
-  const { name, description, icon, color, target_type, target_value, recurrence } = req.body;
+  if (!userId) {
+    console.log('[Habits] Error: No autorizado, headers:', req.headers);
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  const { name, description, icon, color, target_type, target_value, recurrence, category_id } = req.body;
   if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
   
-  const stmt = db.prepare('INSERT INTO habits (owner_id, name, description, icon, color, target_type, target_value, recurrence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-  stmt.run([userId, name, description || null, icon || null, color || '#22c55e', target_type || 'boolean', target_value || 1, recurrence || 'daily']);
+  console.log('[Habits] Creating habit:', { name, category_id, userId, body: req.body });
+  
+  const stmt = db.prepare('INSERT INTO habits (owner_id, name, description, icon, color, target_type, target_value, recurrence, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, name, description || null, icon || null, color || '#22c55e', target_type || 'boolean', target_value || 1, recurrence || 'daily', category_id || null]);
   stmt.free();
   saveDb();
+  
+  // Verify it was inserted
+  const checkStmt = db.prepare('SELECT * FROM habits WHERE owner_id = ? ORDER BY id DESC LIMIT 1');
+  checkStmt.bind([userId]);
+  let lastHabit = null;
+  if (checkStmt.step()) lastHabit = checkStmt.getAsObject();
+  checkStmt.free();
+  console.log('[Habits] Last habit inserted:', lastHabit);
+  
   res.json({ success: true });
 });
 
@@ -3219,10 +3251,10 @@ app.put('/api/habits/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   const { id } = req.params;
-  const { name, description, icon, color, target_type, target_value, recurrence } = req.body;
+  const { name, description, icon, color, target_type, target_value, recurrence, category_id } = req.body;
   
-  const stmt = db.prepare('UPDATE habits SET name = ?, description = ?, icon = ?, color = ?, target_type = ?, target_value = ?, recurrence = ? WHERE id = ? AND owner_id = ?');
-  stmt.run([name, description || null, icon || null, color || '#22c55e', target_type || 'boolean', target_value || 1, recurrence || 'daily', id, userId]);
+  const stmt = db.prepare('UPDATE habits SET name = ?, description = ?, icon = ?, color = ?, target_type = ?, target_value = ?, recurrence = ?, category_id = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, description || null, icon || null, color || '#22c55e', target_type || 'boolean', target_value || 1, recurrence || 'daily', category_id !== undefined ? category_id : null, id, userId]);
   stmt.free();
   saveDb();
   res.json({ success: true });
@@ -3324,6 +3356,58 @@ app.delete('/api/habits/:id/log', (req, res) => {
   if (!date) return res.status(400).json({ error: 'La fecha es obligatoria' });
   
   db.run('DELETE FROM habit_logs WHERE habit_id = ? AND owner_id = ? AND date = ?', [id, userId, date]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/habit-categories', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_habits');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  const stmt = db.prepare(`SELECT * FROM habit_categories WHERE owner_id IN (${placeholders}) ORDER BY owner_id, name`);
+  stmt.bind(accessibleIds);
+  const categories = [];
+  while (stmt.step()) categories.push(stmt.getAsObject());
+  stmt.free();
+  res.json(categories);
+});
+
+app.post('/api/habit-categories', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { name, color } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const stmt = db.prepare('INSERT INTO habit_categories (owner_id, name, color) VALUES (?, ?, ?)');
+  stmt.run([userId, name, color || '#3b82f6']);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.put('/api/habit-categories/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { name, color } = req.body;
+  
+  const stmt = db.prepare('UPDATE habit_categories SET name = ?, color = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, color || '#3b82f6', id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/habit-categories/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  
+  db.run('UPDATE habits SET category_id = NULL WHERE category_id = ? AND owner_id = ?', [id, userId]);
+  db.run('DELETE FROM habit_categories WHERE id = ? AND owner_id = ?', [id, userId]);
   saveDb();
   res.json({ success: true });
 });
@@ -3716,7 +3800,7 @@ app.post('/api/invitations', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies } = req.body;
+  const { to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies, share_habits } = req.body;
   if (!to_username) return res.status(400).json({ error: 'Falta el nombre de usuario' });
   
   const targetStmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
@@ -3750,8 +3834,8 @@ app.post('/api/invitations', (req, res) => {
   
   try {
     const inviteStmt = db.prepare(`
-      INSERT INTO invitations (from_user_id, to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invitations (from_user_id, to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies, share_habits)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     inviteStmt.run([
       userId, 
@@ -3769,7 +3853,8 @@ app.post('/api/invitations', (req, res) => {
       share_family_members ? 1 : 0,
       share_gifts ? 1 : 0,
       share_books ? 1 : 0,
-      share_movies ? 1 : 0
+      share_movies ? 1 : 0,
+      share_habits ? 1 : 0
     ]);
     inviteStmt.free();
     saveDb();
@@ -3803,8 +3888,8 @@ app.put('/api/invitations/:id/accept', (req, res) => {
     if (invite.from_username) {
       const shareStmt = db.prepare(`
         INSERT OR IGNORE INTO user_shares 
-        (owner_id, shared_with_id, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (owner_id, shared_with_id, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies, share_habits) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       shareStmt.run([
         invite.from_user_id, 
@@ -3822,7 +3907,8 @@ app.put('/api/invitations/:id/accept', (req, res) => {
         invite.share_family_members || 0,
         invite.share_gifts || 0,
         invite.share_books || 0,
-        invite.share_movies || 0
+        invite.share_movies || 0,
+        invite.share_habits || 0
       ]);
       shareStmt.free();
     }
@@ -3888,12 +3974,12 @@ app.put('/api/shares/:sharedWithId', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { sharedWithId } = req.params;
-  const { share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies } = req.body;
+  const { share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies, share_habits } = req.body;
   
   try {
     db.run(`
       UPDATE user_shares 
-      SET share_dashboard = ?, share_accounting = ?, share_budgets = ?, share_agenda = ?, share_tasks = ?, share_notes = ?, share_shopping = ?, share_contacts = ?, share_recipes = ?, share_restaurants = ?, share_family_members = ?, share_gifts = ?, share_books = ?, share_movies = ?
+      SET share_dashboard = ?, share_accounting = ?, share_budgets = ?, share_agenda = ?, share_tasks = ?, share_notes = ?, share_shopping = ?, share_contacts = ?, share_recipes = ?, share_restaurants = ?, share_family_members = ?, share_gifts = ?, share_books = ?, share_movies = ?, share_habits = ?
       WHERE owner_id = ? AND shared_with_id = ?
     `, [
       share_dashboard ? 1 : 0,
@@ -3910,6 +3996,7 @@ app.put('/api/shares/:sharedWithId', (req, res) => {
       share_gifts ? 1 : 0,
       share_books ? 1 : 0,
       share_movies ? 1 : 0,
+      share_habits ? 1 : 0,
       userId,
       sharedWithId
     ]);
@@ -5087,13 +5174,15 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
 
 function expandRecurringEvents(events, startDate, endDate) {
   const expanded = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
   
   events.forEach(event => {
     if (event.recurrence === 'weekly' && event.days_of_week) {
       const days = event.days_of_week.split(',').map(d => parseInt(d.trim()));
-      const cursor = new Date(startDate);
+      const cursor = new Date(start);
       
-      while (cursor <= endDate) {
+      while (cursor <= end) {
         if (days.includes(cursor.getDay())) {
           const dateStr = cursor.toISOString().split('T')[0];
           expanded.push({
@@ -5104,8 +5193,27 @@ function expandRecurringEvents(events, startDate, endDate) {
         }
         cursor.setDate(cursor.getDate() + 1);
       }
+    } else if (event.end_date) {
+      const eventStart = new Date(event.date + 'T00:00:00');
+      const eventEnd = new Date(event.end_date + 'T00:00:00');
+      const eventStartDate = eventStart < start ? start : eventStart;
+      const eventEndDate = eventEnd > end ? end : eventEnd;
+      
+      const cursor = new Date(eventStartDate);
+      while (cursor <= eventEndDate) {
+        const dateStr = cursor.toISOString().split('T')[0];
+        expanded.push({
+          ...event,
+          id: event.id + '-' + dateStr,
+          date: dateStr
+        });
+        cursor.setDate(cursor.getDate() + 1);
+      }
     } else {
-      expanded.push(event);
+      const eventDate = new Date(event.date + 'T00:00:00');
+      if (eventDate >= start && eventDate <= end) {
+        expanded.push(event);
+      }
     }
   });
   
@@ -5174,20 +5282,21 @@ async function sendPushNotification(userId, title, body, url = '/') {
     stmt.free();
     
     if (!settings?.push_enabled || !settings?.push_subscription) {
+      console.log(`[Push] No subscription for user ${userId}`);
       return;
     }
     
-    const subscription = JSON.parse(settings.push_subscription);
+    let subscription;
+    try {
+      subscription = JSON.parse(settings.push_subscription);
+    } catch (e) {
+      console.error('[Push] Error parsing subscription:', e);
+      return;
+    }
     
-    const pushConfig = {
-      endpoint: subscription.endpoint,
-      keys: {
-        p256dh: subscription.keys?.p256dh || subscription.keys?.auth || '',
-        auth: subscription.keys?.auth || ''
-      }
-    };
+    console.log('[Push] Sending to subscription:', JSON.stringify(subscription).substring(0, 200));
     
-    await webpush.sendNotification(pushConfig, JSON.stringify({
+    await webpush.sendNotification(subscription, JSON.stringify({
       title: title,
       body: body,
       url: url,
@@ -5198,9 +5307,9 @@ async function sendPushNotification(userId, title, body, url = '/') {
     console.log(`[Push] Notification sent to user ${userId}: ${title}`);
     
   } catch (error) {
-    console.error('[Push] Error sending notification:', error.message);
+    console.error('[Push] Error sending notification:', error.message, error.statusCode);
+    console.error('[Push] Full error:', error);
     if (error.statusCode === 410 || error.statusCode === 404) {
-      // Subscription expired, disable push
       const stmt = db.prepare('UPDATE notification_settings SET push_enabled = 0, push_subscription = NULL WHERE owner_id = ?');
       stmt.run([userId]);
       stmt.free();
@@ -5238,8 +5347,8 @@ async function sendUserNotification(userId) {
 
     const accessibleEventIds = getAccessibleUserIds(userId, 'share_agenda');
     const eventPlaceholders = accessibleEventIds.map(() => '?').join(',');
-    const eventsStmt = db.prepare(`SELECT * FROM family_events WHERE owner_id IN (${eventPlaceholders}) AND ((date >= ? AND date <= ?) OR recurrence = ?) ORDER BY date ASC, start_time ASC`);
-    eventsStmt.bind([...accessibleEventIds, notificationStartStr, nextWeekStr, 'weekly']);
+    const eventsStmt = db.prepare(`SELECT * FROM family_events WHERE owner_id IN (${eventPlaceholders}) AND ((date >= ? AND date <= ?) OR recurrence = ? OR (end_date >= ? AND end_date <= ?) OR (date <= ? AND end_date >= ?)) ORDER BY date ASC, start_time ASC`);
+    eventsStmt.bind([...accessibleEventIds, notificationStartStr, nextWeekStr, 'weekly', notificationStartStr, nextWeekStr, nextWeekStr, tomorrowStr]);
     const events = [];
     while (eventsStmt.step()) {
       events.push(eventsStmt.getAsObject());
@@ -5247,6 +5356,7 @@ async function sendUserNotification(userId) {
     eventsStmt.free();
     
     const expandedEvents = expandRecurringEvents(events, notificationStart, nextWeek);
+    console.log(`[Notification] User ${userId}: Events fetched: ${events.length}, Expanded: ${expandedEvents.length}`, events.filter(e => e.end_date).map(e => e.date + ' to ' + e.end_date));
 
     const month = notificationStart.getMonth() + 1;
     const year = notificationStart.getFullYear();
@@ -5272,8 +5382,8 @@ async function sendUserNotification(userId) {
     if (profileStmt.step()) profile = profileStmt.getAsObject();
     profileStmt.free();
 
-    const tasksStmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ? AND completed = 0 AND (shopping_list_id IS NULL OR shopping_list_id = 0) ORDER BY CASE priority WHEN "high" THEN 0 WHEN "urgent" THEN 0 WHEN "normal" THEN 1 WHEN "low" THEN 2 ELSE 1 END, due_date ASC');
-    tasksStmt.bind([userId]);
+    const tasksStmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ? AND completed = 0 AND (shopping_list_id IS NULL OR shopping_list_id = 0) AND (due_date IS NULL OR (due_date >= ? AND due_date <= ?) OR (due_date <= ? AND due_date >= ?)) ORDER BY CASE priority WHEN "high" THEN 0 WHEN "urgent" THEN 0 WHEN "normal" THEN 1 WHEN "low" THEN 2 ELSE 1 END, due_date ASC');
+    tasksStmt.bind([userId, tomorrowStr, nextWeekStr, nextWeekStr, tomorrowStr]);
     const tasks = [];
     while (tasksStmt.step()) {
       tasks.push(tasksStmt.getAsObject());
@@ -5415,6 +5525,7 @@ app.get('/api/notifications/vapid-key', (req, res) => {
 
 // Endpoint to subscribe to push notifications
 app.post('/api/notifications/subscribe', (req, res) => {
+  console.log('[Push] Subscribe endpoint called, headers:', JSON.stringify(req.headers));
   const { username, password, userId } = req.headers || {};
   
   let authUserId = null;
@@ -5450,6 +5561,7 @@ app.post('/api/notifications/subscribe', (req, res) => {
   
   try {
     const subscriptionStr = JSON.stringify(subscription);
+    console.log('[Push] Subscribe - subscription received:', subscriptionStr.substring(0, 200));
     
     const checkStmt = db.prepare('SELECT id FROM notification_settings WHERE owner_id = ?');
     checkStmt.bind([authUserId]);
