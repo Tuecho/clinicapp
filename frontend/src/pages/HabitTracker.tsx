@@ -748,64 +748,6 @@ export function HabitTracker() {
                 />
               </div>
               
-              {formData.recurrence === 'specific' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Selecciona los días</label>
-                  <div className="flex flex-wrap gap-2">
-                    {DAYS_OF_WEEK.map(day => {
-                      const isSelected = formData.specific_days?.includes(day.key);
-                      return (
-                        <button
-                          key={day.key}
-                          type="button"
-                          onClick={() => {
-                            const current = formData.specific_days || [];
-                            const updated = isSelected
-                              ? current.filter(d => d !== day.key)
-                              : [...current, day.key];
-                            setFormData({ ...formData, specific_days: updated });
-                          }}
-                          className={`px-3 py-2 rounded-lg text-sm transition-all ${
-                            isSelected
-                              ? 'bg-primary text-white'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {day.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              
-              {formData.recurrence === 'weekly' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Selecciona el día</label>
-                  <div className="flex flex-wrap gap-2">
-                    {DAYS_OF_WEEK.map(day => {
-                      const isSelected = formData.specific_days?.[0] === day.key;
-                      return (
-                        <button
-                          key={day.key}
-                          type="button"
-                          onClick={() => {
-                            setFormData({ ...formData, specific_days: [day.key] });
-                          }}
-                          className={`px-3 py-2 rounded-lg text-sm transition-all ${
-                            isSelected
-                              ? 'bg-primary text-white'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {day.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
                 <select
@@ -848,7 +790,7 @@ export function HabitTracker() {
                     <button
                       key={rec.key}
                       type="button"
-                      onClick={() => setFormData({ ...formData, recurrence: rec.key })}
+                      onClick={() => setFormData({ ...formData, recurrence: rec.key, specific_days: rec.key === 'weekly' || rec.key === 'specific' ? [] : null })}
                       className={`p-3 rounded-lg text-sm transition-all ${
                         formData.recurrence === rec.key 
                           ? 'bg-primary text-white' 
@@ -860,6 +802,45 @@ export function HabitTracker() {
                   ))}
                 </div>
               </div>
+              
+              {(formData.recurrence === 'specific' || formData.recurrence === 'weekly') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {formData.recurrence === 'specific' ? 'Selecciona los días' : 'Selecciona el día'}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {DAYS_OF_WEEK.map(day => {
+                      const isSelected = formData.recurrence === 'weekly' 
+                        ? formData.specific_days?.[0] === day.key
+                        : formData.specific_days?.includes(day.key);
+                      return (
+                        <button
+                          key={day.key}
+                          type="button"
+                          onClick={() => {
+                            if (formData.recurrence === 'weekly') {
+                              setFormData({ ...formData, specific_days: [day.key] });
+                            } else {
+                              const current = formData.specific_days || [];
+                              const updated = isSelected
+                                ? current.filter(d => d !== day.key)
+                                : [...current, day.key];
+                              setFormData({ ...formData, specific_days: updated });
+                            }
+                          }}
+                          className={`px-3 py-2 rounded-lg text-sm transition-all ${
+                            isSelected
+                              ? 'bg-primary text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
