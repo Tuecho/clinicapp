@@ -160,17 +160,23 @@ export const useStore = create<AppState>((set, get) => ({
     
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/transactions`, {
+      const response = await fetch(`${API_URL}/api/transactions`, {
         method: 'POST',
         headers,
         body: JSON.stringify(transactionWithId)
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+        throw new Error(errorData.error || 'Error al guardar');
+      }
       
       set((state) => ({
         transactions: [transactionWithId, ...state.transactions]
       }));
     } catch (error) {
       console.error('Error adding transaction:', error);
+      throw error;
     }
   },
 

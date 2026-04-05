@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home, ListChecks, Calendar, AlertCircle, Cake } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home, ListChecks, Calendar, AlertCircle, Cake, Eye, EyeOff } from 'lucide-react';
 import { useStore } from '../store';
 import { formatMoneyEs } from '../utils/format';
 import { getAuthHeaders } from '../utils/auth';
@@ -522,6 +522,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [plansLoading, setPlansLoading] = useState(false);
   const [monthBirthdays, setMonthBirthdays] = useState<any[]>([]);
   const [birthdaysLoading, setBirthdaysLoading] = useState(false);
+  const [showFinancialData, setShowFinancialData] = useState(() => {
+    const saved = localStorage.getItem('showFinancialData');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('showFinancialData', String(showFinancialData));
+  }, [showFinancialData]);
   
   const quotes = [
     "PM es nuestro bebito.",
@@ -718,6 +726,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <button
+            onClick={() => setShowFinancialData(!showFinancialData)}
+            className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors flex items-center gap-1 text-xs sm:text-sm"
+            title={showFinancialData ? "Ocultar datos económicos" : "Mostrar datos económicos"}
+          >
+            {showFinancialData ? <Eye size={16} /> : <EyeOff size={16} />}
+            <span className="hidden sm:inline">{showFinancialData ? 'Ocultar' : 'Mostrar'}</span>
+          </button>
+          <button
             onClick={() => changeMonth(-1)}
             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
             title="Mes anterior"
@@ -777,39 +793,54 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       </div>
       
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3">
-          <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-income/10 flex items-center justify-center flex-shrink-0">
-            <TrendingUp className="text-income" size={20} />
+        {showFinancialData ? (
+          <>
+            <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-income/10 flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="text-income" size={20} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-500">Ingresos</p>
+                <p className="text-lg sm:text-2xl font-bold text-income truncate">{formatMoneyEs(totals.income)}</p>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-expense/10 flex items-center justify-center flex-shrink-0">
+                <TrendingDown className="text-expense" size={20} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-500">Gastos</p>
+                <p className="text-lg sm:text-2xl font-bold text-expense truncate">{formatMoneyEs(totals.expense)}</p>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3 sm:col-span-1 col-span-1">
+              <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full flex items-center justify-center flex-shrink-0 ${
+                totals.balance >= 0 ? 'bg-income/10' : 'bg-expense/10'
+              }`}>
+                <Wallet className={totals.balance >= 0 ? 'text-income' : 'text-expense'} size={20} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-500">Balance</p>
+                <p className={`text-lg sm:text-2xl font-bold truncate ${totals.balance >= 0 ? 'text-income' : 'text-expense'}`}>
+                  {formatMoneyEs(totals.balance)}
+                </p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="col-span-1 sm:col-span-3 bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center justify-center gap-3">
+            <EyeOff className="text-gray-400" size={24} />
+            <p className="text-gray-500 text-sm">Datos económicos ocultos</p>
+            <button 
+              onClick={() => setShowFinancialData(true)}
+              className="text-primary hover:underline text-sm"
+            >
+              Mostrar
+            </button>
           </div>
-          <div className="min-w-0">
-            <p className="text-xs sm:text-sm text-gray-500">Ingresos</p>
-            <p className="text-lg sm:text-2xl font-bold text-income truncate">{formatMoneyEs(totals.income)}</p>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3">
-          <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-expense/10 flex items-center justify-center flex-shrink-0">
-            <TrendingDown className="text-expense" size={20} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs sm:text-sm text-gray-500">Gastos</p>
-            <p className="text-lg sm:text-2xl font-bold text-expense truncate">{formatMoneyEs(totals.expense)}</p>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3 sm:col-span-1 col-span-1">
-          <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full flex items-center justify-center flex-shrink-0 ${
-            totals.balance >= 0 ? 'bg-income/10' : 'bg-expense/10'
-          }`}>
-            <Wallet className={totals.balance >= 0 ? 'text-income' : 'text-expense'} size={20} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs sm:text-sm text-gray-500">Balance</p>
-            <p className={`text-lg sm:text-2xl font-bold truncate ${totals.balance >= 0 ? 'text-income' : 'text-expense'}`}>
-              {formatMoneyEs(totals.balance)}
-            </p>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
@@ -966,34 +997,38 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-4 sm:mb-6">
-          <Target className="text-primary sm:w-6 sm:h-6" size={20} />
-          <h3 className="text-base sm:text-lg font-semibold">Presupuestos del Mes</h3>
-        </div>
-        
-        {currentMonthBudgets.length === 0 ? (
-          <div className="text-center py-8 sm:py-12">
-            <span className="text-4xl sm:text-5xl mb-4 block">🎯</span>
-            <p className="text-gray-500 mb-2 text-sm">No hay presupuestos establecidos</p>
-            <p className="text-xs sm:text-sm text-gray-400">Ve a Presupuestos para crear uno</p>
+      {showFinancialData && (
+        <>
+          <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 mb-4 sm:mb-6">
+              <Target className="text-primary sm:w-6 sm:h-6" size={20} />
+              <h3 className="text-base sm:text-lg font-semibold">Presupuestos del Mes</h3>
+            </div>
+            
+            {currentMonthBudgets.length === 0 ? (
+              <div className="text-center py-8 sm:py-12">
+                <span className="text-4xl sm:text-5xl mb-4 block">🎯</span>
+                <p className="text-gray-500 mb-2 text-sm">No hay presupuestos establecidos</p>
+                <p className="text-xs sm:text-sm text-gray-400">Ve a Presupuestos para crear uno</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {currentMonthBudgets.map((budget) => (
+                  <BudgetCard key={budget.id} budget={budget} />
+                ))}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3">
-            {currentMonthBudgets.map((budget) => (
-              <BudgetCard key={budget.id} budget={budget} />
-            ))}
-          </div>
-        )}
-      </div>
 
-      <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 mt-3 sm:mt-6">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="text-primary sm:w-6 sm:h-6" size={20} />
-          <h3 className="text-base sm:text-lg font-semibold">Evolución (6 meses)</h3>
-        </div>
-        <MonthlyTrendCards data={monthlyData} />
-      </div>
+          <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 mt-3 sm:mt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="text-primary sm:w-6 sm:h-6" size={20} />
+              <h3 className="text-base sm:text-lg font-semibold">Evolución (6 meses)</h3>
+            </div>
+            <MonthlyTrendCards data={monthlyData} />
+          </div>
+        </>
+      )}
 
       <footer className="mt-8 sm:mt-12 pt-4 sm:pt-8 border-t border-gray-200">
         <div className="text-center text-gray-500 text-xs sm:text-sm">

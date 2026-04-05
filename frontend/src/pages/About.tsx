@@ -4,7 +4,7 @@ import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const version = '1.0.6';
+const version = '1.0.8';
 
 const shareText = 'Echa un vistazo a Family Agent, una aplicación para gestionar las finanzas familiares. ¡Increíble!';
 const shareUrl = 'https://github.com/Tuecho/family-agent';
@@ -25,6 +25,29 @@ const shareX = () => {
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
 };
 const features = [
+  { version: '1.0.8', date: 'Abril 2026', changes: [
+    'Dashboard siempre visible (no se puede desactivar)',
+    '7 módulos activos por defecto: Dashboard, Agenda, Contabilidad, Cumpleaños, Hábitos, Lista Compra, Notas, Tareas',
+    'Arrastrar y soltar para reordenar módulos',
+    'Diseño de módulos en 3 columnas (escritorio)',
+    'Botón cerrar sesión más accesible en móvil',
+    'Backup incluye todos los módulos nuevos',
+    'Nueva página de Módulos en el menú lateral'
+  ]},
+  { version: '1.0.7', date: 'Abril 2026', changes: [
+    'Módulo Hogar: Inventario del hogar con garantías y manuales',
+    'Módulo Hogar: Mantenimiento del hogar (caldera, filtros A/C, ITV)',
+    'Módulo Hogar: Gestor de suscripciones (Netflix, Spotify, gimnasio...)',
+    'Módulo Organización: Seguimiento de mascotas (vacunas, veterinario)',
+    'Módulo Organización: Gestor de viajes y vacaciones',
+    'Módulo Finanzas: Hucha digital / ahorro por objetivos',
+    'Módulo Finanzas: Control de deudas internas familiares',
+    'Módulo Finanzas: Comparador de facturas (luz, agua, gas)',
+    'Módulo Educación: Biblioteca familiar (libros físicos y ebooks)',
+    'Módulo Educación: Gestor de extraescolares',
+    'Sistema de módulos habilitables desde el perfil',
+    'Módulos disponibles: Mascotas, Educación, Cumpleaños, Contabilidad, Presupuestos'
+  ]},
   { version: '1.0.6', date: 'Marzo 2026', changes: [
     'Fix: Error al actualizar perfil de usuario normal',
     'Lista de usuarios disponibles para compartir datos',

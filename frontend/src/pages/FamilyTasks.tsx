@@ -15,6 +15,7 @@ interface Task {
   is_family_task: number;
   created_at: string;
   assigned_to_id: number | null;
+  assignee_name?: string;
 }
 
 interface SharedUser {
@@ -112,6 +113,8 @@ export function FamilyTasks() {
     e.preventDefault();
     if (!taskForm.title.trim()) return;
 
+    const assignedId = taskForm.assigned_to_id ? parseInt(taskForm.assigned_to_id) + 1000 : null;
+
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       await fetch(`${API_URL}/api/tasks`, {
@@ -123,7 +126,7 @@ export function FamilyTasks() {
           due_date: taskForm.due_date,
           priority: taskForm.priority,
           is_family_task: 1,
-          assigned_to_id: taskForm.assigned_to_id ? parseInt(taskForm.assigned_to_id) : null
+          assigned_to_id: assignedId
         })
       });
       setTaskForm({ title: '', description: '', due_date: '', priority: 'medium', assigned_to_id: '' });
@@ -156,12 +159,20 @@ export function FamilyTasks() {
 
   const openEditTask = (task: Task) => {
     setEditingTask(task);
+    let formAssignedId = '';
+    if (task.assigned_to_id) {
+      if (task.assigned_to_id < 0) {
+        formAssignedId = String(task.assigned_to_id + 1000);
+      } else {
+        formAssignedId = String(task.assigned_to_id);
+      }
+    }
     setTaskForm({
       title: task.title,
       description: task.description || '',
       due_date: task.due_date || '',
       priority: task.priority || 'medium',
-      assigned_to_id: task.assigned_to_id ? String(task.assigned_to_id) : ''
+      assigned_to_id: formAssignedId
     });
     setShowTaskModal(true);
   };
@@ -169,6 +180,8 @@ export function FamilyTasks() {
   const handleUpdateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTask || !taskForm.title.trim()) return;
+
+    const assignedId = taskForm.assigned_to_id ? parseInt(taskForm.assigned_to_id) + 1000 : null;
 
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
@@ -181,7 +194,7 @@ export function FamilyTasks() {
           due_date: taskForm.due_date,
           priority: taskForm.priority,
           completed: editingTask.completed,
-          assigned_to_id: taskForm.assigned_to_id ? parseInt(taskForm.assigned_to_id) : null
+          assigned_to_id: assignedId
         })
       });
       setEditingTask(null);
@@ -419,7 +432,7 @@ export function FamilyTasks() {
                   {task.assigned_to_id && (
                     <div className="flex items-center gap-1 mt-2 text-sm text-purple-600">
                       <User size={14} />
-                      <span>Asignado a: {userNames[task.assigned_to_id] || 'Usuario'}</span>
+                      <span>Asignado a: {task.assignee_name || 'Usuario'}</span>
                     </div>
                   )}
                 </div>
@@ -564,10 +577,10 @@ export function FamilyTasks() {
                   >
                     <option value="">Sin asignar</option>
                     {familyMembers.map((member) => (
-                      <option key={member.id} value={member.id}>👤 {member.name}</option>
+                      <option key={member.id} value={member.id}>{member.name}</option>
                     ))}
                     {sharedUsers.map((user) => (
-                      <option key={user.id} value={user.id}>🔗 {user.username}</option>
+                      <option key={user.id} value={-1000 - user.id}>🔗 {user.username}</option>
                     ))}
                   </select>
                 </div>

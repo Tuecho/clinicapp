@@ -24,12 +24,24 @@ import { Terms } from './pages/Terms';
 import { Privacy } from './pages/Privacy';
 import { Contact } from './pages/Contact';
 import { Gifts } from './pages/Gifts';
+import { HomeInventory } from './pages/HomeInventory';
+import { HomeMaintenance } from './pages/HomeMaintenance';
+import { SubscriptionManager } from './pages/SubscriptionManager';
+import { PetTracker } from './pages/PetTracker';
+import { TravelManager } from './pages/TravelManager';
+import { SavingsGoals } from './pages/SavingsGoals';
+import { InternalDebts } from './pages/InternalDebts';
+import { UtilityBills } from './pages/UtilityBills';
+import { FamilyLibrary } from './pages/FamilyLibrary';
+import { ExtraSchoolManager } from './pages/ExtraSchoolManager';
 import { HabitTracker } from './pages/HabitTracker';
+import { ModuleManager } from './pages/ModuleManager';
+import { WorkHours } from './pages/WorkHours';
 import { ChatWidget } from './components/ChatWidget';
 import { Login, useAuth, AuthProvider } from './components/Auth';
 import { Menu, X } from 'lucide-react';
 
-type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits';
+type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<PageType>(() => {
@@ -40,20 +52,38 @@ function AppContent() {
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const handleNavigate = (page: PageType) => {
+    setActivePage(page);
+    setIsMobileMenuOpen(false);
+  };
+
   useEffect(() => {
     localStorage.setItem('lastPage', activePage);
   }, [activePage]);
+
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      handleNavigate(hash as PageType);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash) {
+        handleNavigate(hash as PageType);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   useEffect(() => {
     if (window.innerWidth < 768) {
       setIsMobileMenuOpen(false);
     }
   }, [activePage]);
-
-  const handleNavigate = (page: PageType) => {
-    setActivePage(page);
-    setIsMobileMenuOpen(false);
-  };
 
   if (!isAuthenticated) {
     return <Login onLogin={login} />;
@@ -129,6 +159,18 @@ function AppContent() {
           {activePage === 'terms' && <Terms />}
           {activePage === 'privacy' && <Privacy />}
           {activePage === 'contact' && <Contact />}
+          {activePage === 'home_inventory' && <HomeInventory />}
+          {activePage === 'home_maintenance' && <HomeMaintenance />}
+          {activePage === 'subscriptions' && <SubscriptionManager />}
+          {activePage === 'pet_tracker' && <PetTracker />}
+          {activePage === 'travel_manager' && <TravelManager />}
+          {activePage === 'savings_goals' && <SavingsGoals />}
+          {activePage === 'internal_debts' && <InternalDebts />}
+          {activePage === 'utility_bills' && <UtilityBills />}
+          {activePage === 'family_library' && <FamilyLibrary />}
+          {activePage === 'extra_school' && <ExtraSchoolManager />}
+          {activePage === 'modules' && <ModuleManager />}
+          {activePage === 'work_hours' && <WorkHours />}
         </div>
       </main>
 

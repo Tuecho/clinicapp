@@ -88,6 +88,7 @@ function getDaysOfWeek(recurrence: string, specificDays?: string | null): number
     case 'weekdays': return [1, 2, 3, 4, 5];
     case 'weekends': return [0, 6];
     case 'specific': 
+    case 'weekly':
       if (specificDays) {
         try {
           return JSON.parse(specificDays);
@@ -96,15 +97,19 @@ function getDaysOfWeek(recurrence: string, specificDays?: string | null): number
         }
       }
       return [];
-    case 'weekly': return [];
     default: return [0, 1, 2, 3, 4, 5, 6];
   }
 }
 
-function shouldShowHabitToday(habit: Habit): boolean {
-  const today = new Date().getDay();
+function shouldShowHabitToday(habit: Habit, checkDate?: Date): boolean {
+  const dateToCheck = checkDate || new Date();
+  const dayOfWeek = dateToCheck.getDay();
+  console.log('[shouldShowHabitToday] habit:', habit.name, 'recurrence:', habit.recurrence, 'specific_days:', habit.specific_days, 'checkDate:', dateToCheck.toDateString(), 'dayOfWeek (0=Dom,6=Sáb):', dayOfWeek);
   const days = getDaysOfWeek(habit.recurrence, habit.specific_days);
-  return days.length === 0 || days.includes(today);
+  console.log('[shouldShowHabitToday] days:', days, 'includes dayOfWeek:', days.includes(dayOfWeek), 'days.length:', days.length);
+  const result = days.length > 0 && days.includes(dayOfWeek);
+  console.log('[shouldShowHabitToday] result:', result);
+  return result;
 }
 
 export function HabitTracker() {
@@ -160,6 +165,7 @@ export function HabitTracker() {
     try {
       const res = await fetch(`${API_URL}/api/habits`, { headers: getAuthHeaders() });
       const data = await res.json();
+      console.log('[loadHabits] loaded habits:', data);
       setHabits(data);
     } catch (err) {
       console.error('Error loading habits:', err);
@@ -181,11 +187,17 @@ export function HabitTracker() {
     e.preventDefault();
     console.log('[HabitTracker] Submitting habit:', formData);
     try {
+      let specificDaysValue: string | null = null;
+      if (formData.recurrence === 'weekly') {
+        specificDaysValue = formData.specific_days && formData.specific_days.length > 0 
+          ? JSON.stringify(formData.specific_days) 
+          : '[0]';
+      } else if (formData.recurrence === 'specific' && formData.specific_days && formData.specific_days.length > 0) {
+        specificDaysValue = JSON.stringify(formData.specific_days);
+      }
       const payload = {
         ...formData,
-        specific_days: formData.recurrence === 'specific' && formData.specific_days 
-          ? JSON.stringify(formData.specific_days) 
-          : null
+        specific_days: specificDaysValue
       };
       if (editingHabit) {
         console.log('[HabitTracker] Editing habit:', editingHabit.id);
@@ -346,12 +358,14 @@ export function HabitTracker() {
     return iconObj ? iconObj.icon : Target;
   };
 
-  const habitsWithoutCategory = habits.filter(h => !h.category_id && shouldShowHabitToday(h));
-  const visibleHabits = habits.filter(shouldShowHabitToday);
+  const habitsWithoutCategory = habits.filter(h => !h.category_id && shouldShowHabitToday(h, currentDate));
+  const visibleHabits = habits.filter(h => shouldShowHabitToday(h, currentDate));
+  console.log('[render] habits:', habits.length, 'visibleHabits:', visibleHabits.length);
+  console.log('[render] all habits:', habits.map(h => ({ name: h.name, recurrence: h.recurrence, specific_days: h.specific_days })));
 
   const habitsByCategory = categories.map(cat => ({
     ...cat,
-    habits: habits.filter(h => h.category_id === cat.id && shouldShowHabitToday(h))
+    habits: habits.filter(h => h.category_id === cat.id && shouldShowHabitToday(h, currentDate))
   }));
 
   const completedCount = visibleHabits.filter(h => logs[h.id]?.completed === 1).length;
@@ -790,7 +804,7 @@ export function HabitTracker() {
                     <button
                       key={rec.key}
                       type="button"
-                      onClick={() => setFormData({ ...formData, recurrence: rec.key, specific_days: rec.key === 'weekly' || rec.key === 'specific' ? [] : null })}
+                      onClick={() => setFormData({ ...formData, recurrence: rec.key, specific_days: null })}
                       className={`p-3 rounded-lg text-sm transition-all ${
                         formData.recurrence === rec.key 
                           ? 'bg-primary text-white' 

@@ -149,7 +149,7 @@ export function Accounting() {
     setFilterType('all');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.amount || !formData.description) return;
 
@@ -161,21 +161,25 @@ export function Accounting() {
       date: formData.date
     };
 
-    if (editing) {
-      updateTransaction({ ...payload, id: editing.id });
-    } else {
-      addTransaction(payload);
-    }
+    try {
+      if (editing) {
+        await updateTransaction({ ...payload, id: editing.id });
+      } else {
+        await addTransaction(payload);
+      }
 
-    setFormData({
-      type: 'expense',
-      amount: '',
-      description: '',
-      concept: 'comida',
-      date: new Date().toISOString().split('T')[0]
-    });
-    setEditing(null);
-    setShowModal(false);
+      setFormData({
+        type: 'expense',
+        amount: '',
+        description: '',
+        concept: 'comida',
+        date: new Date().toISOString().split('T')[0]
+      });
+      setEditing(null);
+      setShowModal(false);
+    } catch (error) {
+      alert('Error al guardar la transacción. Intenta de nuevo.');
+    }
   };
 
   const openNew = () => {

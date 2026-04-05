@@ -1,0 +1,628 @@
+import { useState, useEffect } from 'react';
+import { Clock, Play, Square, Calendar, AlertTriangle, History, ChevronLeft, ChevronRight, Edit2, Trash2, X, Check, Settings } from 'lucide-react';
+import { getAuthHeaders } from '../utils/auth';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
+
+interface WorkShift {
+  id: string;
+  date: string;
+  start_time: string;
+  end_time: string | null;
+  hours_worked: number | null;
+  notes: string | null;
+}
+
+interface WorkSettings {
+  daily_target_hours: number;
+  work_days: string;
+  alert_on_overtime: number;
+}
+
+function getWeekDates(): string[] {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  
+  const dates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + i);
+    dates.push(date.toISOString().split('T')[0]);
+  }
+  return dates;
+}
+
+function formatTime(time: string): string {
+  const [hours, minutes] = time.split(':');
+  return `${hours}:${minutes}`;
+}
+
+function formatHours(hours: number): string {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  return `${h}h ${m}m`;
+}
+
+function getDayName(dateStr: string): string {
+  const date = new Date(dateStr + 'T00:00:00');
+  const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  return days[date.getDay()];
+}
+
+export function WorkHours() {
+  const [shifts, setShifts] = useState<WorkShift[]>([]);
+  const [settings, setSettings] = useState<WorkSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentShift, setCurrentShift] = useState<WorkShift | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingShift, setEditingShift] = useState<WorkShift | null>(null);
+  
+  const [shiftForm, setShiftForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    start_time: '',
+    end_time: '',
+    hours_worked: '',
+    notes: ''
+  });
+
+  const [settingsForm, setSettingsForm] = useState({
+    daily_target_hours: 2,
+    work_days: '0,1,2,3,4,5,6',
+    alert_on_overtime: true
+  });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (currentShift && currentShift.start_time) {
+      interval = setInterval(() => {
+        const now = new Date();
+        const [hours, minutes] = currentShift.start_time.split(':').map(Number);
+        const start = new Date(now);
+        start.setHours(hours, minutes, 0, 0);
+        
+        if (start > now) {
+          start.setDate(start.getDate() - 1);
+        }
+        
+        const diffMs = now.getTime() - start.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+        setElapsedTime(diffHours);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [currentShift]);
+
+  const fetchData = async () => {
+    const headers = getAuthHeaders();
+    
+    const weekDates = getWeekDates();
+    const startDate = weekDates[0];
+    const endDate = weekDates[weekDates.length - 1];
+    
+    const [shiftsRes, settingsRes] = await Promise.all([
+      fetch(`${API_URL}/api/work-shifts?startDate=${startDate}&endDate=${endDate}`, { headers }),
+      fetch(`${API_URL}/api/work-settings`, { headers })
+    ]);
+    
+    const shiftsData = await shiftsRes.json();
+    const settingsData = await settingsRes.json();
+    
+    setShifts(Array.isArray(shiftsData) ? shiftsData : []);
+    setSettings(settingsData);
+    setSettingsForm({
+      daily_target_hours: settingsData.daily_target_hours || 2,
+      work_days: settingsData.work_days || '0,1,2,3,4,5,6',
+      alert_on_overtime: settingsData.alert_on_overtime !== 0
+    });
+    
+    const activeShift = (Array.isArray(shiftsData) ? shiftsData : []).find((s: WorkShift) => !s.end_time);
+    setCurrentShift(activeShift || null);
+    
+    setLoading(false);
+  };
+
+  const startShift = async () => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const res = await fetch(`${API_URL}/api/work-shifts`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ date: today, start_time: time })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setCurrentShift({
+          id: data.id,
+          date: today,
+          start_time: time,
+          end_time: null,
+          hours_worked: null,
+          notes: null
+        });
+      }
+    } catch (error) {
+      console.error('Error starting shift:', error);
+    }
+  };
+
+  const endShift = async () => {
+    if (!currentShift) return;
+    
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      await fetch(`${API_URL}/api/work-shifts/${currentShift.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          date: today,
+          start_time: currentShift.start_time,
+          end_time: time,
+          notes: currentShift.notes
+        })
+      });
+      
+      setCurrentShift(null);
+      setElapsedTime(0);
+      fetchData();
+    } catch (error) {
+      console.error('Error ending shift:', error);
+    }
+  };
+
+  const saveSettings = async () => {
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      await fetch(`${API_URL}/api/work-settings`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(settingsForm)
+      });
+      setShowSettings(false);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+    }
+  };
+
+  const deleteShift = async (id: string) => {
+    if (!confirm('¿Eliminar este turno?')) return;
+    try {
+      const headers = getAuthHeaders();
+      await fetch(`${API_URL}/api/work-shifts/${id}`, { method: 'DELETE', headers });
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting shift:', error);
+    }
+  };
+
+  const handleManualShiftSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('Submitting shift form:', shiftForm);
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      
+      const payload = {
+        date: shiftForm.date,
+        start_time: shiftForm.start_time,
+        end_time: shiftForm.end_time || null,
+        notes: shiftForm.notes || null
+      };
+      console.log('Payload:', payload);
+      
+      if (editingShift) {
+        await fetch(`${API_URL}/api/work-shifts/${editingShift.id}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(payload)
+        });
+      } else {
+        const res = await fetch(`${API_URL}/api/work-shifts`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        console.log('Response:', data);
+      }
+      
+      setShowAddModal(false);
+      setEditingShift(null);
+      setShiftForm({ date: new Date().toISOString().split('T')[0], start_time: '', end_time: '', hours_worked: '', notes: '' });
+      fetchData();
+    } catch (error) {
+      console.error('Error saving shift:', error);
+    }
+  };
+
+  const getWeekSummary = () => {
+    const weekDates = getWeekDates();
+    const targetHours = settings?.daily_target_hours || 2;
+    let totalHours = 0;
+    let daysWorked = 0;
+    
+    const dayStats = weekDates.map(date => {
+      const dayShifts = shifts.filter(s => s.date === date && s.hours_worked);
+      const hours = dayShifts.reduce((sum, s) => sum + (s.hours_worked || 0), 0);
+      totalHours += hours;
+      if (hours > 0) daysWorked++;
+      return { date, hours };
+    });
+    
+    return {
+      totalHours,
+      daysWorked,
+      targetHours: targetHours * 7,
+      targetDaily: targetHours,
+      dayStats
+    };
+  };
+
+  const summary = getWeekSummary();
+  const isOvertime = elapsedTime > (settings?.daily_target_hours || 2);
+  const todayDate = new Date().toISOString().split('T')[0];
+  const todayCompletedShifts = shifts.filter(s => s.date === todayDate && s.hours_worked);
+  const todayHours = todayCompletedShifts.reduce((sum, s) => sum + (s.hours_worked || 0), 0);
+
+  return (
+    <div className="p-4 md:p-8 max-w-3xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-100 p-3 rounded-xl">
+            <Clock size={28} className="text-blue-600" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Horas de Trabajo</h2>
+            <p className="text-sm text-gray-500">
+              {summary.daysWorked}/7 días • {formatHours(summary.totalHours)} esta semana
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowSettings(true)}
+          className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <Settings size={20} />
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-gray-500">Cargando...</div>
+      ) : (
+        <>
+          <div className="bg-white rounded-xl border p-6 mb-4 shadow-sm">
+            <div className="text-center">
+              <div className="text-sm text-gray-500 mb-2">Turno actual</div>
+              
+              {currentShift ? (
+                <div className="space-y-4">
+                  <div className={`text-5xl font-bold ${isOvertime ? 'text-red-500' : 'text-gray-800'}`}>
+                    {formatHours(elapsedTime)}
+                  </div>
+                  
+                  {isOvertime && (
+                    <div className="flex items-center justify-center gap-2 text-red-500 bg-red-50 px-4 py-2 rounded-lg">
+                      <AlertTriangle size={18} />
+                      <span className="font-medium">Excedes las {settings?.daily_target_hours || 2}h</span>
+                    </div>
+                  )}
+                  
+                  <div className="text-sm text-gray-500">
+                    Inicio: {formatTime(currentShift.start_time)}
+                  </div>
+                  
+                  {todayHours > 0 || elapsedTime > 0 ? (
+                    <div className="text-sm text-gray-500 bg-blue-50 px-3 py-2 rounded-lg">
+                      Hoy: <span className="font-semibold text-gray-800">
+                        {formatHours(todayHours + (currentShift && currentShift.date === todayDate ? elapsedTime : 0))}
+                      </span>
+                      {currentShift && currentShift.date === todayDate && elapsedTime > 0 && ' (incluyendo turno actual)'}
+                    </div>
+                  ) : null}
+                  
+                  <button
+                    onClick={endShift}
+                    className="w-full flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 transition-colors font-medium"
+                  >
+                    <Square size={20} />
+                    Finalizar turno
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-5xl font-bold text-gray-300">0h 0m</div>
+                  
+                  <button
+                    onClick={startShift}
+                    className="w-full flex items-center justify-center gap-2 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-medium"
+                  >
+                    <Play size={20} />
+                    Iniciar turno
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border p-4 mb-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-700">Resumen semanal</h3>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                + Añadir
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-7 gap-2 mb-4">
+              {summary.dayStats.map((day) => {
+                const isOver = day.hours > (settings?.daily_target_hours || 2);
+                return (
+                  <div
+                    key={day.date}
+                    className={`text-center p-2 rounded-lg ${day.hours > 0 ? 'bg-blue-50' : 'bg-gray-50'}`}
+                  >
+                    <div className="text-xs text-gray-500">{getDayName(day.date)}</div>
+                    <div className={`font-semibold ${isOver ? 'text-red-500' : 'text-gray-700'}`}>
+                      {day.hours > 0 ? formatHours(day.hours) : '-'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="flex items-center justify-between text-sm pt-3 border-t">
+              <span className="text-gray-500">Total: <span className="font-semibold text-gray-700">{formatHours(summary.totalHours)}</span></span>
+              <span className="text-gray-500">Meta: <span className="font-semibold text-gray-700">{formatHours(summary.targetHours)}</span></span>
+            </div>
+            
+            {summary.totalHours > summary.targetHours && (
+              <div className="mt-3 flex items-center gap-2 text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">
+                <AlertTriangle size={16} />
+                Has excedido las horas objetivo esta semana
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl border p-4 shadow-sm">
+            <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <History size={18} />
+              Turnos recientes
+            </h3>
+            
+            <div className="space-y-2">
+              {shifts.filter(s => s.end_time).length === 0 ? (
+                <p className="text-gray-400 text-center py-4">No hay turnos registrados</p>
+              ) : (
+                shifts.filter(s => s.end_time).slice(0, 10).map((shift) => (
+                  <div
+                    key={shift.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Calendar size={16} className="text-gray-400" />
+                      <div>
+                        <div className="font-medium text-gray-700">
+                          {new Date(shift.date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {formatTime(shift.start_time)} - {shift.end_time ? formatTime(shift.end_time) : '...'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`font-semibold ${(shift.hours_worked || 0) > (settings?.daily_target_hours || 2) ? 'text-red-500' : 'text-gray-700'}`}>
+                        {shift.hours_worked ? formatHours(shift.hours_worked) : '-'}
+                      </span>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingShift(shift);
+                            setShiftForm({
+                              date: shift.date,
+                              start_time: shift.start_time,
+                              end_time: shift.end_time || '',
+                              hours_worked: shift.hours_worked?.toString() || '',
+                              notes: shift.notes || ''
+                            });
+                            setShowAddModal(true);
+                          }}
+                          className="p-1 text-gray-400 hover:text-blue-500"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => deleteShift(shift.id)}
+                          className="p-1 text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Configuración</h3>
+              <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Horas objetivo diarias</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  max="12"
+                  value={settingsForm.daily_target_hours}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, daily_target_hours: parseFloat(e.target.value) || 2 })}
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Días laborales</label>
+                <div className="flex flex-wrap gap-2">
+                  {['0', '1', '2', '3', '4', '5', '6'].map((day) => {
+                    const days = settingsForm.work_days.split(',');
+                    const isSelected = days.includes(day);
+                    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          const newDays = isSelected
+                            ? days.filter(d => d !== day)
+                            : [...days, day].sort();
+                          setSettingsForm({ ...settingsForm, work_days: newDays.join(',') });
+                        }}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isSelected ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {dayNames[parseInt(day)]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Alertar si excedes horas</span>
+                <button
+                  onClick={() => setSettingsForm({ ...settingsForm, alert_on_overtime: !settingsForm.alert_on_overtime })}
+                  className={`w-12 h-6 rounded-full p-1 transition-all ${settingsForm.alert_on_overtime ? 'bg-blue-500' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${settingsForm.alert_on_overtime ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
+              
+              <button
+                onClick={saveSettings}
+                className="w-full py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 font-medium"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">
+                {editingShift ? 'Editar turno' : 'Nuevo turno'}
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingShift(null);
+                  setShiftForm({ date: new Date().toISOString().split('T')[0], start_time: '', end_time: '', hours_worked: '', notes: '' });
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleManualShiftSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha *</label>
+                <input
+                  type="date"
+                  value={shiftForm.date}
+                  onChange={(e) => setShiftForm({ ...shiftForm, date: e.target.value })}
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora inicio *</label>
+                  <input
+                    type="time"
+                    value={shiftForm.start_time}
+                    onChange={(e) => setShiftForm({ ...shiftForm, start_time: e.target.value })}
+                    className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora fin</label>
+                  <input
+                    type="time"
+                    value={shiftForm.end_time}
+                    onChange={(e) => setShiftForm({ ...shiftForm, end_time: e.target.value })}
+                    className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                <input
+                  type="text"
+                  value={shiftForm.notes}
+                  onChange={(e) => setShiftForm({ ...shiftForm, notes: e.target.value })}
+                  placeholder="Notas adicionales..."
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingShift(null);
+                  }}
+                  className="flex-1 py-3 border rounded-xl text-gray-600 hover:bg-gray-50 font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 font-medium"
+                >
+                  {editingShift ? 'Guardar' : 'Crear'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

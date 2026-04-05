@@ -776,8 +776,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    let timeoutId: NodeJS.Timeout;
-    let intervalId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let intervalId: ReturnType<typeof setTimeout>;
 
     const checkInactivity = () => {
       const stored = localStorage.getItem(STORAGE_KEY);

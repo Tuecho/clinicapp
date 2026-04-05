@@ -42,6 +42,24 @@ Aplicación web para la gestión de la economía familiar, agenda, tareas y plan
 - **Agenda familiar**: Eventos con soporte para recurrencia (diario, semanal, mensual) y fechas de fin
 - **Dashboard**: Resumen mensual, gráficos de evolución y presupuestos
 
+### Módulo Hogar
+- **Inventario del hogar**: Electrodomésticos, muebles y electrónica con fecha de compra, garantía y manual. Avisa cuando vence la garantía.
+- **Mantenimiento del hogar**: Revisión caldera, filtros aire acondicionado, ITV del coche. Tareas recurrentes con recordatorio.
+- **Gestor de suscripciones**: Netflix, Spotify, gimnasio, seguros. Control de gasto mensual/anual.
+
+### Organización Familiar
+- **Seguimiento de mascotas**: Vacunas, veterinario, alimentación, medicación.
+- **Gestor de viajes**: Vuelos, hoteles, actividades, presupuesto del viaje, checklist de equipaje.
+
+### Finanzas Familiares
+- **Hucha digital**: Ahorro por objetivos con progress bar visual y motivador.
+- **Deudas internas**: Control de quién debe dinero a quién en la familia.
+- **Comparador de facturas**: Luz, agua, gas mes a mes. Detección automática de anomalías.
+
+### Educación y Desarrollo
+- **Biblioteca familiar**: Libros físicos y ebooks. Seguimiento de quién los tiene y quién los ha leído.
+- **Gestor de extraescolares**: Horarios, pagos, contacto del profesor, material necesario.
+
 ### Tareas y Lista de la Compra
 - **Múltiples listas de compra**: Crea diferentes listas con nombre y color
 - **Tareas familiares**: Asignables a miembros de la familia con prioridades
@@ -57,6 +75,7 @@ Aplicación web para la gestión de la economía familiar, agenda, tareas y plan
 - **Datos aislados**: Cada usuario tiene sus propios datos
 - **Primer usuario = administrador**: El primer usuario registrado se crea automáticamente como administrador
 - **Compartir datos**: Invita a otros usuarios a ver tus datos familiares
+- **Módulos habilitables**: Activa/desactiva módulos desde tu perfil (Mascotas, Educación, Cumpleaños, Contabilidad, Presupuestos)
 
 ### Inteligencia Artificial
 - **Chatbot IA**: Asistente con Groq (LLaMA 3.3) para analizar tus finanzas
@@ -67,6 +86,16 @@ Aplicación web para la gestión de la economía familiar, agenda, tareas y plan
 - **Restaurantes favoritos**: Guarda tus restaurantes favoritos con valoración
 - **Galería de fotos**: Álbum familiar para guardar momentos especiales
 - **Cumpleaños**: Recordatorio de cumpleaños del mes
+- **Inventario del hogar**: Electrodomésticos, muebles, electrónica con garantías
+- **Mantenimiento del hogar**: Tareas recurrentes de mantenimiento
+- **Suscripciones**: Control deNetflix, Spotify, gimnasio, seguros
+- **Seguimiento de mascotas**: Vacunas, veterinario, medicación
+- **Gestor de viajes**: Vuelos, hoteles, presupuesto, checklist
+- **Biblioteca familiar**: Libros físicos y ebooks
+- **Extraescolares**: Horarios, pagos, contacto profesor
+- **Hucha digital**: Ahorro por objetivos
+- **Deudas internas**: Control de deudas familiares
+- **Comparador de facturas**: Luz, agua, gas
 - **Diseño mobile-first**: Optimizado para móvil
 
 ---
@@ -391,11 +420,126 @@ Configuración del usuario y la familia:
   - Configurar SMTP (Gmail)
   - Hora de envío
   - Qué recibir: eventos, tareas, presupuestos, comidas, cumpleaños
+- **Módulos disponibles**: Activa/desactiva módulos (Mascotas, Educación, Cumpleaños, Contabilidad, Presupuestos)
 - **Compartir datos**: Permite que otros usuarios vean tus datos
 - **Cambiar contraseña**
 - **Idioma**: Español, Inglés, Portugués
 
 **Ubicación del código**: `frontend/src/pages/Profile.tsx`
+
+---
+
+## Nuevos Módulos (v1.0.7)
+
+### Inventario del Hogar
+
+Gestión de electrodomésticos, muebles y electrónica:
+
+- **Artículos**: Nombre, categoría (electrodomésticos/muebles/electrónica), fecha de compra
+- **Garantía**: Fecha fin de garantía con alertas automáticas (por vencer/vencida)
+- **Manual**: URL del manual del fabricante
+- **Búsqueda y filtro**: Por nombre y categoría
+
+**Ubicación del código**: `frontend/src/pages/HomeInventory.tsx`
+
+### Mantenimiento del Hogar
+
+Seguimiento de tareas de mantenimiento recurrentes:
+
+- **Tipos**: Caldera, filtros A/C, ITV vehículo, otro
+- **Frecuencia**: Días entre cada mantenimiento
+- **Coste estimado**: Coste aproximado
+- **Estado**: Calcula días hasta próximo mantenimiento
+- **Alertas**: Tareas atrasadas y próximas a vencer
+
+**Ubicación del código**: `frontend/src/pages/HomeMaintenance.tsx`
+
+### Gestor de Suscripciones
+
+Control de suscripciones mensuales/anuales:
+
+- **Categorías**: Streaming, música, gimnasio, seguro, otro
+- **Importe y ciclo**: Precio y frecuencia de facturación
+- **Próxima facturación**: Fecha del próximo pago
+- **Resumen**: Gasto mensual y anual total
+- **Alertas**: Pagos próximos esta semana
+
+**Ubicación del código**: `frontend/src/pages/SubscriptionManager.tsx`
+
+### Seguimiento de Mascotas
+
+Gestión de mascotas familiares:
+
+- **Mascotas**: Nombre, especie, raza, fecha nacimiento, peso, microchip
+- **Vacunas**: Nombre, fecha, próxima dosis, veterinario
+- **Medicación**: Nombre, dosis, frecuencia, período de tratamiento
+
+**Ubicación del código**: `frontend/src/pages/PetTracker.tsx`
+
+### Gestor de Viajes
+
+Planificación de viajes y vacaciones:
+
+- **Viaje**: Nombre, destino, fechas, presupuesto
+- **Estado de reserva**: Vuelos, hotel, actividades
+- **Checklist de equipaje**: Por miembro familiar
+
+**Ubicación del código**: `frontend/src/pages/TravelManager.tsx`
+
+### Hucha Digital
+
+Ahorro por objetivos:
+
+- **Metas**: Nombre, objetivo, ahorrado actual, fecha objetivo
+- **Iconos**: Diferentes iconos por tipo de meta
+- **Progreso**: Barras de progreso visuales
+- **Contribuciones**: Añadir ahorro progresivamente
+
+**Ubicación del código**: `frontend/src/pages/SavingsGoals.tsx`
+
+### Deudas Internas
+
+Control de deudas entre miembros de la familia:
+
+- **Deudas**: De quién, a quién, cantidad, motivo
+- **Estado**: Activa/pagada
+- **Historial**: Registro de deudas pagadas
+
+**Ubicación del código**: `frontend/src/pages/InternalDebts.tsx`
+
+### Comparador de Facturas
+
+Seguimiento de facturas de servicios:
+
+- **Tipos**: Luz, agua, gas
+- **Historial**: Mes a mes con importe y consumo
+- **Comparación**: Vs mes anterior y media histórica
+- **Alertas**: Anomalías detectadas automáticamente (>30%)
+
+**Ubicación del código**: `frontend/src/pages/UtilityBills.tsx`
+
+### Biblioteca Familiar
+
+Gestión de libros familiares:
+
+- **Libros**: Título, autor, formato (físico/ebook), ISBN
+- **Estado**: Disponible, leyendo, leído
+- **Propietario**: Quién tiene el libro
+- **Valoración**: Estrellas (1-5)
+
+**Ubicación del código**: `frontend/src/pages/FamilyLibrary.tsx`
+
+### Extraescolares
+
+Gestión de actividades extraescolares:
+
+- **Actividad**: Nombre del niño, actividad (música, deporte...)
+- **Horario y ubicación**: Día/hora y lugar
+- **Profesor**: Nombre y contacto
+- **Coste**: Precio mensual y día de pago
+- **Material**: Material necesario
+
+**Ubicación del código**: `frontend/src/pages/ExtraSchoolManager.tsx`
 
 ---
 
@@ -526,6 +670,29 @@ Los usuarios pueden compartir sus datos con familiares:
 ---
 
 ## Changelog
+
+### v1.0.8 (Abril 2026)
+- Dashboard siempre visible (no se puede desactivar)
+- 8 módulos activos por defecto: Dashboard, Agenda, Contabilidad, Cumpleaños, Hábitos, Lista Compra, Notas, Tareas
+- Arrastrar y soltar para reordenar módulos
+- Diseño de módulos en 3 columnas en escritorio
+- Botón de cerrar sesión más accesible en móvil
+- Backup incluye todos los nuevos módulos
+- Nueva página de Módulos en el menú lateral
+
+### v1.0.7 (Abril 2026)
+- Módulo Hogar: Inventario del hogar con garantías y manuales
+- Módulo Hogar: Mantenimiento del hogar (caldera, filtros A/C, ITV)
+- Módulo Hogar: Gestor de suscripciones (Netflix, Spotify, gimnasio...)
+- Módulo Organización: Seguimiento de mascotas (vacunas, veterinario)
+- Módulo Organización: Gestor de viajes y vacaciones
+- Módulo Finanzas: Hucha digital / ahorro por objetivos
+- Módulo Finanzas: Control de deudas internas familiares
+- Módulo Finanzas: Comparador de facturas (luz, agua, gas)
+- Módulo Educación: Biblioteca familiar (libros físicos y ebooks)
+- Módulo Educación: Gestor de extraescolares
+- Sistema de módulos habilitables desde el perfil
+- Módulos disponibles: Mascotas, Educación, Cumpleaños, Contabilidad, Presupuestos
 
 ### v2.0.0 (Marzo 2026)
 - Galería de Fotos Familiar

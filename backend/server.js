@@ -84,6 +84,7 @@ async function initDb() {
   try { db.run(`ALTER TABLE user_profile ADD COLUMN city TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE user_profile ADD COLUMN sex TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE user_profile ADD COLUMN birth_date TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_profile ADD COLUMN enabled_modules TEXT`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS auth_user (
@@ -237,6 +238,16 @@ async function initDb() {
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_books INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_movies INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_habits INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_home_inventory INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_home_maintenance INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_subscriptions INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_pet_tracker INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_travel_manager INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_savings_goals INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_internal_debts INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_utility_bills INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_family_library INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_extra_school INTEGER DEFAULT 0`); } catch(e) {}
 
   try { db.run(`ALTER TABLE invitations ADD COLUMN share_habits INTEGER DEFAULT 0`); } catch(e) {}
 
@@ -560,6 +571,60 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
   `);
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS home_inventory_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      icon TEXT DEFAULT 'package',
+      color TEXT DEFAULT '#3b82f6',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const defaultCategories = [
+    { name: 'Electrodomésticos', icon: 'tv', color: '#3b82f6' },
+    { name: 'Muebles', icon: 'sofa', color: '#f59e0b' },
+    { name: 'Electrónica', icon: 'laptop', color: '#8b5cf6' }
+  ];
+  
+  const catCheck = db.exec('SELECT COUNT(*) FROM home_inventory_categories');
+  if (catCheck.length === 0 || catCheck[0].values[0][0] === 0) {
+    for (const cat of defaultCategories) {
+      db.run('INSERT INTO home_inventory_categories (owner_id, name, icon, color) VALUES (1, ?, ?, ?)', [cat.name, cat.icon, cat.color]);
+    }
+  }
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS home_inventory (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      category_id INTEGER,
+      purchase_date TEXT,
+      warranty_end_date TEXT,
+      manual_url TEXT,
+      notes TEXT,
+      image_url TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES home_inventory_categories(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS home_maintenance (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT,
+      frequency_days INTEGER DEFAULT 365,
+      last_completed TEXT,
+      estimated_cost REAL,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS habits (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       owner_id INTEGER NOT NULL,
@@ -602,6 +667,112 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
     )
   `);
   try { db.run(`ALTER TABLE habit_logs ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS savings_pigs (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      icon TEXT DEFAULT '🐷',
+      color TEXT DEFAULT '#10B981',
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS savings_goals (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      pig_id TEXT,
+      name TEXT NOT NULL,
+      target_amount REAL NOT NULL,
+      current_amount REAL DEFAULT 0,
+      deadline TEXT,
+      icon TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (pig_id) REFERENCES savings_pigs(id)
+    )
+  `);
+  try { db.run(`ALTER TABLE savings_goals ADD COLUMN pig_id TEXT`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS internal_debts (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      from_member_id INTEGER NOT NULL,
+      to_member_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      settled_at TEXT,
+      FOREIGN KEY (owner_id) REFERENCES auth_user(id),
+      FOREIGN KEY (from_member_id) REFERENCES family_members(id),
+      FOREIGN KEY (to_member_id) REFERENCES family_members(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS utility_bills (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      month INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      consumption REAL,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (owner_id) REFERENCES auth_user(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS pet_tracker (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      species TEXT NOT NULL,
+      breed TEXT,
+      birth_date TEXT,
+      weight REAL,
+      microchip TEXT,
+      photo_url TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS pet_vaccines (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      pet_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      date_given TEXT,
+      next_due TEXT,
+      veterinarian TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (pet_id) REFERENCES pet_tracker(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS pet_medications (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      pet_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      dosage TEXT,
+      frequency TEXT,
+      start_date TEXT,
+      end_date TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (pet_id) REFERENCES pet_tracker(id)
+    )
+  `);
 
   saveDb();
 }
@@ -1942,6 +2113,236 @@ app.get('/api/profile', (req, res) => {
   const baseProfile = profile || { id: userId, name: 'Usuario', family_name: 'Mi Familia', currency: 'EUR' };
   
   const dashboardIds = getAccessibleUserIds(userId, 'share_dashboard');
+
+app.get('/api/finance/savings-pigs', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM savings_pigs WHERE owner_id = ? ORDER BY created_at DESC');
+  stmt.bind([userId]);
+  const pigs = [];
+  while (stmt.step()) {
+    const pig = stmt.getAsObject();
+    const goalsStmt = db.prepare('SELECT SUM(current_amount) as total FROM savings_goals WHERE pig_id = ?');
+    goalsStmt.bind([pig.id]);
+    if (goalsStmt.step()) {
+      pig.total_saved = goalsStmt.getAsObject().total || 0;
+    }
+    goalsStmt.free();
+    pigs.push(pig);
+  }
+  stmt.free();
+  res.json(pigs);
+});
+
+app.post('/api/finance/savings-pigs', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, icon, color, notes } = req.body;
+  const id = crypto.randomUUID();
+  
+  try {
+    const stmt = db.prepare('INSERT INTO savings_pigs (id, owner_id, name, icon, color, notes) VALUES (?, ?, ?, ?, ?, ?)');
+    stmt.run([id, userId, name, icon || '🐷', color || '#10B981', notes || null]);
+    stmt.free();
+    saveDb();
+    res.json({ id, name, icon, color, notes });
+  } catch (error) {
+    console.error('Error creating pig:', error);
+    res.status(500).json({ error: 'Error creando hucha' });
+  }
+});
+
+app.put('/api/finance/savings-pigs/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, icon, color, notes } = req.body;
+  
+  try {
+    const stmt = db.prepare('UPDATE savings_pigs SET name = ?, icon = ?, color = ?, notes = ? WHERE id = ? AND owner_id = ?');
+    stmt.run([name, icon, color, notes, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating pig:', error);
+    res.status(500).json({ error: 'Error actualizando hucha' });
+  }
+});
+
+app.delete('/api/finance/savings-pigs/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  
+  try {
+    db.run('DELETE FROM savings_goals WHERE pig_id = ? AND owner_id = ?', [id, userId]);
+    db.run('DELETE FROM savings_pigs WHERE id = ? AND owner_id = ?', [id, userId]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting pig:', error);
+    res.status(500).json({ error: 'Error eliminando hucha' });
+  }
+});
+
+app.get('/api/finance/savings-goals', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { pig_id } = req.query;
+  let query = 'SELECT * FROM savings_goals WHERE owner_id = ?';
+  const params = [userId];
+  
+  if (pig_id) {
+    query += ' AND pig_id = ?';
+    params.push(pig_id);
+  }
+  
+  query += ' ORDER BY created_at DESC';
+  
+  const stmt = db.prepare(query);
+  stmt.bind(params);
+  const goals = [];
+  while (stmt.step()) {
+    goals.push(stmt.getAsObject());
+  }
+  stmt.free();
+  res.json(goals);
+});
+
+app.post('/api/finance/savings-goals', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { pig_id, name, target_amount, current_amount, deadline, icon, notes } = req.body;
+  const id = crypto.randomUUID();
+  
+  try {
+    const stmt = db.prepare('INSERT INTO savings_goals (id, owner_id, pig_id, name, target_amount, current_amount, deadline, icon, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run([id, userId, pig_id || null, name, target_amount, current_amount || 0, deadline || null, icon || '🎯', notes || null]);
+    stmt.free();
+    saveDb();
+    res.json({ id, pig_id, name, target_amount, current_amount, deadline, icon, notes });
+  } catch (error) {
+    console.error('Error creating goal:', error);
+    res.status(500).json({ error: 'Error creando meta' });
+  }
+});
+
+app.put('/api/finance/savings-goals/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { pig_id, name, target_amount, current_amount, deadline, icon, notes } = req.body;
+  
+  try {
+    const stmt = db.prepare('UPDATE savings_goals SET pig_id = ?, name = ?, target_amount = ?, current_amount = ?, deadline = ?, icon = ?, notes = ? WHERE id = ? AND owner_id = ?');
+    stmt.run([pig_id, name, target_amount, current_amount, deadline, icon, notes, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating goal:', error);
+    res.status(500).json({ error: 'Error actualizando meta' });
+  }
+});
+
+app.delete('/api/finance/savings-goals/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  
+  try {
+    db.run('DELETE FROM savings_goals WHERE id = ? AND owner_id = ?', [id, userId]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting goal:', error);
+    res.status(500).json({ error: 'Error eliminando meta' });
+  }
+});
+
+app.post('/api/finance/savings-goals/:id/contribute', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { amount } = req.body;
+  
+  try {
+    const stmt = db.prepare('UPDATE savings_goals SET current_amount = current_amount + ? WHERE id = ? AND owner_id = ?');
+    stmt.run([amount, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error contributing:', error);
+    res.status(500).json({ error: 'Error añadiendo ahorro' });
+  }
+});
+
+app.get('/api/finance/utility-bills', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const stmt = db.prepare('SELECT * FROM utility_bills WHERE owner_id = ? ORDER BY year DESC, month DESC');
+    stmt.bind([userId]);
+    const bills = [];
+    while (stmt.step()) {
+      bills.push(stmt.getAsObject());
+    }
+    stmt.free();
+    res.json(bills);
+  } catch (error) {
+    console.error('Error fetching utility bills:', error);
+    res.status(500).json({ error: 'Error obteniendo facturas' });
+  }
+});
+
+app.post('/api/finance/utility-bills', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { type, month, year, amount, consumption, notes } = req.body;
+  const id = crypto.randomUUID();
+  
+  try {
+    const consumptionValue = consumption ? (isNaN(Number(consumption)) ? null : Number(consumption)) : null;
+    const stmt = db.prepare('INSERT INTO utility_bills (id, owner_id, type, month, year, amount, consumption, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run([id, userId, type || 'luz', month, year, amount || 0, consumptionValue, notes || null]);
+    stmt.free();
+    saveDb();
+    res.json({ id, type, month, year, amount, consumption: consumptionValue, notes });
+  } catch (error) {
+    console.error('Error creating utility bill:', error);
+    res.status(500).json({ error: 'Error guardando factura' });
+  }
+});
+
+app.delete('/api/finance/utility-bills/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  
+  try {
+    db.run('DELETE FROM utility_bills WHERE id = ? AND owner_id = ?', [id, userId]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting utility bill:', error);
+    res.status(500).json({ error: 'Error eliminando factura' });
+  }
+});
+
   const familyMembersStmt = db.prepare(`SELECT * FROM family_members WHERE owner_id IN (${dashboardIds.map(() => '?').join(',')}) ORDER BY owner_id, name`);
   familyMembersStmt.bind(dashboardIds);
   const familyMembers = [];
@@ -1966,7 +2367,7 @@ app.put('/api/profile', (req, res) => {
   try { db.run(`ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS sex TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS birth_date TEXT`); } catch(e) {}
   
-  const { name, avatar, email, phone, family_name, city, currency, sex, birth_date } = req.body;
+  const { name, avatar, email, phone, family_name, city, currency, sex, birth_date, enabled_modules } = req.body;
   
   try {
     const checkStmt = db.prepare('SELECT id FROM user_profile WHERE owner_id = ?');
@@ -1977,17 +2378,17 @@ app.put('/api/profile', (req, res) => {
     if (hasRows) {
       const stmt = db.prepare(`
         UPDATE user_profile 
-        SET name = ?, avatar = ?, email = ?, phone = ?, family_name = ?, city = ?, currency = ?, sex = ?, birth_date = ?, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, avatar = ?, email = ?, phone = ?, family_name = ?, city = ?, currency = ?, sex = ?, birth_date = ?, enabled_modules = ?, updated_at = CURRENT_TIMESTAMP
         WHERE owner_id = ?
       `);
-      stmt.run([name || null, avatar || null, email || null, phone || null, family_name || 'Mi Familia', city || null, currency || 'EUR', sex || null, birth_date || null, userId]);
+      stmt.run([name || null, avatar || null, email || null, phone || null, family_name || 'Mi Familia', city || null, currency || 'EUR', sex || null, birth_date || null, enabled_modules || null, userId]);
       stmt.free();
     } else {
       const stmt = db.prepare(`
-        INSERT INTO user_profile (owner_id, name, avatar, email, phone, family_name, city, currency, sex, birth_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO user_profile (owner_id, name, avatar, email, phone, family_name, city, currency, sex, birth_date, enabled_modules)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run([userId, name || 'Usuario', avatar || null, email || null, phone || null, family_name || 'Mi Familia', city || null, currency || 'EUR', sex || null, birth_date || null]);
+      stmt.run([userId, name || 'Usuario', avatar || null, email || null, phone || null, family_name || 'Mi Familia', city || null, currency || 'EUR', sex || null, birth_date || null, enabled_modules || null]);
       stmt.free();
     }
     
@@ -2102,15 +2503,23 @@ app.get('/api/export', (req, res) => {
       'family_notes', 'note_boards', 'shopping_lists', 'shopping_items',
       'family_contacts', 'family_gifts', 'books', 'movies', 
       'favorite_restaurants', 'recipes', 'meal_plans', 'family_gallery',
-      'invitations', 'user_shares', 'habits', 'habit_logs'
+      'invitations', 'user_shares', 'habits', 'habit_logs',
+      'home_inventory', 'home_maintenance', 'subscriptions',
+      'pet_tracker', 'travel_manager', 'savings_goals', 
+      'internal_debts', 'utility_bills', 'family_library', 'extra_school_manager',
+      'work_shifts', 'work_settings'
     ];
     
     for (const table of tables) {
-      const rows = [];
-      const stmt = db.prepare(`SELECT * FROM ${table}`);
-      while (stmt.step()) rows.push(stmt.getAsObject());
-      stmt.free();
-      exportData[table] = rows;
+      try {
+        const rows = [];
+        const stmt = db.prepare(`SELECT * FROM ${table}`);
+        while (stmt.step()) rows.push(stmt.getAsObject());
+        stmt.free();
+        exportData[table] = rows;
+      } catch (e) {
+        exportData[table] = [];
+      }
     }
     
     res.json(exportData);
@@ -2329,6 +2738,106 @@ app.post('/api/import', (req, res) => {
       }
     }
     
+    if (data.home_inventory && Array.isArray(data.home_inventory)) {
+      for (const i of data.home_inventory) {
+        try {
+          const stmt = db.prepare('INSERT INTO home_inventory (owner_id, name, category, purchase_date, warranty_end_date, manual_url, notes, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, i.name, i.category || 'electrodomestico', i.purchase_date || null, i.warranty_end_date || null, i.manual_url || null, i.notes || null, i.image_url || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.home_maintenance && Array.isArray(data.home_maintenance)) {
+      for (const t of data.home_maintenance) {
+        try {
+          const stmt = db.prepare('INSERT INTO home_maintenance (owner_id, name, type, frequency_days, last_completed, estimated_cost, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, t.name, t.type || 'otro', t.frequency_days || 365, t.last_completed || null, t.estimated_cost || null, t.notes || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.subscriptions && Array.isArray(data.subscriptions)) {
+      for (const s of data.subscriptions) {
+        try {
+          const stmt = db.prepare('INSERT INTO subscriptions (owner_id, name, category, amount, billing_cycle, next_billing_date, auto_renew, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, s.name, s.category || 'otro', s.amount || 0, s.billing_cycle || 'mensual', s.next_billing_date || null, s.auto_renew !== false ? 1 : 0, s.notes || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.pet_tracker && Array.isArray(data.pet_tracker)) {
+      for (const p of data.pet_tracker) {
+        try {
+          const stmt = db.prepare('INSERT INTO pet_tracker (owner_id, name, species, breed, birth_date, weight, microchip, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, p.name, p.species || '', p.breed || null, p.birth_date || null, p.weight || null, p.microchip || null, p.photo_url || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.travel_manager && Array.isArray(data.travel_manager)) {
+      for (const t of data.travel_manager) {
+        try {
+          const stmt = db.prepare('INSERT INTO travel_manager (owner_id, name, destination, start_date, end_date, budget, flights_booked, hotels_booked, activities_planned, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, t.name, t.destination || null, t.start_date || null, t.end_date || null, t.budget || null, t.flights_booked ? 1 : 0, t.hotels_booked ? 1 : 0, t.activities_planned ? 1 : 0, t.notes || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.savings_goals && Array.isArray(data.savings_goals)) {
+      for (const g of data.savings_goals) {
+        try {
+          const stmt = db.prepare('INSERT INTO savings_goals (owner_id, name, target_amount, current_amount, deadline, icon, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, g.name, g.target_amount || 0, g.current_amount || 0, g.deadline || null, g.icon || null, g.notes || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.internal_debts && Array.isArray(data.internal_debts)) {
+      for (const d of data.internal_debts) {
+        try {
+          const stmt = db.prepare('INSERT INTO internal_debts (owner_id, from_member_id, to_member_id, amount, description, created_at, settled_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, d.from_member_id || null, d.to_member_id || null, d.amount || 0, d.description || null, d.created_at || new Date().toISOString(), d.settled_at || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.utility_bills && Array.isArray(data.utility_bills)) {
+      for (const b of data.utility_bills) {
+        try {
+          const stmt = db.prepare('INSERT INTO utility_bills (owner_id, type, provider, amount, billing_date, due_date, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, b.type || 'electricidad', b.provider || null, b.amount || 0, b.billing_date || null, b.due_date || null, b.status || 'pending', b.notes || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.family_library && Array.isArray(data.family_library)) {
+      for (const b of data.family_library) {
+        try {
+          const stmt = db.prepare('INSERT INTO family_library (owner_id, title, author, isbn, category, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, b.title, b.author || null, b.isbn || null, b.category || null, b.status || 'available', b.notes || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.extra_school_manager && Array.isArray(data.extra_school_manager)) {
+      for (const e of data.extra_school_manager) {
+        try {
+          const stmt = db.prepare('INSERT INTO extra_school_manager (owner_id, name, activity, schedule, location, cost, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, e.name || '', e.activity || '', e.schedule || null, e.location || null, e.cost || null, e.notes || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
     saveDb();
     res.json({ success: true, message: 'Datos importados correctamente' });
   } catch (error) {
@@ -2377,7 +2886,7 @@ app.post('/api/import/db', upload.single('file'), async (req, res) => {
   try {
     const backupDb = new (await initSqlJs()).Database(req.file.buffer);
     
-    const tables = ['transactions', 'budgets', 'family_events', 'family_tasks', 'family_notes', 'note_boards', 'family_members', 'shopping_lists', 'family_contacts', 'favorite_restaurants', 'recipes', 'meal_plans', 'family_gallery', 'auth_user', 'user_profile', 'notification_settings', 'expense_concepts', 'faqs', 'user_shares', 'invitations', 'suggestions', 'app_settings', 'family_gifts', 'books', 'movies', 'birthdays'];
+    const tables = ['transactions', 'budgets', 'family_events', 'family_tasks', 'family_notes', 'note_boards', 'family_members', 'shopping_lists', 'family_contacts', 'favorite_restaurants', 'recipes', 'meal_plans', 'family_gallery', 'auth_user', 'user_profile', 'notification_settings', 'expense_concepts', 'faqs', 'user_shares', 'invitations', 'suggestions', 'app_settings', 'family_gifts', 'books', 'movies', 'birthdays', 'home_inventory', 'home_maintenance', 'subscriptions', 'pet_tracker', 'travel_manager', 'savings_goals', 'work_shifts', 'work_settings'];
     let importedCount = 0;
     
     for (const table of tables) {
@@ -2598,10 +3107,13 @@ app.get('/api/tasks', (req, res) => {
   const placeholders = accessibleIds.map(() => '?').join(',');
   
   const stmt = db.prepare(`SELECT t.*, 
-    COALESCE(fm.name, au.username) as assignee_name
+    CASE 
+      WHEN fm.name IS NOT NULL AND fm.owner_id = t.owner_id THEN fm.name
+      ELSE COALESCE(au.username, 'Unknown')
+    END as assignee_name
     FROM family_tasks t 
-    LEFT JOIN family_members fm ON t.assigned_to_id = fm.id 
-    LEFT JOIN auth_user au ON t.assigned_to_id = au.id 
+    LEFT JOIN family_members fm ON t.assigned_to_id = fm.id AND fm.owner_id = t.owner_id AND t.assigned_to_id > 0
+    LEFT JOIN auth_user au ON ABS(t.assigned_to_id) = au.id AND t.assigned_to_id < 0
     WHERE t.owner_id IN (${placeholders}) OR t.owner_id = ? OR t.assigned_to_id = ? 
     ORDER BY t.completed ASC, t.created_at DESC`);
   stmt.bind([...accessibleIds, userId, userId]);
@@ -3164,6 +3676,69 @@ app.delete('/api/family-members/:id', (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/finance/internal-debts', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_internal_debts');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  const stmt = db.prepare(`
+    SELECT id, from_member_id, to_member_id, amount, description, created_at, settled_at,
+           fm_from.name as from_member, fm_to.name as to_member,
+           CASE WHEN settled_at IS NOT NULL AND settled_at != '' THEN 1 ELSE 0 END as settled
+    FROM internal_debts
+    LEFT JOIN family_members fm_from ON internal_debts.from_member_id = fm_from.id
+    LEFT JOIN family_members fm_to ON internal_debts.to_member_id = fm_to.id
+    WHERE internal_debts.owner_id IN (${placeholders})
+    ORDER BY created_at DESC
+  `);
+  stmt.bind(accessibleIds);
+  const debts = [];
+  while (stmt.step()) debts.push(stmt.getAsObject());
+  stmt.free();
+  res.json(debts);
+});
+
+app.post('/api/finance/internal-debts', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { from_member_id, to_member_id, amount, description } = req.body;
+  if (!from_member_id || !to_member_id || !amount) {
+    return res.status(400).json({ error: 'Los campos obligatorios son: de quién, a quién y cantidad' });
+  }
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO internal_debts (id, owner_id, from_member_id, to_member_id, amount, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([id, userId, from_member_id, to_member_id, amount, description || '', new Date().toISOString()]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true, id });
+});
+
+app.post('/api/finance/internal-debts/:id/settle', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const stmt = db.prepare('UPDATE internal_debts SET settled_at = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([new Date().toISOString(), id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/finance/internal-debts/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM internal_debts WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
 app.get('/api/birthdays', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -3220,6 +3795,134 @@ app.delete('/api/birthdays/:id', (req, res) => {
   
   saveDb();
   res.json({ success: true });
+});
+
+// Work Shifts API
+app.get('/api/work-shifts', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { startDate, endDate } = req.query;
+  let query = 'SELECT * FROM work_shifts WHERE owner_id = ?';
+  const params = [userId];
+  
+  if (startDate && endDate) {
+    query += ' AND date >= ? AND date <= ?';
+    params.push(startDate, endDate);
+  }
+  
+  query += ' ORDER BY date DESC, start_time DESC';
+  
+  const stmt = db.prepare(query);
+  stmt.bind(params);
+  const shifts = [];
+  while (stmt.step()) shifts.push(stmt.getAsObject());
+  stmt.free();
+  res.json(shifts);
+});
+
+app.post('/api/work-shifts', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { date, start_time, end_time, notes } = req.body;
+  console.log('Work shift request:', req.body);
+  if (!date || !start_time) return res.status(400).json({ error: 'Fecha y hora de inicio son obligatorias' });
+  
+  let hours_worked = null;
+  if (end_time) {
+    const start = new Date(`${date}T${start_time}`);
+    const end = new Date(`${date}T${end_time}`);
+    hours_worked = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    if (hours_worked < 0) hours_worked += 24;
+  }
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO work_shifts (id, owner_id, date, start_time, end_time, hours_worked, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([id, userId, date, start_time, end_time || null, hours_worked, notes || null]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true, id, hours_worked });
+});
+
+app.put('/api/work-shifts/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { date, start_time, end_time, notes } = req.body;
+  
+  let hours_worked = null;
+  if (end_time) {
+    const start = new Date(`${date}T${start_time}`);
+    const end = new Date(`${date}T${end_time}`);
+    hours_worked = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    if (hours_worked < 0) hours_worked += 24;
+  }
+  
+  const stmt = db.prepare('UPDATE work_shifts SET date = ?, start_time = ?, end_time = ?, hours_worked = ?, notes = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([date, start_time, end_time || null, hours_worked, notes || null, id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/work-shifts/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM work_shifts WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/work-settings', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM work_settings WHERE owner_id = ?');
+  stmt.bind([userId]);
+  let settings = null;
+  if (stmt.step()) settings = stmt.getAsObject();
+  stmt.free();
+  
+  if (!settings) {
+    db.run('INSERT INTO work_settings (owner_id) VALUES (?)', [userId]);
+    saveDb();
+    const newStmt = db.prepare('SELECT * FROM work_settings WHERE owner_id = ?');
+    newStmt.bind([userId]);
+    if (newStmt.step()) settings = newStmt.getAsObject();
+    newStmt.free();
+  }
+  
+  res.json(settings);
+});
+
+app.put('/api/work-settings', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { daily_target_hours, work_days, alert_on_overtime } = req.body;
+  
+  db.run('UPDATE work_settings SET daily_target_hours = ?, work_days = ?, alert_on_overtime = ?, updated_at = CURRENT_TIMESTAMP WHERE owner_id = ?', 
+    [daily_target_hours || 2, work_days || '1,2,3,4,5', alert_on_overtime !== false ? 1 : 0, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/work-hours/summary', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { startDate, endDate } = req.query;
+  
+  const stmt = db.prepare('SELECT date, SUM(hours_worked) as total_hours FROM work_shifts WHERE owner_id = ? AND date >= ? AND date <= ? GROUP BY date ORDER BY date DESC');
+  stmt.bind([userId, startDate || '2020-01-01', endDate || '2030-12-31']);
+  const summary = [];
+  while (stmt.step()) summary.push(stmt.getAsObject());
+  stmt.free();
+  res.json(summary);
 });
 
 app.get('/api/habits', (req, res) => {
@@ -3337,6 +4040,71 @@ app.get('/api/habits/logs', (req, res) => {
   res.json({ habits, logs: logsMap, date: notificationStart });
 });
 
+app.get('/api/home/maintenance', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM home_maintenance WHERE owner_id = ? ORDER BY name');
+  stmt.bind([userId]);
+  const tasks = [];
+  while (stmt.step()) tasks.push(stmt.getAsObject());
+  stmt.free();
+  res.json(tasks);
+});
+
+app.post('/api/home/maintenance', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, type, frequency_days, last_completed, estimated_cost, notes } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO home_maintenance (id, owner_id, name, type, frequency_days, last_completed, estimated_cost, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([id, userId, name, type || null, frequency_days || 365, last_completed || null, estimated_cost || null, notes || null]);
+  stmt.free();
+  saveDb();
+  res.json({ id, owner_id: userId, name, type, frequency_days, last_completed, estimated_cost, notes });
+});
+
+app.put('/api/home/maintenance/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, type, frequency_days, last_completed, estimated_cost, notes } = req.body;
+  
+  const stmt = db.prepare('UPDATE home_maintenance SET name = ?, type = ?, frequency_days = ?, last_completed = ?, estimated_cost = ?, notes = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, type || null, frequency_days || 365, last_completed || null, estimated_cost || null, notes || null, id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/home/maintenance/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM home_maintenance WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.post('/api/home/maintenance/:id/complete', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { last_completed } = req.body;
+  
+  const stmt = db.prepare('UPDATE home_maintenance SET last_completed = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([last_completed, id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
 app.post('/api/habits/:id/log', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -3425,6 +4193,182 @@ app.delete('/api/habit-categories/:id', (req, res) => {
   
   db.run('UPDATE habits SET category_id = NULL WHERE category_id = ? AND owner_id = ?', [id, userId]);
   db.run('DELETE FROM habit_categories WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/home/categories', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM home_inventory_categories WHERE owner_id = ? ORDER BY name');
+  stmt.bind([userId]);
+  const categories = [];
+  while (stmt.step()) categories.push(stmt.getAsObject());
+  stmt.free();
+  res.json(categories);
+});
+
+app.post('/api/home/categories', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { name, icon, color } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const stmt = db.prepare('INSERT INTO home_inventory_categories (owner_id, name, icon, color) VALUES (?, ?, ?, ?)');
+  stmt.run([userId, name, icon || 'package', color || '#3b82f6']);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.put('/api/home/categories/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { name, icon, color } = req.body;
+  
+  const stmt = db.prepare('UPDATE home_inventory_categories SET name = ?, icon = ?, color = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, icon || 'package', color || '#3b82f6', id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/home/categories/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  
+  db.run('UPDATE home_inventory SET category_id = NULL WHERE category_id = ? AND owner_id = ?', [id, userId]);
+  db.run('DELETE FROM home_inventory_categories WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/home/appliances', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare(`
+    SELECT hi.id, hi.name, hi.category_id, hic.name as category, hic.icon as category_icon, hic.color as category_color,
+           hi.purchase_date, hi.warranty_end_date, hi.manual_url, hi.notes, hi.image_url, hi.created_at
+    FROM home_inventory hi
+    LEFT JOIN home_inventory_categories hic ON hi.category_id = hic.id
+    WHERE hi.owner_id = ?
+    ORDER BY hi.name
+  `);
+  stmt.bind([userId]);
+  const items = [];
+  while (stmt.step()) items.push(stmt.getAsObject());
+  stmt.free();
+  res.json(items);
+});
+
+app.post('/api/home/appliances', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id, name, category_id, purchase_date, warranty_end_date, manual_url, notes, image_url } = req.body;
+  if (!id || !name) return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  
+  const stmt = db.prepare(`
+    INSERT INTO home_inventory (id, owner_id, name, category_id, purchase_date, warranty_end_date, manual_url, notes, image_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  stmt.run([id, userId, name, category_id || null, purchase_date || null, warranty_end_date || null, manual_url || null, notes || null, image_url || null]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.put('/api/home/appliances/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, category_id, purchase_date, warranty_end_date, manual_url, notes, image_url } = req.body;
+  
+  const stmt = db.prepare(`
+    UPDATE home_inventory 
+    SET name = ?, category_id = ?, purchase_date = ?, warranty_end_date = ?, manual_url = ?, notes = ?, image_url = ?
+    WHERE id = ? AND owner_id = ?
+  `);
+  stmt.run([name, category_id || null, purchase_date || null, warranty_end_date || null, manual_url || null, notes || null, image_url || null, id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/home/appliances/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM home_inventory WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/home/subscriptions', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM subscriptions WHERE owner_id = ? ORDER BY name');
+  stmt.bind([userId]);
+  const subscriptions = [];
+  while (stmt.step()) {
+    const sub = stmt.getAsObject();
+    subscriptions.push(sub);
+  }
+  stmt.free();
+  res.json(subscriptions);
+});
+
+app.post('/api/home/subscriptions', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, category, customCategory, amount, billing_cycle, next_billing_date, auto_renew, notes } = req.body;
+  const id = crypto.randomUUID();
+  
+  try {
+    const stmt = db.prepare('INSERT INTO subscriptions (id, owner_id, name, category, custom_category, amount, billing_cycle, next_billing_date, auto_renew, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run([id, userId, name, category || 'otro', customCategory || null, amount || 0, billing_cycle || 'mensual', next_billing_date || null, auto_renew ? 1 : 0, notes || null]);
+    stmt.free();
+    saveDb();
+    res.json({ id, success: true });
+  } catch (error) {
+    console.error('Error creating subscription:', error);
+    res.status(500).json({ error: 'Error creando suscripción' });
+  }
+});
+
+app.put('/api/home/subscriptions/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, category, customCategory, amount, billing_cycle, next_billing_date, auto_renew, notes } = req.body;
+  
+  try {
+    const stmt = db.prepare('UPDATE subscriptions SET name = ?, category = ?, custom_category = ?, amount = ?, billing_cycle = ?, next_billing_date = ?, auto_renew = ?, notes = ? WHERE id = ? AND owner_id = ?');
+    stmt.run([name, category || 'otro', customCategory || null, amount || 0, billing_cycle || 'mensual', next_billing_date || null, auto_renew ? 1 : 0, notes || null, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating subscription:', error);
+    res.status(500).json({ error: 'Error actualizando suscripción' });
+  }
+});
+
+app.delete('/api/home/subscriptions/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM subscriptions WHERE id = ? AND owner_id = ?', [id, userId]);
   saveDb();
   res.json({ success: true });
 });
@@ -5135,6 +6079,16 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     
     eventsHtml += '</div>';
 
+    const eventsText = events.map(e => {
+      const dayName = new Date(e.date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+      const time = e.start_time ? e.start_time + (e.end_time ? ' - ' + e.end_time : '') : 'Todo el día';
+      const type = e.type ? `[${e.type}] ` : '';
+      const location = e.location ? ` 📍 ${e.location}` : '';
+      return `📅 ${dayName}\n  🕐 ${time}\n  ${type}${e.title}${location}`;
+    }).join('\n\n');
+
+    textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\nTienes ${events.length} plan${events.length > 1 ? 'es' : ''} para los próximos 7 días (${dateRangeStr}):\n\n${eventsText}\n${tasksText ? '\n\n' + tasksText : ''}${budgetsText ? '\n\n' + budgetsText : ''}${mealPlansText ? '\n\n' + mealPlansText : ''}${birthdaysText ? '\n\n' + birthdaysText : ''}\n\n¡Que tengas un buen día!\n\nCon cariño,\nFamily Agent 💕`;
+
     htmlContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -5365,7 +6319,7 @@ async function sendUserNotification(userId) {
     const accessibleEventIds = getAccessibleUserIds(userId, 'share_agenda');
     const eventPlaceholders = accessibleEventIds.map(() => '?').join(',');
     const eventsStmt = db.prepare(`SELECT * FROM family_events WHERE owner_id IN (${eventPlaceholders}) AND ((date >= ? AND date <= ?) OR recurrence = ? OR (end_date >= ? AND end_date <= ?) OR (date <= ? AND end_date >= ?)) ORDER BY date ASC, start_time ASC`);
-    eventsStmt.bind([...accessibleEventIds, notificationStartStr, nextWeekStr, 'weekly', notificationStartStr, nextWeekStr, nextWeekStr, tomorrowStr]);
+    eventsStmt.bind([...accessibleEventIds, notificationStartStr, nextWeekStr, 'weekly', notificationStartStr, nextWeekStr, nextWeekStr, notificationStartStr]);
     const events = [];
     while (eventsStmt.step()) {
       events.push(eventsStmt.getAsObject());
@@ -6639,6 +7593,119 @@ app.delete('/api/gifts/:id', (req, res) => {
     console.error('Error deleting gift:', error);
     res.status(500).json({ error: 'Error eliminando regalo' });
   }
+});
+
+app.get('/api/family/pets', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_pet_tracker');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  const stmt = db.prepare(`SELECT * FROM pet_tracker WHERE owner_id IN (${placeholders}) ORDER BY name`);
+  stmt.bind(accessibleIds);
+  const pets = [];
+  while (stmt.step()) pets.push(stmt.getAsObject());
+  stmt.free();
+  res.json(pets);
+});
+
+app.post('/api/family/pets', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, species, breed, birth_date, weight, microchip, photo_url } = req.body;
+  if (!name || !species) return res.status(400).json({ error: 'Nombre y especie son obligatorios' });
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO pet_tracker (id, owner_id, name, species, breed, birth_date, weight, microchip, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([id, userId, name, species, breed || null, birth_date || null, weight || null, microchip || null, photo_url || null]);
+  stmt.free();
+  saveDb();
+  res.json({ id, success: true });
+});
+
+app.put('/api/family/pets/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, species, breed, birth_date, weight, microchip, photo_url } = req.body;
+  
+  const stmt = db.prepare('UPDATE pet_tracker SET name = ?, species = ?, breed = ?, birth_date = ?, weight = ?, microchip = ?, photo_url = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, species, breed || null, birth_date || null, weight || null, microchip || null, photo_url || null, id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/family/pets/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM pet_vaccines WHERE pet_id = ?', [id]);
+  db.run('DELETE FROM pet_medications WHERE pet_id = ?', [id]);
+  db.run('DELETE FROM pet_tracker WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/family/pets/vaccines', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT pv.* FROM pet_vaccines pv JOIN pet_tracker p ON pv.pet_id = p.id WHERE p.owner_id = ? ORDER BY pv.date_given DESC');
+  stmt.bind([userId]);
+  const vaccines = [];
+  while (stmt.step()) vaccines.push(stmt.getAsObject());
+  stmt.free();
+  res.json(vaccines);
+});
+
+app.post('/api/family/pets/vaccines', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { pet_id, name, date_given, next_due, veterinarian, notes } = req.body;
+  if (!pet_id || !name) return res.status(400).json({ error: 'Mascota y nombre son obligatorios' });
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO pet_vaccines (id, owner_id, pet_id, name, date_given, next_due, veterinarian, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([id, userId, pet_id, name, date_given || null, next_due || null, veterinarian || null, notes || null]);
+  stmt.free();
+  saveDb();
+  res.json({ id, success: true });
+});
+
+app.get('/api/family/pets/medications', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT pm.* FROM pet_medications pm JOIN pet_tracker p ON pm.pet_id = p.id WHERE p.owner_id = ? ORDER BY pm.start_date DESC');
+  stmt.bind([userId]);
+  const medications = [];
+  while (stmt.step()) medications.push(stmt.getAsObject());
+  stmt.free();
+  res.json(medications);
+});
+
+app.post('/api/family/pets/medications', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { pet_id, name, dosage, frequency, start_date, end_date, notes } = req.body;
+  if (!pet_id || !name) return res.status(400).json({ error: 'Mascota y nombre son obligatorios' });
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO pet_medications (id, owner_id, pet_id, name, dosage, frequency, start_date, end_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([id, userId, pet_id, name, dosage || null, frequency || null, start_date || null, end_date || null, notes || null]);
+  stmt.free();
+  saveDb();
+  res.json({ id, success: true });
+});
+
+app.listen(PORT, () => {
+  console.log(`API server running on port ${PORT}`);
 });
 
 app.listen(PORT, () => {

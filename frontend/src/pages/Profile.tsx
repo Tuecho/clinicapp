@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X, Download, Upload, Settings, Calendar, Palette } from 'lucide-react';
+import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X, Download, Upload, Settings, Calendar, Palette, GripVertical } from 'lucide-react';
 import { NotificationSettings } from '../components/NotificationSettings';
 import { ImportDB } from '../components/ImportDB';
 import { useAuth } from '../components/Auth';
@@ -19,6 +19,7 @@ interface Profile {
   family_name: string;
   city: string | null;
   currency: string;
+  enabled_modules: string | null;
 }
 
 interface Invitation {
@@ -83,7 +84,8 @@ export function Profile() {
     birth_date: null,
     family_name: 'Mi Familia',
     city: null,
-    currency: 'EUR'
+    currency: 'EUR',
+    enabled_modules: null
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -666,6 +668,23 @@ export function Profile() {
           </div>
 
           <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center gap-2 mb-3 sm:mb-4">
+              <Settings size={18} className="text-primary" />
+              Módulos
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Activa los módulos que quieres usar y reordénalos.
+            </p>
+            <button
+              onClick={() => window.location.hash = 'modules'}
+              className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm"
+            >
+              <Settings size={16} />
+              Gestionar módulos
+            </button>
+          </div>
+
+          <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
             <div className="flex items-center justify-between mb-3 sm:mb-4">
               <h3 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center gap-2">
                 <Share2 size={18} className="text-primary" />
@@ -828,6 +847,16 @@ export function Profile() {
                       { key: 'share_books', label: 'Libros', color: 'indigo' },
                       { key: 'share_movies', label: 'Películas', color: 'purple' },
                       { key: 'share_habits', label: 'Hábitos', color: 'emerald' },
+                      { key: 'share_home_inventory', label: 'Inventario Hogar', color: 'slate' },
+                      { key: 'share_home_maintenance', label: 'Mantenimiento Hogar', color: 'orange' },
+                      { key: 'share_subscriptions', label: 'Suscripciones', color: 'violet' },
+                      { key: 'share_pet_tracker', label: 'Mascotas', color: 'amber' },
+                      { key: 'share_travel_manager', label: 'Viajes', color: 'sky' },
+                      { key: 'share_savings_goals', label: 'Ahorros', color: 'green' },
+                      { key: 'share_internal_debts', label: 'Deudas', color: 'red' },
+                      { key: 'share_utility_bills', label: 'Facturas', color: 'yellow' },
+                      { key: 'share_family_library', label: 'Biblioteca', color: 'indigo' },
+                      { key: 'share_extra_school', label: 'Extraescolares', color: 'pink' },
                     ].map((item) => (
                       <label key={item.key} className="flex items-center gap-3 cursor-pointer">
                         <input
