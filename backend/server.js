@@ -703,8 +703,8 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       owner_id INTEGER NOT NULL,
       date TEXT NOT NULL,
       start_time TEXT NOT NULL,
-      end_time TEXT NOT NULL,
-      hours_worked REAL NOT NULL,
+      end_time TEXT,
+      hours_worked REAL,
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
