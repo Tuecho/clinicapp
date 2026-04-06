@@ -698,6 +698,31 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
   try { db.run(`ALTER TABLE savings_goals ADD COLUMN pig_id TEXT`); } catch(e) {}
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS work_shifts (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      hours_worked REAL NOT NULL,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS work_settings (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL UNIQUE,
+      daily_target_hours REAL DEFAULT 8,
+      work_days TEXT DEFAULT '1,2,3,4,5',
+      alert_on_overtime INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS internal_debts (
       id TEXT PRIMARY KEY,
       owner_id INTEGER NOT NULL,
