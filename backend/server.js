@@ -4696,46 +4696,32 @@ app.post('/api/reset', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const tables = [
-    { name: 'transactions', ownerField: 'owner_id' },
-    { name: 'budgets', ownerField: 'owner_id' },
-    { name: 'family_events', ownerField: 'owner_id' },
-    { name: 'family_tasks', ownerField: 'owner_id' },
-    { name: 'family_notes', ownerField: 'owner_id' },
-    { name: 'family_members', ownerField: 'owner_id' },
-    { name: 'shopping_lists', ownerField: 'owner_id' },
-    { name: 'note_boards', ownerField: 'owner_id' },
-    { name: 'family_contacts', ownerField: 'owner_id' },
-    { name: 'family_gallery', ownerField: 'owner_id' },
-    { name: 'user_shares', ownerField: null, customWhere: 'owner_id = ? OR shared_with_id = ?' },
-    { name: 'invitations', ownerField: null, customWhere: 'from_user_id = ?' },
-    { name: 'favorite_restaurants', ownerField: 'owner_id' },
-    { name: 'books', ownerField: 'owner_id' },
-    { name: 'movies', ownerField: 'owner_id' },
-    { name: 'family_gifts', ownerField: 'owner_id' },
-    { name: 'recipes', ownerField: 'owner_id' },
-    { name: 'meal_plans', ownerField: 'owner_id' },
-    { name: 'birthdays', ownerField: 'owner_id' },
-    { name: 'notification_settings', ownerField: 'owner_id' },
-    { name: 'suggestions', ownerField: 'owner_id' },
-    { name: 'contact_messages', ownerField: 'owner_id' },
-    { name: 'sales_contacts', ownerField: 'owner_id' }
-  ];
+  const tablesToKeep = ['auth_user', 'user_profile'];
+  const tablesToDelete = ALL_TABLES.filter(t => !tablesToKeep.includes(t));
+  
+  const customDeleteQueries = {
+    'user_shares': 'owner_id = ? OR shared_with_id = ?',
+    'invitations': 'from_user_id = ?'
+  };
   
   try {
-    for (const table of tables) {
+    for (const table of tablesToDelete) {
       try {
-        if (table.customWhere) {
-          db.run(`DELETE FROM ${table.name} WHERE ${table.customWhere}`, [userId, userId]);
+        if (customDeleteQueries[table]) {
+          db.run(`DELETE FROM ${table} WHERE ${customDeleteQueries[table]}`, [userId, userId]);
+        } else if (table === 'pet_tracker') {
+          db.run(`DELETE FROM pet_medications WHERE pet_id IN (SELECT id FROM pet_tracker WHERE owner_id = ?)`);
+          db.run(`DELETE FROM pet_vaccines WHERE pet_id IN (SELECT id FROM pet_tracker WHERE owner_id = ?)`);
+          db.run(`DELETE FROM ${table} WHERE owner_id = ?`, [userId]);
         } else {
-          db.run(`DELETE FROM ${table.name} WHERE ${table.ownerField} = ?`, [userId]);
+          db.run(`DELETE FROM ${table} WHERE owner_id = ?`, [userId]);
         }
       } catch (e) {
-        console.warn(`Warning: Could not delete from ${table.name}:`, e.message);
+        console.warn(`Warning: Could not delete from ${table}:`, e.message);
       }
     }
     saveDb();
-    res.json({ success: true, message: 'Todos tus datos han sido eliminados' });
+    res.json({ success: true, message: 'Todos tus datos han sido eliminados (usuarios preservados)' });
   } catch (error) {
     console.error('Error resetting data:', error);
     res.status(500).json({ error: 'Error al resetear los datos: ' + error.message });
