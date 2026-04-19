@@ -873,7 +873,7 @@ export function ClientsModule() {
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <input
-                    type="date"
+                    type="date" lang="es"
                     placeholder="Fecha de nacimiento"
                     value={clientForm.birthdate || ''}
                     onChange={(e) => setClientForm({ ...clientForm, birthdate: e.target.value })}
@@ -1023,7 +1023,7 @@ export function ClientsModule() {
               <h2 className="text-2xl font-bold text-slate-900 mb-4">Registrar Nueva Visita</h2>
               <div className="space-y-3">
                 <input
-                  type="date"
+                  type="date" lang="es"
                   value={visitForm.visit_date || ''}
                   onChange={(e) => setVisitForm({ ...visitForm, visit_date: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1050,7 +1050,7 @@ export function ClientsModule() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <input
-                  type="date"
+                  type="date" lang="es"
                   placeholder="Fecha de seguimiento"
                   value={visitForm.follow_up_date || ''}
                   onChange={(e) => setVisitForm({ ...visitForm, follow_up_date: e.target.value })}
@@ -1101,7 +1101,7 @@ export function ClientsModule() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <input
-                  type="date"
+                  type="date" lang="es"
                   placeholder="Válido hasta"
                   value={consentForm.valid_until || ''}
                   onChange={(e) => setConsentForm({ ...consentForm, valid_until: e.target.value })}

@@ -5,7 +5,6 @@ import { getAuthHeaders } from '../utils/auth';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 const MODULE_LIST = [
-  { key: 'reports', label: 'Informes', icon: '📊' },
   { key: 'howitworks', label: 'Como funciona', icon: '📖' },
   { key: 'about', label: 'Acerca de', icon: 'ℹ️' },
   { key: 'terms', label: 'Terminos', icon: '📄' },

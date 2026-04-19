@@ -218,7 +218,7 @@ export function Birthdays() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de nacimiento</label>
                 <input
-                  type="date"
+                  type="date" lang="es"
                   value={form.birthdate}
                   onChange={(e) => setForm({ ...form, birthdate: e.target.value })}
                   className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent"

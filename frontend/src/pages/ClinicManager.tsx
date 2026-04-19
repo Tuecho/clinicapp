@@ -909,11 +909,11 @@ export function ClinicManager() {
                   <div className="flex gap-4 flex-wrap">
                     <div className="flex items-center gap-2">
                       <label className="text-sm text-slate-600">Desde:</label>
-                      <input type="date" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} className="border rounded px-2 py-1 text-sm" />
+                      <input type="date" lang="es" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} className="border rounded px-2 py-1 text-sm" />
                     </div>
                     <div className="flex items-center gap-2">
                       <label className="text-sm text-slate-600">Hasta:</label>
-                      <input type="date" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} className="border rounded px-2 py-1 text-sm" />
+                      <input type="date" lang="es" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} className="border rounded px-2 py-1 text-sm" />
                     </div>
                     <button onClick={loadData} className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700">Actualizar</button>
                   </div>
@@ -1058,7 +1058,7 @@ export function ClinicManager() {
                   <div><label className="text-xs text-slate-500 mb-1 block">Nombre completo *</label><input type="text" value={clientForm.name || ''} onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })} className="w-full border rounded px-3 py-2" /></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className="text-xs text-slate-500 mb-1 block">DNI/NIE</label><input type="text" value={clientForm.dni || ''} onChange={(e) => setClientForm({ ...clientForm, dni: e.target.value })} className="w-full border rounded px-3 py-2" /></div>
-                    <div><label className="text-xs text-slate-500 mb-1 block">F. Nacimiento</label><input type="date" value={clientForm.birthdate || ''} onChange={(e) => setClientForm({ ...clientForm, birthdate: e.target.value })} className="w-full border rounded px-3 py-2" /></div>
+                    <div><label className="text-xs text-slate-500 mb-1 block">F. Nacimiento</label><input type="date" lang="es" value={clientForm.birthdate || ''} onChange={(e) => setClientForm({ ...clientForm, birthdate: e.target.value })} className="w-full border rounded px-3 py-2" /></div>
                   </div>
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">Género</label>
@@ -1366,7 +1366,7 @@ export function ClinicManager() {
                 <option value="">Seleccionar Cliente</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              <input type="date" value={invoiceForm.date || ''} onChange={(e) => setInvoiceForm({ ...invoiceForm, date: e.target.value })} className="w-full border rounded px-3 py-2" />
+              <input type="date" lang="es" value={invoiceForm.date || ''} onChange={(e) => setInvoiceForm({ ...invoiceForm, date: e.target.value })} className="w-full border rounded px-3 py-2" />
               <select value={invoiceForm.status || 'pending'} onChange={(e) => setInvoiceForm({ ...invoiceForm, status: e.target.value as 'pending' | 'paid' | 'cancelled' })} className="w-full border rounded px-3 py-2">
                 <option value="pending">Pendiente</option>
                 <option value="paid">Pagada</option>
@@ -1423,7 +1423,7 @@ export function ClinicManager() {
                   {professionals.filter(p => !appointmentForm.service_id || !p.service_ids || p.service_ids.includes(appointmentForm.service_id)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               )}
-              <input type="date" value={appointmentForm.appointment_date || ''} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: e.target.value })} className="w-full border rounded px-3 py-2" />
+              <input type="date" lang="es" value={appointmentForm.appointment_date || ''} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: e.target.value })} className="w-full border rounded px-3 py-2" />
               <input type="time" value={appointmentForm.appointment_time || ''} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_time: e.target.value })} className="w-full border rounded px-3 py-2" />
               <input type="number" placeholder="Duración (min)" value={appointmentForm.duration_minutes || 60} onChange={(e) => setAppointmentForm({ ...appointmentForm, duration_minutes: parseInt(e.target.value) })} className="w-full border rounded px-3 py-2" />
               <input type="number" placeholder="Precio" step="0.01" value={appointmentForm.price || ''} onChange={(e) => setAppointmentForm({ ...appointmentForm, price: parseFloat(e.target.value) })} className="w-full border rounded px-3 py-2" />

@@ -304,7 +304,7 @@ export function HomeMaintenance() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Última vez completado</label>
                   <input
-                    type="date"
+                    type="date" lang="es"
                     value={formData.last_completed}
                     onChange={(e) => setFormData({ ...formData, last_completed: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"

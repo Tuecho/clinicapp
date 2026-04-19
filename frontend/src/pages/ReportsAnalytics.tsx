@@ -178,7 +178,7 @@ export function ReportsAnalytics() {
             <div className="flex gap-4 flex-1">
               <div className="flex-1">
                 <input
-                  type="date"
+                  type="date" lang="es"
                   value={dateRange.start}
                   onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-blue-500"
@@ -186,7 +186,7 @@ export function ReportsAnalytics() {
               </div>
               <div className="flex-1">
                 <input
-                  type="date"
+                  type="date" lang="es"
                   value={dateRange.end}
                   onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-blue-500"

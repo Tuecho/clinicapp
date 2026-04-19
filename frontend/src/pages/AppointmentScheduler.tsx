@@ -672,6 +672,7 @@ const handleStatusChange = async (aptId: string, newStatus: string) => {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
                 <input
                   type="date"
+                  lang="es"
                   value={blockForm.date}
                   onChange={(e) => setBlockForm({ ...blockForm, date: e.target.value })}
                   className="w-full border rounded px-3 py-2"

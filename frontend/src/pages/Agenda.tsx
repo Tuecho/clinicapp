@@ -721,6 +721,7 @@ export function Agenda() {
                   </label>
                   <input
                     type="date"
+                    lang="es"
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -733,6 +734,7 @@ export function Agenda() {
                   </label>
                   <input
                     type="date"
+                    lang="es"
                     value={formData.end_date}
                     onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -1011,6 +1013,7 @@ export function Agenda() {
                       </label>
                       <input
                         type="date"
+                        lang="es"
                         value={formData.recurrence_start_date}
                         onChange={(e) => setFormData({ ...formData, recurrence_start_date: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"

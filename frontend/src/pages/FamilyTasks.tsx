@@ -543,7 +543,7 @@ export function FamilyTasks() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fecha límite</label>
                   <input
-                    type="date"
+                    type="date" lang="es"
                     value={taskForm.due_date}
                     onChange={(e) => setTaskForm({ ...taskForm, due_date: e.target.value })}
                     className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"

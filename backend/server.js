@@ -22,7 +22,7 @@ webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_FILE = './family_agent.db';
+const DB_FILE = './clinic_data.db';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 
 const ALL_TABLES = [
@@ -1885,6 +1885,80 @@ app.put('/api/settings/login-image', (req, res) => {
     lockStmt.run(['loginShowLock', String(showLock)]);
     lockStmt.free();
   }
+  
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/settings/company-name', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT value FROM app_settings WHERE key = ?');
+  stmt.bind(['companyName']);
+  const result = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+  
+  res.json({ 
+    companyName: result?.value || 'Clínica Valencia'
+  });
+});
+
+app.put('/api/settings/company-name', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { username, password } = req.headers || {};
+  const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+  
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  
+  const { companyName } = req.body;
+  
+  const upsertStmt = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+  upsertStmt.run(['companyName', companyName || 'Clínica Valencia']);
+  upsertStmt.free();
+  
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/settings/global-modules', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT value FROM app_settings WHERE key = ?');
+  stmt.bind(['enabled_modules']);
+  const result = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+  
+  const enabledModules = result?.value ? result.value.split(',').filter(Boolean) : [];
+  res.json({ enabled_modules: enabledModules });
+});
+
+app.put('/api/settings/global-modules', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { username, password } = req.headers || {};
+  const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+  
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  
+  const { enabled_modules } = req.body;
+  const modulesValue = Array.isArray(enabled_modules) ? enabled_modules.join(',') : '';
+  
+  const upsertStmt = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+  upsertStmt.run(['enabled_modules', modulesValue]);
+  upsertStmt.free();
   
   saveDb();
   res.json({ success: true });
@@ -8593,8 +8667,7 @@ app.get('/api/clinic/packages', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const stmt = db.prepare('SELECT * FROM clinic_packages WHERE owner_id = ? ORDER BY created_at DESC');
-  stmt.bind([userId]);
+  const stmt = db.prepare('SELECT * FROM clinic_packages ORDER BY created_at DESC');
   const packages = [];
   while (stmt.step()) packages.push(stmt.getAsObject());
   stmt.free();
@@ -8605,6 +8678,7 @@ app.get('/api/clinic/packages', (req, res) => {
 app.post('/api/clinic/packages', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  if (!checkAdmin(req.headers)) return res.status(403).json({ error: 'Solo el administrador puede crear paquetes' });
   
   const { name, description, service_id, total_sessions, price, session_price } = req.body;
   if (!name || !service_id || !total_sessions || !price) {
@@ -8612,7 +8686,7 @@ app.post('/api/clinic/packages', (req, res) => {
   }
   
   const id = crypto.randomUUID();
-  const stmt = db.prepare('INSERT INTO clinic_packages (id, owner_id, name, description, service_id, total_sessions, price, session_price, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)');
+  const stmt = db.prepare('INSERT INTO clinic_packages (id, owner_id, name, description, service_id, total_sessions, price, session_price, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)');
   stmt.run([id, userId, name, description || null, service_id, total_sessions, price, session_price || (price / total_sessions)]);
   stmt.free();
   saveDb();
@@ -8623,12 +8697,13 @@ app.post('/api/clinic/packages', (req, res) => {
 app.put('/api/clinic/packages/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  if (!checkAdmin(req.headers)) return res.status(403).json({ error: 'Solo el administrador puede modificar paquetes' });
   
   const { id } = req.params;
   const { name, description, service_id, total_sessions, price, session_price, active } = req.body;
   
-  const stmt = db.prepare('UPDATE clinic_packages SET name = ?, description = ?, service_id = ?, total_sessions = ?, price = ?, session_price = ?, active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_id = ?');
-  stmt.run([name, description || null, service_id, total_sessions, price, session_price || (price / total_sessions), active !== undefined ? active : 1, id, userId]);
+  const stmt = db.prepare('UPDATE clinic_packages SET name = ?, description = ?, service_id = ?, total_sessions = ?, price = ?, session_price = ?, active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  stmt.run([name, description || null, service_id, total_sessions, price, session_price || (price / total_sessions), active !== undefined ? active : 1, id]);
   stmt.free();
   saveDb();
   res.json({ success: true });
@@ -8638,10 +8713,11 @@ app.put('/api/clinic/packages/:id', (req, res) => {
 app.delete('/api/clinic/packages/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  if (!checkAdmin(req.headers)) return res.status(403).json({ error: 'Solo el administrador puede eliminar paquetes' });
   
   const { id } = req.params;
-  db.run('DELETE FROM clinic_package_usage WHERE package_id = ? AND owner_id = ?', [id, userId]);
-  db.run('DELETE FROM clinic_packages WHERE id = ? AND owner_id = ?', [id, userId]);
+  db.run('DELETE FROM clinic_package_usage WHERE package_id = ?', [id]);
+  db.run('DELETE FROM clinic_packages WHERE id = ?', [id]);
   saveDb();
   res.json({ success: true });
 });
@@ -8651,8 +8727,7 @@ app.get('/api/clinic/packages/usage/all', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const stmt = db.prepare('SELECT * FROM clinic_package_usage WHERE owner_id = ? ORDER BY purchase_date DESC');
-  stmt.bind([userId]);
+  const stmt = db.prepare('SELECT * FROM clinic_package_usage ORDER BY purchase_date DESC');
   const usage = [];
   while (stmt.step()) usage.push(stmt.getAsObject());
   stmt.free();
@@ -8663,14 +8738,15 @@ app.get('/api/clinic/packages/usage/all', (req, res) => {
 app.post('/api/clinic/packages/usage/register', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  if (!checkAdmin(req.headers)) return res.status(403).json({ error: 'Solo el administrador puede registrar uso de paquetes' });
   
   const { client_id, package_id, sessions_consumed } = req.body;
   if (!client_id || !package_id) {
     return res.status(400).json({ error: 'Cliente y paquete son obligatorios' });
   }
   
-  const packageStmt = db.prepare('SELECT * FROM clinic_packages WHERE id = ? AND owner_id = ?');
-  packageStmt.bind([package_id, userId]);
+  const packageStmt = db.prepare('SELECT * FROM clinic_packages WHERE id = ?');
+  packageStmt.bind([package_id]);
   let packageData = null;
   if (packageStmt.step()) packageData = packageStmt.getAsObject();
   packageStmt.free();
@@ -8685,7 +8761,7 @@ app.post('/api/clinic/packages/usage/register', (req, res) => {
   const id = crypto.randomUUID();
   const stmt = db.prepare('INSERT INTO clinic_package_usage (id, owner_id, client_id, package_id, sessions_consumed, sessions_remaining, status, purchase_date) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)');
   stmt.run([id, userId, client_id, package_id, sessions_consumed || 0, sessionsRemaining, status]);
-  stmt.free();
+stmt.free();
   saveDb();
   res.json({ id, success: true });
 });
@@ -8694,12 +8770,13 @@ app.post('/api/clinic/packages/usage/register', (req, res) => {
 app.put('/api/clinic/packages/usage/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  if (!checkAdmin(req.headers)) return res.status(403).json({ error: 'Solo el administrador puede modificar uso de paquetes' });
   
   const { id } = req.params;
   const { client_id, package_id, sessions_consumed } = req.body;
   
-  const usageStmt = db.prepare('SELECT * FROM clinic_package_usage WHERE id = ? AND owner_id = ?');
-  usageStmt.bind([id, userId]);
+  const usageStmt = db.prepare('SELECT * FROM clinic_package_usage WHERE id = ?');
+  usageStmt.bind([id]);
   let usageData = null;
   if (usageStmt.step()) usageData = usageStmt.getAsObject();
   usageStmt.free();
@@ -8709,31 +8786,22 @@ app.put('/api/clinic/packages/usage/:id', (req, res) => {
   }
   
   let totalSessions = 0;
-  if (package_id && package_id !== usageData.package_id) {
-    const packageStmt = db.prepare('SELECT total_sessions FROM clinic_packages WHERE id = ? AND owner_id = ?');
-    packageStmt.bind([package_id, userId]);
-    if (packageStmt.step()) {
-      const pkg = packageStmt.getAsObject();
-      totalSessions = pkg.total_sessions || 0;
-    }
-    packageStmt.free();
-  } else {
-    const packageStmt = db.prepare('SELECT total_sessions FROM clinic_packages WHERE id = ? AND owner_id = ?');
-    packageStmt.bind([usageData.package_id, userId]);
-    if (packageStmt.step()) {
-      const pkg = packageStmt.getAsObject();
-      totalSessions = pkg.total_sessions || 0;
-    }
-    packageStmt.free();
+  const targetPackageId = package_id || usageData.package_id;
+  const packageStmt = db.prepare('SELECT total_sessions FROM clinic_packages WHERE id = ?');
+  packageStmt.bind([targetPackageId]);
+  if (packageStmt.step()) {
+    const pkg = packageStmt.getAsObject();
+    totalSessions = pkg.total_sessions || 0;
   }
+  packageStmt.free();
   
   const finalPackageId = package_id || usageData.package_id;
   const finalSessionsConsumed = sessions_consumed !== undefined ? sessions_consumed : usageData.sessions_consumed;
   const sessionsRemaining = totalSessions - finalSessionsConsumed;
   const status = sessionsRemaining <= 0 ? 'completed' : 'active';
   
-  const stmt = db.prepare('UPDATE clinic_package_usage SET client_id = ?, package_id = ?, sessions_consumed = ?, sessions_remaining = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_id = ?');
-  stmt.run([client_id || usageData.client_id, finalPackageId, finalSessionsConsumed, sessionsRemaining, status, id, userId]);
+  const stmt = db.prepare('UPDATE clinic_package_usage SET client_id = ?, package_id = ?, sessions_consumed = ?, sessions_remaining = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  stmt.run([client_id || usageData.client_id, finalPackageId, finalSessionsConsumed, sessionsRemaining, status, id]);
   stmt.free();
   saveDb();
   res.json({ success: true });
@@ -8756,8 +8824,7 @@ app.get('/api/clinic/clients', async (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   try {
-    const stmt = db.prepare('SELECT * FROM clinic_clients WHERE owner_id = ? ORDER BY name');
-    stmt.bind([userId]);
+    const stmt = db.prepare('SELECT * FROM clinic_clients ORDER BY name');
     const clients = [];
     while (stmt.step()) clients.push(stmt.getAsObject());
     stmt.free();
@@ -9087,9 +9154,8 @@ app.get('/api/clinic/budgets', async (req, res) => {
       SELECT b.*, c.name as client_name 
       FROM clinic_budgets b
       JOIN clinic_clients c ON b.client_id = c.id
-      WHERE b.owner_id = ? ORDER BY b.created_at DESC
+      ORDER BY b.created_at DESC
     `);
-    stmt.bind([userId]);
     const budgets = [];
     while (stmt.step()) {
       const budget = stmt.getAsObject();

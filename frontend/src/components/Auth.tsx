@@ -4,7 +4,7 @@ import { useCompany } from '../i18n/CompanyContext';
 
 const STORAGE_KEY = 'clinica_auth';
 const API_URL = import.meta.env.VITE_API_URL || '';
-const INACTIVITY_TIMEOUT = 2 * 60 * 60 * 1000;
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
 
 interface AuthUser {
   id: number;

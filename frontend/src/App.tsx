@@ -145,7 +145,6 @@ function AppContent() {
           {activePage === 'home_maintenance' && <HomeMaintenance />}
           {activePage === 'utility_bills' && <UtilityBills />}
           {activePage === 'modules' && <ModuleManager />}
-          {activePage === 'clinic' && <ClinicManager />}
           {activePage === 'reports' && <ReportsAnalytics />}
         </div>
       </main>

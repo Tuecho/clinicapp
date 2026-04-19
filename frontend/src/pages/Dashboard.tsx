@@ -528,6 +528,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [todayPlans, setTodayPlans] = useState<any[]>([]);
   const [tomorrowPlans, setTomorrowPlans] = useState<any[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
+  const [todayClinicAppointments, setTodayClinicAppointments] = useState<any[]>([]);
+  const [tomorrowClinicAppointments, setTomorrowClinicAppointments] = useState<any[]>([]);
+  const [clinicAppointmentsLoading, setClinicAppointmentsLoading] = useState(false);
   const [monthBirthdays, setMonthBirthdays] = useState<any[]>([]);
   const [birthdaysLoading, setBirthdaysLoading] = useState(false);
   const [showFinancialData, setShowFinancialData] = useState(() => {
@@ -627,6 +630,24 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         setBirthdaysLoading(false);
       })
       .catch(() => setBirthdaysLoading(false));
+
+    fetch(`${API_URL}/api/clinic/appointments`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        const appointments = Array.isArray(data) ? data : [];
+        const todayStr = new Date().toISOString().split('T')[0];
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        
+        const todayClinic = appointments.filter((a: any) => a.appointment_date === todayStr);
+        const tomorrowClinic = appointments.filter((a: any) => a.appointment_date === tomorrowStr);
+        
+        setTodayClinicAppointments(todayClinic);
+        setTomorrowClinicAppointments(tomorrowClinic);
+        setClinicAppointmentsLoading(false);
+      })
+      .catch(() => setClinicAppointmentsLoading(false));
   }, []);
 
   const fetchProfile = async () => {
@@ -863,85 +884,123 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
-            <Calendar size={20} className="text-green-500" />
-            Citas para hoy ({currentDay} de {currentDayMonth})
-          </h3>
-          {plansLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
-            </div>
-          ) : todayPlans.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <span className="text-2xl">📅</span>
-              </div>
-              <p className="text-gray-500 text-sm font-medium">No hay citas para hoy</p>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {todayPlans.map((plan) => (
-                <div key={plan.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
-                  <div className={`w-2 h-2 rounded-full ${plan.type === 'work' ? 'bg-blue-500' : plan.type === 'family' ? 'bg-green-500' : 'bg-purple-500'}`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{plan.title}</p>
-                    {plan.start_time && (
-                      <p className="text-xs text-gray-400">
-                        {plan.start_time}{plan.end_time ? ` - ${plan.end_time}` : ''}
-                      </p>
-                    )}
+        {(() => {
+          const allTodayPlans = [
+            ...todayPlans.map(p => ({ ...p, source: 'agenda' })),
+            ...todayClinicAppointments.map(a => ({
+              id: `clinic-${a.id}`,
+              title: `${a.client_name} - ${a.service_name}`,
+              start_time: a.appointment_time,
+              end_time: null,
+              location: a.professional_id || null,
+              type: 'clinic'
+            }))
+          ].sort((a, b) => {
+            if (!a.start_time) return 1;
+            if (!b.start_time) return -1;
+            return a.start_time.localeCompare(b.start_time);
+          });
+          
+          const allTomorrowPlans = [
+            ...tomorrowPlans.map(p => ({ ...p, source: 'agenda' })),
+            ...tomorrowClinicAppointments.map(a => ({
+              id: `clinic-${a.id}`,
+              title: `${a.client_name} - ${a.service_name}`,
+              start_time: a.appointment_time,
+              end_time: null,
+              location: a.professional_id || null,
+              type: 'clinic'
+            }))
+          ].sort((a, b) => {
+            if (!a.start_time) return 1;
+            if (!b.start_time) return -1;
+            return a.start_time.localeCompare(b.start_time);
+          });
+
+          return (
+            <>
+              <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+                <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Calendar size={20} className="text-green-500" />
+                  Citas para hoy ({currentDay} de {currentDayMonth})
+                </h3>
+                {(plansLoading || clinicAppointmentsLoading) ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="animate-spin text-gray-400" size={24} />
                   </div>
-                  {plan.location && (
-                    <span className="text-xs text-gray-400 truncate max-w-[100px]">{plan.location}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {todayPlans.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{todayPlans.length} cita{ todayPlans.length !== 1 ? 's' : ''} para hoy</p>
-          )}
-        </div>
+                ) : allTodayPlans.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                      <span className="text-2xl">📅</span>
+                    </div>
+                    <p className="text-gray-500 text-sm font-medium">No hay citas para hoy</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {allTodayPlans.map((plan) => (
+                      <div key={plan.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                        <div className={`w-2 h-2 rounded-full ${plan.type === 'clinic' ? 'bg-violet-500' : plan.type === 'work' ? 'bg-blue-500' : plan.type === 'family' ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{plan.title}</p>
+                          {plan.start_time && (
+                            <p className="text-xs text-gray-400">
+                              {plan.start_time}{plan.end_time ? ` - ${plan.end_time}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        {plan.type === 'clinic' && (
+                          <span className="text-xs bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full">Clínica</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {allTodayPlans.length > 0 && (
+                  <p className="text-xs text-gray-400 mt-2 text-center">{allTodayPlans.length} cita{ allTodayPlans.length !== 1 ? 's' : ''} para hoy</p>
+                )}
+              </div>
         
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
-            <Calendar size={20} className="text-purple-500" />
-            Citas para mañana ({tomorrowDayNum} de {tomorrowMonthStr})
-          </h3>
-          {plansLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
-            </div>
-          ) : tomorrowPlans.length === 0 ? (
-            <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">📅</span>
-              <p className="text-gray-500 text-sm">No hay citas para mañana</p>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {tomorrowPlans.map((plan) => (
-                <div key={plan.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
-                  <div className={`w-2 h-2 rounded-full ${plan.type === 'work' ? 'bg-blue-500' : plan.type === 'family' ? 'bg-green-500' : 'bg-purple-500'}`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{plan.title}</p>
-                    {plan.start_time && (
-                      <p className="text-xs text-gray-400">
-                        {plan.start_time}{plan.end_time ? ` - ${plan.end_time}` : ''}
-                      </p>
-                    )}
+                <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Calendar size={20} className="text-purple-500" />
+                  Citas para mañana ({tomorrowDayNum} de {tomorrowMonthStr})
+                </h3>
+                {(plansLoading || clinicAppointmentsLoading) ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="animate-spin text-gray-400" size={24} />
                   </div>
-                  {plan.location && (
-                    <span className="text-xs text-gray-400 truncate max-w-[100px]">{plan.location}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {tomorrowPlans.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{tomorrowPlans.length} cita{ tomorrowPlans.length !== 1 ? 's' : ''} para mañana</p>
-          )}
-        </div>
+                ) : allTomorrowPlans.length === 0 ? (
+                  <div className="text-center py-8">
+                    <span className="text-4xl mb-2 block">📅</span>
+                    <p className="text-gray-500 text-sm">No hay citas para mañana</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {allTomorrowPlans.map((plan) => (
+                      <div key={plan.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                        <div className={`w-2 h-2 rounded-full ${plan.type === 'clinic' ? 'bg-violet-500' : plan.type === 'work' ? 'bg-blue-500' : plan.type === 'family' ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{plan.title}</p>
+                          {plan.start_time && (
+                            <p className="text-xs text-gray-400">
+                              {plan.start_time}{plan.end_time ? ` - ${plan.end_time}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        {plan.type === 'clinic' && (
+                          <span className="text-xs bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full">Clínica</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {allTomorrowPlans.length > 0 && (
+                  <p className="text-xs text-gray-400 mt-2 text-center">{allTomorrowPlans.length} cita{ allTomorrowPlans.length !== 1 ? 's' : ''} para mañana</p>
+                )}
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">

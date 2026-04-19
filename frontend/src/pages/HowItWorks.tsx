@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Wallet, Target, Calendar, ShoppingCart, ListChecks, StickyNote, UtensilsCrossed, Bot, Users, Shield, Check, ChevronRight, HelpCircle, Plus, Edit2, Trash2, X } from 'lucide-react';
+import { Wallet, Target, Calendar, ShoppingCart, ListChecks, StickyNote, UtensilsCrossed, Bot, Users, Shield, Check, ChevronRight, HelpCircle, Plus, Edit2, Trash2, X, Package, Home, Receipt, BarChart3, Briefcase, Cake } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import { useAuth } from '../components/Auth';
 
@@ -8,41 +8,71 @@ const sections = [
     id: 'getting-started',
     title: 'Primeros pasos',
     icon: Users,
-    content: `Una vez iniciada la sesión, verás el panel principal. Desde el menú lateral puedes acceder a todas las funciones de la app. Lo primero que debes hacer es configurar tu perfil familiar en la sección "Mi perfil".`
+    content: `Bienvenido a Family Agent, tu asistente familiar. Desde el panel principal puedes acceder a todas las funcionalidades a través del menú lateral. Lo primero que debes hacer es configurar tu perfil y activar los módulos que quieras usar en "Módulos".`,
+    features: ['Panel principal personalizado', 'Menú lateral con todas las funciones', 'Configuración de perfil', 'Activar/desactivar módulos']
+  },
+  {
+    id: 'clinic',
+    title: 'Mi Clínica',
+    icon: Briefcase,
+    content: `Gestiona tu clínica o negocio profesional de forma integral.
+• Panel de control con estadísticas en tiempo real
+• Gestión de pacientes/clientes
+• Citas y horarios laborales
+• Historial de tratamientos
+• Notas y observaciones por cliente
+• Acceso multi-usuario para tu equipo`,
+    features: ['Dashboard con métricas', 'Gestión de pacientes', 'Citas y agenda', 'Historial clínico', 'Equipo de trabajo']
+  },
+  {
+    id: 'clinic_packages',
+    title: 'Bonos y Suscripciones',
+    icon: Package,
+    content: `Administra los bonos de sesiones y suscripciones de tus clientes.
+• Crea bonos con número de sesiones
+• Seguimiento de sesiones usadas
+• Caducidad configurable
+• Renovación automática de suscripciones
+• Notificaciones de proximidad a vencimiento
+• Historial completo por cliente`,
+    features: ['Bonos de sesiones', 'Suscripciones periódicas', 'Control de caducidad', 'Alertas automáticas']
   },
   {
     id: 'accounting',
     title: 'Contabilidad',
     icon: Wallet,
-    content: `La sección de contabilidad te permite registrar todos los gastos e ingresos familiares. 
-• Añade transacciones con categoría, fecha y descripción
-• Filtra por mes o busca por concepto
-• Importa datos desde Excel o CSV
-• Sube extractos bancarios en PDF para extraer automáticamente los datos
-• Visualiza gráficos de tus finanzas`,
-    features: ['Registro de gastos e ingresos', 'Categorías personalizables', 'Importar Excel/CSV', 'Extracción automática de PDFs', 'Gráficos y estadísticas']
+    content: `Controla todos los ingresos y gastos de tu hogar o negocio.
+• Registro de transacciones con categoría, fecha y descripción
+• Filtros por mes, año o busca por concepto
+• Importación de datos desde Excel o CSV
+• Extracción automática de PDFs bancarios
+• Gráficos y estadísticas visuales
+• Informes exportables`,
+    features: ['Registro de gastos e ingresos', 'Categorías personalizables', 'Importar Excel/CSV', 'Extracción de PDFs', 'Gráficos y estadísticas', 'Informes']
   },
   {
     id: 'budgets',
     title: 'Presupuestos',
     icon: Target,
-    content: `Crea presupuestos mensuales para diferentes categorías de gasto. 
+    content: `Planifica y controla tu finances con presupuestos mensuales.
 • Establece límites de gasto por categoría
-• Visualiza el progreso con barras de progreso
-• Recibe alertas cuando te acerques al límite
-• Presupuestos recurrentes que se renuevan automáticamente`,
-    features: ['Límites por categoría', 'Alertas de gasto', 'Presupuestos recurrentes', 'Seguimiento visual']
+• Barras de progreso visuales
+• Alertas cuando te acerques al límite
+• Presupuestos recurrentes que se renuevan automáticamente
+• Comparación con meses anteriores`,
+    features: ['Límites por categoría', 'Alertas de gasto', 'Presupuestos recurrentes', 'Seguimiento visual', 'Comparación mensual']
   },
   {
     id: 'agenda',
     title: 'Agenda',
     icon: Calendar,
-    content: `La agenda te ayuda a organizar eventos y recordatorios familiares.
+    content: `Organiza eventos, citas y recordatorios familiares o profesionales.
 • Crea eventos con fecha y hora
 • Eventos de varios días
 • Repetición: diario, semanal o mensual
-• Notificaciones para no olvidar nada importante`,
-    features: ['Eventos simples y recurrentes', 'Eventos de varios días', 'Notificaciones']
+• Notificaciones para no olvidar nada importante
+• Vinculación con citas de clínica`,
+    features: ['Eventos simples y recurrentes', 'Eventos de varios días', 'Notificaciones', 'Integración con citas']
   },
   {
     id: 'shopping',
@@ -50,23 +80,24 @@ const sections = [
     icon: ShoppingCart,
     content: `Gestiona las compras familiares de forma organizada.
 • Crea múltiples listas con nombre y color
-• Añade productos con cantidad y precio
+• Añade productos con cantidad y precio estimado
 • Marca productos como comprados
 • Comparte listas por WhatsApp, Telegram, email o redes sociales
-• Historial de precios`,
-    features: ['Múltiples listas', 'Compartir en redes', 'Historial de precios', 'Marca productos']
+• Historial de precios por producto
+• Crea listas desde productos frecuentes`,
+    features: ['Múltiples listas', 'Compartir en redes', 'Historial de precios', 'Marca productos', 'Productos frecuentes']
   },
   {
     id: 'tasks',
-    title: 'Tareas empresa',
+    title: 'Tareas',
     icon: ListChecks,
-    content: `Organiza las tareas del hogar asignando responsabilidades.
+    content: `Organiza las tareas del hogar o negocio asignando responsabilidades.
 • Crea tareas con prioridad (alta, media, baja)
-• Asigna tareas a miembros de la familia
+• Asigna tareas a miembros de la familia o equipo
 • Define fechas de vencimiento
 • Marca tareas como completadas
-• Tareas empresa compartidas`,
-    features: ['Prioridades', 'Asignación a miembros', 'Fechas límite', 'Seguimiento']
+• Tareas recurrentes`,
+    features: ['Prioridades', 'Asignación a miembros', 'Fechas límite', 'Seguimiento', 'Tareas recurrentes']
   },
   {
     id: 'notes',
@@ -74,21 +105,58 @@ const sections = [
     icon: StickyNote,
     content: `Apuntes rápidos y organizados para toda la familia.
 • Múltiples tableros de notas
-• Organiza por secciones
+• Organiza por secciones dentro de cada tablero
 • Edita y elimina notas fácilmente
+• Notas con formato básico
 • Acceso rápido desde el menú`,
-    features: ['Múltiples tableros', 'Secciones organizadas', 'Edición rápida']
+    features: ['Múltiples tableros', 'Secciones organizadas', 'Edición rápida', 'Formato básico']
   },
   {
-    id: 'restaurants',
-    title: 'Restaurantes',
-    icon: UtensilsCrossed,
-    content: `Guarda tus restaurantes favoritos y los de tu familia.
-• Añade restaurantes con nombre, dirección y valoración
-• Organiza por categorías
-• Comparte restaurantes con la familia
-• Busca rápidamente cuando busques dónde comer`,
-    features: ['Favoritos familiares', 'Valoraciones', 'Categorías']
+    id: 'birthdays',
+    title: 'Cumpleaños',
+    icon: Cake,
+    content: `No olvides los cumpleaños de tu familia y amigos.
+• Registro de birthdays con fecha
+• Notificaciones previas
+• Lista de upcoming birthdays
+• Integración con contactos`,
+    features: ['Registro de cumpleaños', 'Notificaciones', 'Vista previa']
+  },
+  {
+    id: 'home_maintenance',
+    title: 'Mantenimiento',
+    icon: Home,
+    content: `Gestiona el mantenimiento de tu hogar o propiedades.
+• Registro de electrodomésticos y sistemas
+• Fechas de mantenimiento preventivo
+• Historial de reparaciones
+• Recordatorios automáticos
+• Gastos asociados al mantenimiento`,
+    features: ['Registro de equipos', 'Mantenimiento preventivo', 'Historial de reparaciones', 'Gastos por equipo']
+  },
+  {
+    id: 'utility_bills',
+    title: 'Facturas',
+    icon: Receipt,
+    content: `Controla y organiza tus facturas de servicios.
+• Registro de facturas emitidas
+• Seguimiento de pagos
+• Recordatorios de vencimiento
+• Historial por proveedor
+• Estadísticas de gasto por servicio`,
+    features: ['Registro de facturas', 'Seguimiento de pagos', 'Historial por proveedor', 'Estadísticas']
+  },
+  {
+    id: 'reports',
+    title: 'Informes',
+    icon: BarChart3,
+    content: `Análisis y reportes de tu información.
+• Informes de contabilidad
+• Estadísticas de clínica
+• Gráficos interactivos
+• Exportación a Excel/PDF
+• Selección de período customizable`,
+    features: ['Informes contables', 'Estadísticas de cliente', 'Gráficos', 'Exportación']
   },
   {
     id: 'chat-ia',
@@ -98,20 +166,32 @@ const sections = [
 • Preguntas sobre gastos y presupuestos
 • Consejos de ahorro
 • Análisis de tus finanzas
-• Respuestas personalizadas`,
-    features: ['Asistente financiero', 'Consejos de ahorro', 'Análisis IA']
+• Respuestas personalizadas a tus dudas`,
+    features: ['Asistente financiero', 'Consejos de ahorro', 'Análisis IA', 'Respuestas personalizadas']
   },
   {
     id: 'profile',
     title: 'Perfil y familia',
     icon: Users,
-    content: `Configura tu perfil y gestiona tu familia.
+    content: `Configura tu perfil y gestiona tu familia o equipo.
 • Edita tu nombre y avatar
-• Establece el nombre de tu familia
+• Establece el nombre de tu familia o negocio
 • Configura la zona horaria
 • Gestiona la moneda
-• Configura notificaciones por email`,
-    features: ['Perfil personal', 'Nombre de familia', 'Zona horaria', 'Notificaciones']
+• Configura notificaciones por email
+• Gestiona miembros del grupo`,
+    features: ['Perfil personal', 'Nombre de familia/negocio', 'Zona horaria', 'Notificaciones', 'Gestión de miembros']
+  },
+  {
+    id: 'modules',
+    title: 'Módulos',
+    icon: Package,
+    content: `Personaliza tu experiencia activando los módulos que necesitas.
+• Activa o desactiva módulos
+• Reordena los módulos en el menú
+• Módulos disponibles: Contabilidad, Presupuestos, Agenda, Lista compra, Tareas, Notas, Cumpleaños, Mi Clínica, etc.
+• Los cambios se guardan automáticamente`,
+    features: ['Activar/desactivar módulos', 'Reordenar menú', 'Múltiples módulos disponibles', 'Guardado automático']
   },
   {
     id: 'admin',
@@ -119,11 +199,12 @@ const sections = [
     icon: Shield,
     content: `(Solo administradores) Panel de control completo.
 • Gestionar usuarios
-• Crear/borrar familias
+• Crear/borrar familias o empresas
 • Configuración global
 • Ver sugerencias de usuarios
-• Gestionar FAQs`,
-    features: ['Gestión de usuarios', 'Configuración global', 'FAQs', 'Sugerencias']
+• Gestionar FAQs
+• Estadísticas globales`,
+    features: ['Gestión de usuarios', 'Configuración global', 'FAQs', 'Sugerencias', 'Estadísticas']
   }
 ];
 
