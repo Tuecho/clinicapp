@@ -26,8 +26,14 @@ self.addEventListener('push', function(event) {
       ]
     };
     
+    // Use company name from data if provided, otherwise default
+    let title = data.title;
+    if (!title) {
+      title = data.companyName || 'Clínica Valencia';
+    }
+    
     event.waitUntil(
-      self.registration.showNotification(data.title || 'Family Agent', options)
+      self.registration.showNotification(title, options)
     );
   }
 });

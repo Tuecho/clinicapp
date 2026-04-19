@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, Circle, Trash2, Plus, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy, FacebookIcon, TwitterIcon, Edit2, X, User } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, Plus, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy, Edit2, X, User } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -31,7 +31,20 @@ export function FamilyTasks() {
   const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [userNames, setUserNames] = useState<Record<number, string>>({});
+  const [now, setNow] = useState(new Date());
   
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  useEffect(() => {
+    fetchTasks();
+    fetchSharedUsers();
+  }, []);
+
   const [taskForm, setTaskForm] = useState({
     title: '',
     description: '',
@@ -39,11 +52,6 @@ export function FamilyTasks() {
     priority: 'medium',
     assigned_to_id: ''
   });
-
-  useEffect(() => {
-    fetchTasks();
-    fetchSharedUsers();
-  }, []);
 
   const fetchSharedUsers = async () => {
     try {
@@ -55,25 +63,9 @@ export function FamilyTasks() {
       if (profileRes.ok) {
         const profile = await profileRes.json();
         if (profile.id) {
-          users.push({ id: profile.id, username: profile.name || 'Yo' });
-          names[profile.id] = profile.name || 'Yo';
+          users.push({ id: profile.id, username: profile.name || 'Usuario' });
+          names[profile.id] = profile.name || 'Usuario';
         }
-      }
-      
-      const response = await fetch(`${API_URL}/api/invitations`, { headers });
-      const data = await response.json();
-      
-      if (data.sharedWith) {
-        data.sharedWith.forEach((share: any) => {
-          users.push({ id: share.shared_with_id, username: share.username });
-          names[share.shared_with_id] = share.username;
-        });
-      }
-      if (data.sharedBy) {
-        data.sharedBy.forEach((share: any) => {
-          users.push({ id: share.owner_id, username: share.owner_username });
-          names[share.owner_id] = share.owner_username;
-        });
       }
       
       const membersRes = await fetch(`${API_URL}/api/family-members`, { headers });
@@ -257,8 +249,30 @@ export function FamilyTasks() {
     return dateStr < today;
   };
 
+  const getCountdown = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    const now = new Date();
+    const due = new Date(dateStr);
+    const diff = due.getTime() - now.getTime();
+    
+    if (diff < 0) return null;
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (days > 0) {
+      return { text: `${days}d`, days, hours, color: 'text-gray-500' };
+    } else if (hours > 0) {
+      return { text: `${hours}h`, days: 0, hours, color: 'text-orange-500' };
+    } else if (minutes > 0) {
+      return { text: `${minutes}m`, days: 0, hours: 0, color: 'text-red-500' };
+    }
+    return { text: 'Ahora', days: 0, hours: 0, color: 'text-red-600' };
+  };
+
   const generateTasksShareText = () => {
-    const header = '📋 *Tareas Familiares*\n\n';
+    const header = '📋 *Tareas Empresa*\n\n';
     const items = pendingFamilyTasks.map((task, i) => {
       const priority = task.priority !== 'normal' ? ` [${getPriorityLabel(task.priority)}]` : '';
       const date = task.due_date ? ` - ${formatDate(task.due_date)}` : '';
@@ -279,7 +293,7 @@ export function FamilyTasks() {
   };
 
   const shareTasksByEmail = () => {
-    const subject = encodeURIComponent('Tareas Familiares');
+    const subject = encodeURIComponent('Tareas Empresa');
     const body = encodeURIComponent(generateTasksShareText().replace(/[*_]/g, ''));
     window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
   };
@@ -290,16 +304,6 @@ export function FamilyTasks() {
     alert('¡Tareas copiadas al portapapeles!');
   };
 
-  const shareTasksToFacebook = () => {
-    const text = encodeURIComponent(generateTasksShareText());
-    window.open(`https://www.facebook.com/sharer/sharer.php?quote=${text}`, '_blank');
-  };
-
-  const shareTasksToX = () => {
-    const text = encodeURIComponent(generateTasksShareText());
-    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
-  };
-
   return (
     <div className="p-4 md:p-8 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-4">
@@ -308,7 +312,7 @@ export function FamilyTasks() {
             <ListTodo size={28} className="text-purple-600" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Tareas Familiares</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Tareas Empresa</h2>
             <p className="text-sm text-gray-500">
               {pendingFamilyTasks.length} tareas pendientes
             </p>
@@ -331,7 +335,7 @@ export function FamilyTasks() {
       ) : tasks.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-gray-200 shadow-sm">
           <div className="text-5xl mb-4">📋</div>
-          <p className="text-lg text-gray-600 font-medium">No hay tareas familiares</p>
+          <p className="text-lg text-gray-600 font-medium">No hay tareas empresa</p>
           <p className="text-sm text-gray-400 mt-1">Añade tareas como "Lavar la ropa", "Ir al médico"...</p>
         </div>
       ) : (
@@ -375,20 +379,6 @@ export function FamilyTasks() {
                   <Copy size={16} />
                   Copiar
                 </button>
-                <button
-                  onClick={shareTasksToFacebook}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  <FacebookIcon />
-                  Facebook
-                </button>
-                <button
-                  onClick={shareTasksToX}
-                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
-                >
-                  <TwitterIcon />
-                  X
-                </button>
               </div>
             </div>
           )}
@@ -425,6 +415,11 @@ export function FamilyTasks() {
                         <span className="flex items-center gap-1 ml-2 text-red-500">
                           <AlertCircle size={14} />
                           Atrasada
+                        </span>
+                      )}
+                      {!isOverdue(task.due_date) && getCountdown(task.due_date) && (
+                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 ${getCountdown(task.due_date)?.color}`}>
+                          ⏱ {getCountdown(task.due_date)?.text}
                         </span>
                       )}
                     </div>

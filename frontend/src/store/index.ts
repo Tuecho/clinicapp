@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { ExpenseConceptItem, Transaction } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
-const STORAGE_KEY = 'family_agent_auth';
+const STORAGE_KEY = 'clinica_auth';
 
 interface BudgetItem {
   id: string;

@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'family_agent_auth';
+const STORAGE_KEY = 'clinica_auth';
 
 export function getAuthHeaders(): Record<string, string> {
   const stored = localStorage.getItem(STORAGE_KEY);

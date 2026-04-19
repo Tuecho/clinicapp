@@ -22,3 +22,14 @@ export function formatTime24(timeHHMM?: string) {
   return `${h.toString().padStart(2, '0')}:${m}`;
 }
 
+export function formatDateEsLower(date: Date, options?: { day?: 'numeric' | '2-digit'; month?: 'numeric' | '2-digit' | 'long' | 'short'; year?: 'numeric' | '2-digit'; weekday?: 'long' | 'short' }) {
+  const localeOptions: Intl.DateTimeFormatOptions = {};
+  if (options?.day) localeOptions.day = options.day;
+  if (options?.month) localeOptions.month = options.month;
+  if (options?.year) localeOptions.year = options.year;
+  if (options?.weekday) localeOptions.weekday = options.weekday;
+
+  const str = date.toLocaleDateString('es-ES', localeOptions);
+  return str.replace(/\s+[A-Z]/g, (match) => match.toLowerCase());
+}
+

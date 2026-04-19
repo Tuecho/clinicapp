@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --color-primary: #4F46E5;
+  --color-primary: #6366F1;
   --color-income: #10B981;
   --color-expense: #EF4444;
   --color-background: #F6F4EF;
   --color-surface: #FFFFFF;
   --color-text: #1F2937;
-  --color-text-secondary: #6B7280;
-  --color-border: #E5E7EB;
+  --color-text-secondary: #4B5563;
+  --color-border: #D1D5DB;
 }
 
 [data-theme="ocean"] {
@@ -50,12 +50,88 @@
   html {
     font-size: 16px;
     -webkit-text-size-adjust: 100%;
+    height: 100%;
+    overflow-y: auto;
   }
   
   @media (max-width: 768px) {
     html {
       font-size: 14px;
     }
+  }
+  
+  /* Dark mode replacements using CSS variables */
+  .dark {
+    --color-background: #0F172A;
+    --color-surface: #1E293B;
+    --color-text: #F1F5F9;
+    --color-text-secondary: #94A3B8;
+    --color-border: #334155;
+  }
+  
+  /* Override bg-white when dark mode is active */
+  .dark .bg-white,
+  [data-theme="night"] .bg-white {
+    background-color: var(--color-surface) !important;
+    color: var(--color-text);
+  }
+  
+  .dark .text-slate-600,
+  .dark .text-slate-700,
+  .dark .text-slate-800,
+  [data-theme="night"] .text-slate-600,
+  [data-theme="night"] .text-slate-700,
+  [data-theme="night"] .text-slate-800 {
+    color: var(--color-text-secondary) !important;
+  }
+  
+  .dark .text-slate-900,
+  [data-theme="night"] .text-slate-900 {
+    color: var(--color-text) !important;
+  }
+  
+  .dark .border-slate-200,
+  .dark .border-gray-200,
+  [data-theme="night"] .border-slate-200,
+  [data-theme="night"] .border-gray-200 {
+    border-color: var(--color-border) !important;
+  }
+  
+  .dark .bg-slate-50,
+  .dark .bg-gray-50,
+  [data-theme="night"] .bg-slate-50,
+  [data-theme="night"] .bg-gray-50 {
+    background-color: #334155 !important;
+  }
+  
+  .dark .bg-slate-100,
+  .dark .bg-gray-100,
+  [data-theme="night"] .bg-slate-100,
+  [data-theme="night"] .bg-gray-100 {
+    background-color: #1E293B !important;
+  }
+  
+  .dark .hover\:bg-slate-100:hover,
+  .dark .hover\:bg-gray-100:hover,
+  [data-theme="night"] .hover\:bg-slate-100:hover,
+  [data-theme="night"] .hover\:bg-gray-100:hover {
+    background-color: #334155 !important;
+  }
+  
+  .dark input,
+  .dark select,
+  .dark textarea,
+  [data-theme="night"] input,
+  [data-theme="night"] select,
+  [data-theme="night"] textarea {
+    background-color: #1E293B !important;
+    color: #F1F5F9 !important;
+    border-color: #334155 !important;
+  }
+  
+  .dark .bg-gradient-to-br,
+  [data-theme="night"] .bg-gradient-to-br {
+    background: linear-gradient(to bottom right, #0F172A, #1E293B) !important;
   }
 }
 
@@ -64,6 +140,7 @@ body {
   color: var(--color-text);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-x: hidden;
+  min-height: 100vh;
 }
 
 @layer utilities {

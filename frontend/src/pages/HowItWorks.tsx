@@ -58,14 +58,14 @@ const sections = [
   },
   {
     id: 'tasks',
-    title: 'Tareas familiares',
+    title: 'Tareas empresa',
     icon: ListChecks,
     content: `Organiza las tareas del hogar asignando responsabilidades.
 • Crea tareas con prioridad (alta, media, baja)
 • Asigna tareas a miembros de la familia
 • Define fechas de vencimiento
 • Marca tareas como completadas
-• Tareas familiares compartidas`,
+• Tareas empresa compartidas`,
     features: ['Prioridades', 'Asignación a miembros', 'Fechas límite', 'Seguimiento']
   },
   {

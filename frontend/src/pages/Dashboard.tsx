@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home, ListChecks, Calendar, AlertCircle, Cake, Eye, EyeOff } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home, ListChecks, Calendar, AlertCircle, Cake, Eye, EyeOff, Briefcase, Building2, Award } from 'lucide-react';
 import { useStore } from '../store';
-import { formatMoneyEs } from '../utils/format';
+import { useCompany } from '../i18n/CompanyContext';
+import { formatMoneyEs, formatDateEsLower } from '../utils/format';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -49,8 +50,10 @@ function DonutChart({
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-3xl">📊</span>
-            <span className="text-sm text-gray-500">Sin datos</span>
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center mb-3">
+              <span className="text-2xl">📊</span>
+            </div>
+            <span className="text-sm text-gray-500 font-medium">Sin datos</span>
           </div>
         </div>
       </div>
@@ -268,8 +271,10 @@ function MonthlyChart({ data }: { data: { month: number; year: number; label: st
   if (data.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
-        <span className="text-4xl mb-2 block">📈</span>
-        <p>Sin datos históricos</p>
+        <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <span className="text-3xl">📈</span>
+        </div>
+        <p className="font-medium">Sin datos históricos</p>
       </div>
     );
   }
@@ -372,8 +377,10 @@ function MonthlyTrendCards({ data }: { data: { month: number; year: number; labe
   if (data.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 py-10 text-center text-slate-500">
-        <span className="mb-2 block text-4xl">Historial</span>
-        <p>Sin datos historicos</p>
+        <div className="w-16 h-16 bg-gradient-to-br from-slate-100 to-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+          <span className="text-2xl">📊</span>
+        </div>
+        <p className="font-medium">Sin datos históricos</p>
       </div>
     );
   }
@@ -496,6 +503,7 @@ function MonthlyTrendCards({ data }: { data: { month: number; year: number; labe
 }
 
 export function Dashboard({ onNavigate }: DashboardProps) {
+  const { companyName } = useCompany();
   const { 
     getTotals, 
     getMonthlyTransactions, 
@@ -511,7 +519,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     concepts 
   } = useStore();
   
-  const [profile, setProfile] = useState<Profile>({ family_name: 'Mi Familia', name: 'Usuario' });
+  const [profile, setProfile] = useState<Profile>({ family_name: companyName || 'Mi Empresa', name: 'Usuario' });
   const [currentMonthBudgets, setCurrentMonthBudgets] = useState<any[]>([]);
   const [weather, setWeather] = useState<{ city: string; temperature: number; apparentTemperature: number; description: string; isRainy: boolean; isSnowy: boolean } | null>(null);
   const [weatherError, setWeatherError] = useState<string | null>(null);
@@ -532,25 +540,21 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }, [showFinancialData]);
   
   const quotes = [
-    "PM es nuestro bebito.",
-    "Pm, tú y yo.",
-    "La familia es el corazón de la vida.",
-    "La familia es el corazón de la vida.",
-    "Cada día es una nueva oportunidad para estar juntos.",
-    "El amor familiar es el mayor tesoros.",
-    "Las pequeñas cosas de la vida son las mas importantes.",
-    "La felicidad es estar en familia.",
-    "Un hogar feliz es el mejor legado.",
-    "Si no puedes alabar cállate.",
-    "El tiempo en familia es tiempo bien invertido.",
-    "La familia es donde la vida comienza y el amor nunca termina.",
-    "Familia significa nadie se queda atras o olvidado.",
-    "La familia es lo primero.",
-    "Los momentos juntos son los mas Preciados.",
-    "Donde hay familia, hay amor.",
-    "Cuidar la familia es nuestra mayor responsabilidad.",
-    "La fuerza de una familia esta en el amor que se comparten.",
-    "Juntos somos mas fuertes."
+    "El éxito es la suma de pequeños esfuerzos repetidos cada día.",
+    "Cada cliente satisfecho es el mejor anuncio.",
+    "La calidad no es un acto, es un hábito.",
+    "El trabajo en equipo hace el sueño realidad.",
+    "La innovación distingue a los líderes.",
+    "Cliente feliz, negocio próspero.",
+    "El tiempo es tu activo más valioso.",
+    "Primero resuelve el problema, luego vende la solución.",
+    "El servicio excelente genera clientes fiéis.",
+    "Simplifica, optimiza, growing.",
+    "La excelencia es hacer lo común de manera extraordinaria.",
+    " cada paso cuenta, cada cliente importa.",
+    "Tu clínica, tu legado, tu éxito.",
+    "Cuidar bien a tus clientes es cuidar bien de tu negocio.",
+    "La satisfacción del cliente es tu mejor metric."
   ];
   
   const [dailyQuote] = useState(() => quotes[Math.floor(Math.random() * quotes.length)]);
@@ -594,7 +598,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   useEffect(() => {
     const today = new Date();
     const todayDay = today.getDate();
-    const todayMonth = today.toLocaleDateString('es-ES', { month: 'long' });
+    const todayMonth = formatDateEsLower(today, { month: 'long' });
     const todayStr = today.toISOString().split('T')[0];
     
     const tomorrow = new Date();
@@ -673,8 +677,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const isCurrentMonth = () => selectedMonth === today.getMonth() + 1 && selectedYear === today.getFullYear();
   
   const monthLabel = isCurrentMonth()
-    ? today.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }) + ' de ' + today.getFullYear()
-    : new Date(selectedYear, selectedMonth - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    ? formatDateEsLower(today, { day: 'numeric', month: 'long' }) + ' de ' + today.getFullYear()
+    : formatDateEsLower(new Date(selectedYear, selectedMonth - 1, 1), { month: 'long', year: 'numeric' });
 
   const changeMonth = (delta: number) => {
     const d = new Date(selectedYear, selectedMonth - 1, 1);
@@ -689,11 +693,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
-  const currentDayMonth = currentDate.toLocaleDateString('es-ES', { month: 'long' });
+  const currentDayMonth = formatDateEsLower(currentDate, { month: 'long' });
   const tomorrowDate = new Date();
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
   const tomorrowDayNum = tomorrowDate.getDate();
-  const tomorrowMonthStr = tomorrowDate.toLocaleDateString('es-ES', { month: 'long' });
+  const tomorrowMonthStr = formatDateEsLower(tomorrowDate, { month: 'long' });
 
   return (
     <div className="p-3 sm:p-4 md:p-8">
@@ -740,7 +744,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           >
             <ChevronLeft size={16} className="sm:w-[18px] sm:h-[18px]" />
           </button>
-          <span className="px-2 sm:px-4 py-2 font-semibold text-gray-700 capitalize min-w-[110px] sm:min-w-[140px] text-center text-sm sm:text-base">
+          <span className="px-2 sm:px-4 py-2 font-semibold text-gray-700 min-w-[110px] sm:min-w-[140px] text-center text-sm sm:text-base">
             {monthLabel}
           </span>
           <button
@@ -776,18 +780,33 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             "{dailyQuote}"
           </p>
         </div>
-        <div className="text-center py-4 sm:py-6 bg-gradient-to-r from-primary/10 via-pink-50 to-primary/10 rounded-xl sm:rounded-2xl">
-          <div className="inline-flex items-center gap-2 sm:gap-3">
-            <Heart className="text-pink-500 animate-pulse hidden sm:block" size={24} />
+        <div className="text-center py-4 sm:py-6 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-xl sm:rounded-2xl border border-gray-100 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-400/5 via-purple-400/5 to-pink-400/5"></div>
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-200/20 to-purple-200/20 rounded-full blur-2xl"></div>
+          <div className="absolute bottom-0 left-0 w-16 h-16 bg-gradient-to-tr from-pink-200/20 to-indigo-200/20 rounded-full blur-xl"></div>
+
+          <div className="relative inline-flex items-center gap-3 sm:gap-4">
             <div>
-              <h2 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-                🏠 {profile.family_name}
+              <h2 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                {profile.family_name}
               </h2>
-              <p className="text-gray-500 mt-1 text-xs sm:text-sm">
-                💰 Gestionando los asuntos familiares con <span className="font-semibold text-primary">Family Agent</span> 💖
+              <p className="text-gray-600 mt-1 text-sm sm:text-base flex items-center justify-center gap-2">
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                Gestionando los asuntos de <span className="font-semibold text-purple-600">{companyName}</span>
+                <span className="text-pink-500">✨</span>
               </p>
             </div>
-            <Heart className="text-pink-500 animate-pulse hidden sm:block" size={24} />
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="w-6 h-6 bg-white/60 rounded-full flex items-center justify-center">
+                <Briefcase className="w-3 h-3 text-blue-600" />
+              </div>
+              <div className="w-6 h-6 bg-white/60 rounded-full flex items-center justify-center">
+                <Building2 className="w-3 h-3 text-purple-600" />
+              </div>
+              <div className="w-6 h-6 bg-white/60 rounded-full flex items-center justify-center">
+                <Award className="w-3 h-3 text-pink-600" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -847,7 +866,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
             <Calendar size={20} className="text-green-500" />
-            Planes para hoy ({currentDay} de {currentDayMonth})
+            Citas para hoy ({currentDay} de {currentDayMonth})
           </h3>
           {plansLoading ? (
             <div className="flex justify-center py-8">
@@ -855,8 +874,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           ) : todayPlans.length === 0 ? (
             <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">📅</span>
-              <p className="text-gray-500 text-sm">No hay planes para hoy</p>
+              <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <span className="text-2xl">📅</span>
+              </div>
+              <p className="text-gray-500 text-sm font-medium">No hay citas para hoy</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -879,14 +900,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           )}
           {todayPlans.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{todayPlans.length} plan{ todayPlans.length !== 1 ? 'es' : ''} para hoy</p>
+            <p className="text-xs text-gray-400 mt-2 text-center">{todayPlans.length} cita{ todayPlans.length !== 1 ? 's' : ''} para hoy</p>
           )}
         </div>
         
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
             <Calendar size={20} className="text-purple-500" />
-            Planes para mañana ({tomorrowDayNum} de {tomorrowMonthStr})
+            Citas para mañana ({tomorrowDayNum} de {tomorrowMonthStr})
           </h3>
           {plansLoading ? (
             <div className="flex justify-center py-8">
@@ -895,7 +916,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           ) : tomorrowPlans.length === 0 ? (
             <div className="text-center py-8">
               <span className="text-4xl mb-2 block">📅</span>
-              <p className="text-gray-500 text-sm">No hay planes para mañana</p>
+              <p className="text-gray-500 text-sm">No hay citas para mañana</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -918,7 +939,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           )}
           {tomorrowPlans.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{tomorrowPlans.length} plan{ tomorrowPlans.length !== 1 ? 'es' : ''} para mañana</p>
+            <p className="text-xs text-gray-400 mt-2 text-center">{tomorrowPlans.length} cita{ tomorrowPlans.length !== 1 ? 's' : ''} para mañana</p>
           )}
         </div>
       </div>
@@ -948,7 +969,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     {task.due_date && (
                       <p className={`text-xs flex items-center gap-1 ${new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
                         <Calendar size={12} />
-                        {new Date(task.due_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                        {formatDateEsLower(new Date(task.due_date), { day: 'numeric', month: 'short' })}
                       </p>
                     )}
                   </div>
@@ -975,8 +996,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           ) : monthBirthdays.length === 0 ? (
             <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">🎂</span>
-              <p className="text-gray-500 text-sm">No hay cumpleaños este mes</p>
+              <div className="w-16 h-16 bg-gradient-to-br from-pink-100 to-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <span className="text-2xl">🎂</span>
+              </div>
+              <p className="text-gray-500 text-sm font-medium">No hay cumpleaños este mes</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -985,7 +1008,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <span className="text-2xl">🎂</span>
                   <div className="flex-1">
                     <p className="font-medium text-sm">{b.name}</p>
-                    <p className="text-xs text-gray-500">{b.day} de {new Date(b.birthdate).toLocaleDateString('es-ES', { month: 'long' })}</p>
+                    <p className="text-xs text-gray-500">{b.day} de {formatDateEsLower(new Date(b.birthdate), { month: 'long' })}</p>
                   </div>
                   <span className="text-xs bg-pink-200 text-pink-700 px-2 py-0.5 rounded-full">
                     {b.age} años
@@ -1007,8 +1030,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             
             {currentMonthBudgets.length === 0 ? (
               <div className="text-center py-8 sm:py-12">
-                <span className="text-4xl sm:text-5xl mb-4 block">🎯</span>
-                <p className="text-gray-500 mb-2 text-sm">No hay presupuestos establecidos</p>
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">🎯</span>
+                </div>
+                <p className="text-gray-500 mb-2 text-sm font-medium">No hay presupuestos establecidos</p>
                 <p className="text-xs sm:text-sm text-gray-400">Ve a Presupuestos para crear uno</p>
               </div>
             ) : (
@@ -1034,11 +1059,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div className="text-center text-gray-500 text-xs sm:text-sm">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Home size={14} className="text-primary" />
-            <span className="font-semibold text-gray-700">Family Agent</span>
+            <span className="font-semibold text-gray-700">{companyName}</span>
           </div>
-          <p className="mb-1">© {new Date().getFullYear()} Family Agent</p>
+          <p className="mb-1">© {new Date().getFullYear()} {companyName}</p>
           <p className="text-xs text-gray-400">
-            Hecho con <span className="text-red-500">❤</span> para las familias
+            Hecho con <span className="text-red-500">❤</span> para {companyName}
           </p>
         </div>
       </footer>

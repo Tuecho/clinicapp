@@ -1,59 +1,60 @@
 services:
-  frontend:
+  redis_clinic:
+    image: redis:7-alpine
+    container_name: redis_clinic
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - clinic-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  frontend_clinic:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: frontend
+    container_name: frontend_clinic
     ports:
-      - "5173:5173"
+      - "5174:5173"
     env_file:
       - .env
     networks:
-      - proxy-network
+      - clinic-network
     restart: unless-stopped
 
-  api:
+  api_clinic:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: api
+    container_name: api_clinic
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
-      # Mapeamos la carpeta completa para que los cambios en el código se vean al instante y use la BD local
       - ./backend:/app
-      # Volumen para persistencia de otros datos si fuera necesario
-      - api-db:/app/database 
+    environment:
+      - REDIS_HOST=redis_clinic
+      - REDIS_PORT=6379
+      - REDIS_ENABLED=true
     env_file:
       - .env
     networks:
-      - proxy-network
-    restart: unless-stopped
-
-  nginx-proxy-manager:
-    image: jc21/nginx-proxy-manager:latest
-    container_name: nginx-proxy-manager
-    ports:
-      - "80:80"
-      - "443:443"
-      - "81:81"
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Madrid
-    volumes:
-      - ./npm/data:/data
-      - ./npm/letsencrypt:/etc/letsencrypt
-    networks:
-      - proxy-network
+      - clinic-network
+    depends_on:
+      redis_clinic:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  api-db:
-  npm-data:
-  npm-letsencrypt:
+  redis-data:
 
 networks:
-  proxy-network:
-    name: proxy-network
+  clinic-network:
+    name: clinic-network
     external: false

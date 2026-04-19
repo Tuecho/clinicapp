@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://api:3000',
+        target: 'http://api_clinic:3000',
         changeOrigin: true,
         rewrite: (path) => path
       }

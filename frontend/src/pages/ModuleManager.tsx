@@ -5,7 +5,7 @@ import { getAuthHeaders } from '../utils/auth';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 const MODULE_LIST = [
-  { key: 'sales', label: 'Ventas', icon: '💵' },
+  { key: 'reports', label: 'Informes', icon: '📊' },
   { key: 'howitworks', label: 'Como funciona', icon: '📖' },
   { key: 'about', label: 'Acerca de', icon: 'ℹ️' },
   { key: 'terms', label: 'Terminos', icon: '📄' },
@@ -13,31 +13,19 @@ const MODULE_LIST = [
   { key: 'agenda', label: 'Agenda', icon: '📅' },
   { key: 'shopping', label: 'Lista Compra', icon: '🛒' },
   { key: 'tasks', label: 'Tareas', icon: '✅' },
-  { key: 'habits', label: 'Habitos', icon: '🎯' },
   { key: 'notes', label: 'Notas', icon: '📝' },
-  { key: 'meals', label: 'Comidas', icon: '🍽️' },
-  { key: 'books_movies', label: 'Libros y Peliculas', icon: '📚' },
-  { key: 'gifts', label: 'Regalos', icon: '🎁' },
-  { key: 'restaurants', label: 'Restaurantes', icon: '🍴' },
-  { key: 'contacts', label: 'Contactos', icon: '👥' },
-  { key: 'gallery', label: 'Galeria', icon: '🖼️' },
-  { key: 'chatbot', label: 'Chat IA', icon: '🤖' },
-  { key: 'home_inventory', label: 'Inventario Hogar', icon: '🏠' },
-  { key: 'home_maintenance', label: 'Mantenimiento', icon: '🔧' },
-  { key: 'subscriptions', label: 'Suscripciones', icon: '📺' },
-  { key: 'travel_manager', label: 'Viajes', icon: '✈️' },
-  { key: 'savings_goals', label: 'Ahorros', icon: '🐷' },
-  { key: 'internal_debts', label: 'Deudas', icon: '💳' },
-  { key: 'utility_bills', label: 'Facturas', icon: '⚡' },
-  { key: 'pet_tracker', label: 'Mascotas', icon: '🐕' },
-  { key: 'extra_school', label: 'Educacion', icon: '🎓' },
   { key: 'birthdays', label: 'Cumpleanos', icon: '🎂' },
+  { key: 'contacts', label: 'Contactos', icon: '👥' },
+  { key: 'chatbot', label: 'Chat IA', icon: '🤖' },
+  { key: 'clinic', label: 'Mi Clínica', icon: '🏥' },
+  { key: 'clinic_packages', label: 'Bonos y Suscripciones', icon: '🎁' },
+  { key: 'home_maintenance', label: 'Mantenimiento', icon: '🔧' },
+  { key: 'utility_bills', label: 'Facturas', icon: '⚡' },
   { key: 'accounting', label: 'Contabilidad', icon: '💰' },
   { key: 'budgets', label: 'Presupuestos', icon: '📊' },
-  { key: 'work_hours', label: 'Horas Trabajo', icon: '⏰' },
 ].sort((a, b) => a.label.localeCompare(b.label));
 
-const DEFAULT_MODULES = ['dashboard', 'agenda', 'accounting', 'birthdays', 'habits', 'shopping', 'notes', 'tasks'];
+const DEFAULT_MODULES = ['dashboard', 'agenda', 'accounting', 'birthdays', 'shopping', 'notes', 'tasks', 'clinic'];
 
 export function ModuleManager() {
   const [enabledModules, setEnabledModules] = useState<string[]>(DEFAULT_MODULES);
@@ -46,17 +34,21 @@ export function ModuleManager() {
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() })
-      .then(res => res.json())
-      .then(data => {
-        const saved = (data.enabled_modules || '').split(',').filter(Boolean);
+    const fetchData = async () => {
+      try {
+        const profileRes = await fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() });
+        const profileData = await profileRes.json();
+        
+        const saved = (profileData.enabled_modules || '').split(',').filter(Boolean);
         setEnabledModules(saved.length > 0 ? saved : DEFAULT_MODULES);
-        setLoading(false);
-      })
-      .catch(err => {
+      } catch (err) {
         console.error(err);
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+
+    fetchData();
   }, []);
 
   const toggleModule = async (moduleKey: string) => {
@@ -76,13 +68,17 @@ export function ModuleManager() {
   const saveModules = async (modules: string[]) => {
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/profile`, {
+      const response = await fetch(`${API_URL}/api/profile`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ enabled_modules: modules.join(',') })
       });
+      const data = await response.json();
       localStorage.setItem('profile_refresh', Date.now().toString());
       window.dispatchEvent(new Event('profile_updated'));
+      setTimeout(() => {
+        window.dispatchEvent(new Event('profile_updated'));
+      }, 500);
     } catch (error) {
       console.error('Error saving:', error);
     }
@@ -141,9 +137,11 @@ export function ModuleManager() {
   const enabledModuleData = enabledModules
     .filter(key => key !== 'dashboard')
     .map(key => MODULE_LIST.find(m => m.key === key))
-    .filter(Boolean);
+    .filter(Boolean as any);
 
-  const disabledModules = MODULE_LIST.filter(m => !enabledModules.includes(m.key));
+  const disabledModules = MODULE_LIST.filter(
+    m => !enabledModules.includes(m.key)
+  );
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
@@ -207,7 +205,7 @@ export function ModuleManager() {
           </div>
         </div>
 
-        <div>
+        <div className="mb-6">
           <h3 className="font-semibold text-gray-700 mb-2">Modulos disponibles</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {disabledModules.map((module) => {
@@ -237,6 +235,8 @@ export function ModuleManager() {
             })}
           </div>
         </div>
+
+        
 
         <div className="mt-6 pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-500 text-center">

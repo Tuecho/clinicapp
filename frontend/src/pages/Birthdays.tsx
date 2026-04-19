@@ -49,7 +49,10 @@ export function Birthdays() {
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.birthdate) return;
+    if (!form.name || !form.birthdate) {
+      alert('Por favor completa todos los campos');
+      return;
+    }
     
     try {
       if (editingId && editingSource === 'additional') {

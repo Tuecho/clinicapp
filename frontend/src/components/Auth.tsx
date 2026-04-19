@@ -1,9 +1,10 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode, useCallback, useRef } from 'react';
 import { Lock, Eye, EyeOff, User, UserPlus, X, Check, Clock, Shield, AlertCircle } from 'lucide-react';
+import { useCompany } from '../i18n/CompanyContext';
 
-const STORAGE_KEY = 'family_agent_auth';
+const STORAGE_KEY = 'clinica_auth';
 const API_URL = import.meta.env.VITE_API_URL || '';
-const INACTIVITY_TIMEOUT = 15 * 60 * 1000;
+const INACTIVITY_TIMEOUT = 2 * 60 * 60 * 1000;
 
 interface AuthUser {
   id: number;
@@ -48,6 +49,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   const [showLock, setShowLock] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetStep, setResetStep] = useState<'email' | 'code'>('email');
+  const { companyName } = useCompany();
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -227,345 +229,401 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-pink-500 to-indigo-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md p-5 sm:p-8">
-        <div className="text-center mb-8">
-          {loginImage ? (
-            <img 
-              src={loginImage} 
-              alt="Login" 
-              className="w-20 h-20 rounded-full object-cover mx-auto mb-4 shadow-lg"
-            />
-          ) : showLock ? (
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Lock className="text-primary" size={32} />
-            </div>
-          ) : (
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-3xl">🏠</span>
-            </div>
-          )}
-          <h1 className="text-2xl font-bold text-gray-800">Family Agent</h1>
-          <p className="text-gray-500 mt-2">
-            {showRegister ? 'Crea tu usuario' : 'Introduce tus credenciales'}
-          </p>
+    <div className="min-h-screen bg-gray-50 flex overflow-hidden font-sans">
+      {/* LEFT SECTION - Visible on md and up */}
+      <div className="hidden md:flex md:w-1/2 lg:w-3/5 bg-gradient-to-br from-indigo-600 via-purple-600 to-emerald-500 relative flex-col justify-between p-12 text-white overflow-hidden">
+        {/* Abstract Background Shapes */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+          <div className="absolute -top-24 -left-24 w-96 h-96 bg-white opacity-10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-1/4 -right-24 w-80 h-80 bg-emerald-400 opacity-20 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/4 w-72 h-72 bg-purple-400 opacity-20 rounded-full blur-2xl"></div>
         </div>
 
-        {success && (
-          <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm flex items-center gap-2">
-            <Check size={18} />
-            {success}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 bg-white/10 w-fit px-4 py-2 rounded-full backdrop-blur-md border border-white/20 shadow-lg">
+            {loginImage ? (
+              <img src={loginImage} alt="Logo" className="w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <Lock className="w-5 h-5 text-emerald-300" />
+            )}
+            <span className="font-semibold tracking-wide">{companyName}</span>
           </div>
-        )}
+        </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-            {error}
+        <div className="relative z-10 max-w-xl">
+          <h1 className="text-5xl lg:text-7xl font-bold leading-tight mb-6 tracking-tight">
+            Gestiona tu clínica con <span className="text-emerald-300">excelencia</span>.
+          </h1>
+          <p className="text-lg text-indigo-100 mb-8 leading-relaxed font-medium">
+            Una plataforma integral diseñada para optimizar tus citas, clientes y finanzas con una experiencia de uso inigualable.
+          </p>
+        </div>
+        
+        <div className="relative z-10 text-sm text-indigo-200 font-medium tracking-wide">
+          &copy; {new Date().getFullYear()} {companyName}. Todos los derechos reservados.
+        </div>
+      </div>
+
+      {/* RIGHT SECTION - Form */}
+      <div className="w-full md:w-1/2 lg:w-2/5 flex flex-col justify-center p-8 sm:p-12 lg:p-16 bg-white relative">
+        <div className="w-full max-w-md mx-auto relative z-10">
+          
+          {/* Mobile Header (Hidden on Desktop) */}
+          <div className="md:hidden text-center mb-8">
+            {loginImage ? (
+              <img src={loginImage} alt="Login" className="w-20 h-20 rounded-full object-cover mx-auto mb-4 shadow-xl ring-4 ring-indigo-50" />
+            ) : showLock ? (
+              <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl rotate-3">
+                <Lock className="text-white" size={28} />
+              </div>
+            ) : null}
+            <h2 className="text-2xl font-bold text-gray-900">{companyName}</h2>
           </div>
-        )}
 
-        {showRegister ? (
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Usuario
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="usuario"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <User size={18} />
-                </div>
-              </div>
+          <div className="mb-10 text-center md:text-left">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2 mt-2 tracking-tight">
+              {showRegister ? 'Crea tu cuenta' : showForgotPassword ? 'Recupera tu acceso' : 'Bienvenido de nuevo'}
+            </h2>
+            <p className="text-gray-500 font-medium">
+              {showRegister ? 'Ingresa tus datos para registrarte.' : showForgotPassword ? 'Sigue los pasos para restablecer.' : 'Introduce tus credenciales para acceder al sistema.'}
+            </p>
+          </div>
+
+          {success && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl text-sm flex items-start gap-3 shadow-sm font-medium">
+              <Check className="mt-0.5 shrink-0" size={18} />
+              <span>{success}</span>
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Contraseña
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => handlePasswordChange(e.target.value)}
-                  placeholder="••••••"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-              {showRegister && password && (
-                <div className="mt-2 text-xs space-y-1">
-                  {passwordErrors.map((err, i) => (
-                    <div key={i} className="flex items-center gap-1 text-red-500">
-                      <X size={12} />
-                      {err}
-                    </div>
-                  ))}
-                  {passwordErrors.length === 0 && (
-                    <div className="flex items-center gap-1 text-green-500">
-                      <Check size={12} />
-                      Contraseña segura
-                    </div>
-                  )}
-                </div>
-              )}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-700 rounded-xl text-sm flex items-start gap-3 shadow-sm font-medium">
+              <X className="mt-0.5 shrink-0" size={18} />
+              <span>{error}</span>
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Confirmar contraseña
-              </label>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium"
-            >
-              Crear usuario
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setShowRegister(false);
-                setError('');
-                setSuccess('');
-              }}
-              className="w-full text-gray-500 py-2 hover:text-gray-700 transition-colors text-sm"
-            >
-              Volver al login
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Usuario
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="usuario"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <User size={18} />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Contraseña
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium"
-            >
-              Entrar
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setShowRegister(true);
-                setError('');
-                setSuccess('');
-                setUsername('');
-                setPassword('');
-                setConfirmPassword('');
-              }}
-              className="w-full border border-primary text-primary py-3 rounded-lg hover:bg-primary/10 transition-colors font-medium flex items-center justify-center gap-2"
-            >
-              <UserPlus size={18} />
-              Crear nuevo usuario
-            </button>
-
-            {!showForgotPassword && (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForgotPassword(true);
-                  setError('');
-                  setSuccess('');
-                  setResetStep('email');
-                }}
-                className="w-full text-gray-500 py-2 hover:text-primary transition-colors text-sm"
-              >
-                ¿Olvidaste tu contraseña?
-              </button>
-            )}
-          </form>
-        )}
-
-        {showForgotPassword && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">Recuperar contraseña</h3>
-              <button
-                onClick={() => {
-                  setShowForgotPassword(false);
-                  setResetStep('email');
-                  setResetCode('');
-                  setNewPassword('');
-                  setConfirmNewPassword('');
-                  setResetError('');
-                  setResetSuccess('');
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {resetSuccess && (
-              <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm">
-                {resetSuccess}
-              </div>
-            )}
-
-            {resetError && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-                {resetError}
-              </div>
-            )}
-
-            {resetStep === 'email' ? (
-              <form onSubmit={handleForgotPassword} className="space-y-4">
-                <p className="text-sm text-gray-600">
-                  Introduce tu nombre de usuario. Si existe y tiene email configurado, recibirás un código de recuperación.
-                </p>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Usuario
-                  </label>
+          {/* REGISTER FORM */}
+          {showRegister ? (
+            <form onSubmit={handleRegister} className="space-y-5">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Usuario</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                    <User size={18} />
+                  </div>
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Tu usuario"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="Escribe tu usuario"
+                    className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 text-gray-900 placeholder-gray-400 rounded-xl transition-all duration-300 outline-none shadow-sm hover:bg-gray-100 focus:hover:bg-white font-medium"
                     required
                   />
                 </div>
-                <button
-                  type="submit"
-                  disabled={resetLoading || !username.trim()}
-                  className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
-                >
-                  {resetLoading ? 'Enviando...' : 'Enviar código'}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleResetPassword} className="space-y-4">
-                <p className="text-sm text-gray-600">
-                  Introduce el código que recibiste y tu nueva contraseña.
-                </p>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Código de recuperación
-                  </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Contraseña</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                    <Lock size={18} />
+                  </div>
                   <input
-                    type="text"
-                    value={resetCode}
-                    onChange={(e) => setResetCode(e.target.value.toUpperCase())}
-                    placeholder="Código de 6 caracteres"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-center text-lg tracking-widest font-mono"
-                    maxLength={6}
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => handlePasswordChange(e.target.value)}
+                    placeholder="••••••"
+                    className="w-full pl-11 pr-12 py-3.5 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 text-gray-900 placeholder-gray-400 rounded-xl transition-all duration-300 outline-none shadow-sm hover:bg-gray-100 focus:hover:bg-white font-medium"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-indigo-500 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nueva contraseña
-                  </label>
+                {password && (
+                  <div className="mt-3 text-xs space-y-1.5 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    {passwordErrors.map((err, i) => (
+                      <div key={i} className="flex items-center gap-2 text-red-500">
+                        <X size={12} className="shrink-0" />
+                        <span className="font-medium">{err}</span>
+                      </div>
+                    ))}
+                    {passwordErrors.length === 0 && (
+                      <div className="flex items-center gap-2 text-emerald-600 font-medium">
+                        <Check size={12} className="shrink-0" />
+                        <span>Contraseña segura y fuerte</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Confirmar contraseña</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                    <Check size={18} />
+                  </div>
                   <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••"
+                    className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 text-gray-900 placeholder-gray-400 rounded-xl transition-all duration-300 outline-none shadow-sm hover:bg-gray-100 focus:hover:bg-white font-medium"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Confirmar nueva contraseña
-                  </label>
-                  <input
-                    type="password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={resetLoading || !resetCode || !newPassword || !confirmNewPassword}
-                  className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
-                >
-                  {resetLoading ? 'Guardando...' : 'Cambiar contraseña'}
-                </button>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full mt-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 font-semibold shadow-lg shadow-indigo-200 transform hover:-translate-y-0.5 tracking-wide text-[15px]"
+              >
+                Crear Mi Cuenta
+              </button>
+
+              <div className="text-center mt-6">
+                <span className="text-gray-500 text-sm font-medium">¿Ya tienes cuenta? </span>
                 <button
                   type="button"
                   onClick={() => {
+                    setShowRegister(false);
+                    setError('');
+                    setSuccess('');
+                  }}
+                  className="text-indigo-600 font-bold hover:text-indigo-800 transition-colors text-sm ml-1"
+                >
+                  Inicia sesión
+                </button>
+              </div>
+            </form>
+          ) : !showForgotPassword ? (
+            /* LOGIN FORM */
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Usuario</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                    <User size={18} />
+                  </div>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Escribe tu usuario"
+                    className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 text-gray-900 placeholder-gray-400 rounded-xl transition-all duration-300 outline-none shadow-sm hover:bg-gray-100 focus:hover:bg-white font-medium"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-gray-700">Contraseña</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForgotPassword(true);
+                      setError('');
+                      setSuccess('');
+                      setResetStep('email');
+                    }}
+                    className="text-indigo-600 font-bold hover:text-indigo-800 transition-colors text-sm"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                </div>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                    <Lock size={18} />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••"
+                    className="w-full pl-11 pr-12 py-3.5 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 text-gray-900 placeholder-gray-400 rounded-xl transition-all duration-300 outline-none shadow-sm hover:bg-gray-100 focus:hover:bg-white font-medium"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-indigo-500 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 font-semibold shadow-lg shadow-indigo-200 transform hover:-translate-y-0.5 tracking-wide text-[15px]"
+                >
+                  Acceder a mi panel
+                </button>
+              </div>
+
+              <div className="relative flex py-5 items-center">
+                <div className="flex-grow border-t border-gray-200"></div>
+                <span className="flex-shrink-0 mx-4 text-gray-400 text-sm font-medium">o</span>
+                <div className="flex-grow border-t border-gray-200"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRegister(true);
+                  setError('');
+                  setSuccess('');
+                  setUsername('');
+                  setPassword('');
+                  setConfirmPassword('');
+                }}
+                className="w-full bg-white border-2 border-gray-200 text-gray-700 py-3.5 rounded-xl hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 transition-all duration-300 font-bold flex items-center justify-center gap-2"
+              >
+                <UserPlus size={18} />
+                Crear una cuenta nueva
+              </button>
+            </form>
+          ) : (
+            /* FORGOT PASSWORD FORM */
+            <div className="space-y-6">
+              {resetSuccess && (
+                <div className="p-4 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl text-sm shadow-sm flex gap-3 font-medium">
+                   <Check className="shrink-0 mt-0.5" size={18} />
+                   <span>{resetSuccess}</span>
+                </div>
+              )}
+
+              {resetError && (
+                <div className="p-4 bg-red-50 border border-red-100 text-red-700 rounded-xl text-sm shadow-sm flex gap-3 font-medium">
+                  <X className="shrink-0 mt-0.5" size={18} />
+                  <span>{resetError}</span>
+                </div>
+              )}
+
+              {resetStep === 'email' ? (
+                <form onSubmit={handleForgotPassword} className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Usuario registrado</label>
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                        <User size={18} />
+                      </div>
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="Tu usuario"
+                        className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 text-gray-900 placeholder-gray-400 rounded-xl transition-all duration-300 outline-none shadow-sm hover:bg-gray-100 focus:hover:bg-white font-medium"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={resetLoading || !username.trim()}
+                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 font-semibold shadow-lg shadow-indigo-200 disabled:opacity-70 disabled:cursor-not-allowed transform hover:-translate-y-0.5 disabled:hover:translate-y-0 tracking-wide text-[15px]"
+                  >
+                    {resetLoading ? 'Procesando...' : 'Enviar código de recuperación'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleResetPassword} className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Código de recuperación</label>
+                    <input
+                      type="text"
+                      value={resetCode}
+                      onChange={(e) => setResetCode(e.target.value.toUpperCase())}
+                      placeholder="Código de 6 dígitos"
+                      className="w-full px-4 py-3.5 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 text-gray-900 placeholder-gray-400 rounded-xl transition-all duration-300 outline-none shadow-sm hover:bg-gray-100 focus:hover:bg-white text-center text-xl tracking-[0.5em] font-mono uppercase"
+                      maxLength={6}
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Nueva contraseña</label>
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                        <Lock size={18} />
+                      </div>
+                      <input
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 text-gray-900 placeholder-gray-400 rounded-xl transition-all duration-300 outline-none shadow-sm hover:bg-gray-100 focus:hover:bg-white font-medium"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Confirmar nueva contraseña</label>
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                        <Check size={18} />
+                      </div>
+                      <input
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 text-gray-900 placeholder-gray-400 rounded-xl transition-all duration-300 outline-none shadow-sm hover:bg-gray-100 focus:hover:bg-white font-medium"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <button
+                    type="submit"
+                    disabled={resetLoading || !resetCode || !newPassword || !confirmNewPassword}
+                    className="w-full mt-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-4 rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 font-semibold shadow-lg shadow-emerald-200 disabled:opacity-70 transform hover:-translate-y-0.5 disabled:hover:translate-y-0 tracking-wide text-[15px]"
+                  >
+                    {resetLoading ? 'Guardando...' : 'Cambiar contraseña segura'}
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetStep('email');
+                      setResetCode('');
+                      setResetError('');
+                    }}
+                    className="w-full text-indigo-600 font-bold py-3 hover:text-indigo-800 transition-colors text-sm"
+                  >
+                    ¿Problemas? Reenviar código
+                  </button>
+                </form>
+              )}
+              
+              <div className="text-center mt-6">
+                <button
+                  onClick={() => {
+                    setShowForgotPassword(false);
                     setResetStep('email');
                     setResetCode('');
+                    setNewPassword('');
+                    setConfirmNewPassword('');
                     setResetError('');
+                    setResetSuccess('');
                   }}
-                  className="w-full text-gray-500 py-2 hover:text-gray-700 transition-colors text-sm"
+                  className="text-gray-500 font-bold hover:text-gray-800 transition-colors text-sm flex items-center justify-center gap-2 mx-auto"
                 >
-                  No recibí el código, reenviar
+                  <X size={16} /> Cancelar y volver
                 </button>
-              </form>
-            )}
-          </div>
-        )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -756,7 +814,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem('lastPage');
+    localStorage.removeItem('clinica_lastPage');
     setIsAuthenticated(false);
     setIsAdmin(false);
     window.dispatchEvent(new Event('storage'));

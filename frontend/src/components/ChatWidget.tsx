@@ -119,7 +119,7 @@ export function ChatWidget({ hidden }: { hidden?: boolean }) {
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {chatMessages.length === 0 && (
               <p className="text-gray-500 text-center text-sm">
-                ¡Hola! Soy el asistente de tu familia. Puedo informarte sobre gastos, ingresos y balance mensual.
+                ¡Hola! Soy el asistente de tu clínica. Puedo informarte sobre gastos, ingresos, citas, clientes y un largo etcétera.
               </p>
             )}
             {chatMessages.map((msg) => (

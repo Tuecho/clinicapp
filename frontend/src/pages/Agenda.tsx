@@ -1,12 +1,47 @@
 import { useState, useEffect } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Clock, Users, Stethoscope, AlertCircle } from 'lucide-react';
 import type { FamilyEvent } from '../types';
-import { formatTime24 } from '../utils/format';
+import { formatTime24, formatDateEsLower } from '../utils/format';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-type ViewMode = 'day' | 'week' | 'month';
+type ViewMode = 'day' | 'week' | 'month' | 'professionals';
+
+interface Professional {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  specialties: string;
+  bio: string;
+  active: number;
+}
+
+interface Specialty {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface Schedule {
+  id: string;
+  professional_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  break_start: string;
+  break_end: string;
+}
+
+interface ProfessionalAvailability {
+  id: string;
+  professional_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  available: number;
+}
 
 const DAY_NAMES: Record<string, string> = {
   '0': 'Dom', '1': 'Lun', '2': 'Mar', '3': 'Mié', '4': 'Jue', '5': 'Vie', '6': 'Sáb'
@@ -54,7 +89,7 @@ function generateMonthGrid(current: Date) {
 
 export function Agenda() {
   const [events, setEvents] = useState<FamilyEvent[]>([]);
-  const [view, setView] = useState<ViewMode>('month');
+  const [view, setView] = useState<ViewMode>('day');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -223,7 +258,7 @@ export function Agenda() {
     setCurrentDate(d);
   };
 
-  const todayLabel = currentDate.toLocaleDateString('es-ES', {
+  const todayLabel = formatDateEsLower(currentDate, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -359,8 +394,8 @@ export function Agenda() {
         <div className="flex items-center gap-3">
           <CalendarDays className="text-primary" size={28} />
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Agenda familiar</h2>
-            <p className="text-gray-500 text-sm">Organiza citas, actividades y eventos de la familia</p>
+            <h2 className="text-2xl font-bold text-gray-800">Agenda</h2>
+            <p className="text-gray-500 text-sm">Organiza citas, actividades y eventos</p>
           </div>
         </div>
         <button
@@ -392,7 +427,7 @@ export function Agenda() {
           >
             <ChevronRight size={18} />
           </button>
-          <span className="ml-3 font-medium text-gray-700 capitalize">{todayLabel}</span>
+          <span className="ml-3 font-medium text-gray-700">{todayLabel}</span>
         </div>
 
         <div className="flex gap-2">
@@ -544,8 +579,8 @@ export function Agenda() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="text-lg font-semibold text-gray-800 capitalize">
-                {currentDate.toLocaleDateString('es-ES', {
+              <div className="text-lg font-semibold text-gray-800">
+                {formatDateEsLower(currentDate, {
                   weekday: 'long',
                   day: 'numeric',
                   month: 'long',
@@ -623,7 +658,7 @@ export function Agenda() {
                       )}
                       {ev.end_date && (
                         <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
-                          📅 Varios días: hasta {new Date(ev.end_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                          📅 Varios días: hasta {formatDateEsLower(new Date(ev.end_date + 'T00:00:00'), { day: 'numeric', month: 'short' })}
                         </p>
                       )}
                     </div>

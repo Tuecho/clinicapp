@@ -136,6 +136,18 @@ export interface TripMember {
   checklist: { item: string; packed: boolean }[];
 }
 
+export interface TripActivity {
+  id: string;
+  trip_id: string;
+  name: string;
+  date?: string;
+  time?: string;
+  location?: string;
+  notes?: string;
+  cost?: number;
+  booked?: boolean;
+}
+
 export interface SavingsPig {
   id: string;
   name: string;

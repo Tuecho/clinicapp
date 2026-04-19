@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, Crown, UtensilsCrossed, BookOpen, FileText, ShieldCheck, Mail, ChefHat, Image, ChevronDown, ChevronRight, Bot, DollarSign, Users, Cake, Gift, Film, CheckCircle, Package, Wrench, CreditCard, Dog, Plane, PiggyBank, TrendingUp, Zap, Library, GraduationCap, Calendar, Settings, Clock } from 'lucide-react';
+import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, BookOpen, FileText, ShieldCheck, ChefHat, Image, Bot, DollarSign, Users, Cake, CheckCircle, Package, Wrench, CreditCard, Dog, Plane, PiggyBank, TrendingUp, Zap, Library, GraduationCap, Calendar, Settings, Clock, Stethoscope, BarChart3 } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
+import { useCompany } from '../i18n/CompanyContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -12,32 +13,55 @@ interface Profile {
 }
 
 interface SidebarProps {
-  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours';
-  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours') => void;
+  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'birthdays' | 'chatbot' | 'home_maintenance' | 'utility_bills' | 'modules' | 'clinic' | 'clinic_packages' | 'reports';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'birthdays' | 'chatbot' | 'home_maintenance' | 'utility_bills' | 'modules' | 'clinic' | 'clinic_packages' | 'reports') => void;
   onLogout?: () => void;
   isAdmin?: boolean;
   isMobile?: boolean;
 }
 
 export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }: SidebarProps) {
+  const { companyName } = useCompany();
   const [profile, setProfile] = useState<Profile>({ name: '', avatar: null, family_name: 'Mi Familia', enabled_modules: null });
+  const [globalModules, setGlobalModules] = useState<string[] | null>(null);
   const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
     const fetchProfile = () => {
       fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() })
-        .then(res => res.json())
-        .then(data => setProfile(data))
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Error fetching profile');
+          setProfile(data);
+        })
         .catch(console.error);
+    };
+
+    const fetchGlobalModules = () => {
+      fetch(`${API_URL}/api/settings/global-modules`, { headers: getAuthHeaders() })
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data?.enabled_modules)) {
+            setGlobalModules(data.enabled_modules);
+          } else {
+            setGlobalModules(null);
+          }
+        })
+        .catch(() => setGlobalModules(null));
     };
     
     fetchProfile();
+    fetchGlobalModules();
     
-    const interval = setInterval(fetchProfile, 2000);
+    const interval = setInterval(() => {
+      fetchProfile();
+      fetchGlobalModules();
+    }, 2000);
     
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'profile_refresh') {
         fetchProfile();
+        fetchGlobalModules();
       }
     };
     
@@ -55,15 +79,45 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     };
   }, []);
 
-  const defaultModules = ['dashboard', 'agenda', 'accounting', 'birthdays', 'habits', 'shopping', 'notes', 'tasks', 'sales', 'howitworks', 'about', 'terms', 'privacy'];
+  const defaultModules = ['dashboard', 'agenda', 'accounting', 'birthdays', 'shopping', 'notes', 'tasks', 'clinic', 'clinic_packages', 'howitworks', 'about', 'terms', 'privacy'];
 
   const isModuleEnabled = (key: string) => {
     if (key === 'dashboard') return true;
+    if (key === 'terms' || key === 'privacy' || key === 'about' || key === 'howitworks') return true;
+    if (Array.isArray(globalModules)) {
+      return globalModules.includes(key);
+    }
     if (!profile.enabled_modules) return defaultModules.includes(key);
     return profile.enabled_modules.split(',').includes(key);
   };
 
   const getModuleOrder = (): string[] => {
+    if (Array.isArray(globalModules)) {
+      const profileOrder = profile.enabled_modules ? profile.enabled_modules.split(',').filter(Boolean) : [];
+      const enabledGlobalModuleKeys = globalModules.filter(key => key !== 'dashboard');
+      
+      if (profileOrder.length > 0) {
+        const ordered: string[] = [];
+        const seen = new Set<string>();
+        
+        for (const key of profileOrder) {
+          if (key === 'dashboard' || enabledGlobalModuleKeys.includes(key)) {
+            ordered.push(key);
+            seen.add(key);
+          }
+        }
+        
+        for (const key of enabledGlobalModuleKeys) {
+          if (!seen.has(key)) {
+            ordered.push(key);
+          }
+        }
+        
+        return ordered;
+      }
+      
+      return enabledGlobalModuleKeys;
+    }
     if (!profile.enabled_modules) return defaultModules;
     return profile.enabled_modules.split(',').filter(Boolean);
   };
@@ -75,68 +129,17 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     agenda: { page: 'agenda', icon: Calendar, label: 'Agenda' },
     shopping: { page: 'shopping', icon: ShoppingCart, label: 'Lista Compra' },
     tasks: { page: 'tasks', icon: ListChecks, label: 'Tareas' },
-    habits: { page: 'habits', icon: CheckCircle, label: 'Hábitos' },
     notes: { page: 'notes', icon: StickyNote, label: 'Notas' },
-    meals: { page: 'meals', icon: ChefHat, label: 'Comidas' },
     birthdays: { page: 'birthdays', icon: Cake, label: 'Cumpleaños' },
-    books_movies: { page: 'books_movies', icon: BookOpen, label: 'Libros y Películas' },
-    gifts: { page: 'gifts', icon: Gift, label: 'Regalos' },
-    restaurants: { page: 'restaurants', icon: UtensilsCrossed, label: 'Restaurantes' },
     contacts: { page: 'contacts', icon: Users, label: 'Contactos' },
-    gallery: { page: 'gallery', icon: Image, label: 'Galería' },
     chatbot: { page: 'chatbot', icon: Bot, label: 'Chat IA' },
-    home_inventory: { page: 'home_inventory', icon: Package, label: 'Inventario Hogar' },
-    home_maintenance: { page: 'home_maintenance', icon: Wrench, label: 'Mantenimiento' },
-    subscriptions: { page: 'subscriptions', icon: CreditCard, label: 'Suscripciones' },
-    pet_tracker: { page: 'pet_tracker', icon: Dog, label: 'Mascotas' },
-    travel_manager: { page: 'travel_manager', icon: Plane, label: 'Viajes' },
-    savings_goals: { page: 'savings_goals', icon: PiggyBank, label: 'Ahorros' },
-    internal_debts: { page: 'internal_debts', icon: TrendingUp, label: 'Deudas' },
+home_maintenance: { page: 'home_maintenance', icon: Wrench, label: 'Mantenimiento' },
     utility_bills: { page: 'utility_bills', icon: Zap, label: 'Facturas' },
-    family_library: { page: 'family_library', icon: Library, label: 'Biblioteca' },
-    extra_school: { page: 'extra_school', icon: GraduationCap, label: 'Extraescolares' },
-    work_hours: { page: 'work_hours', icon: Clock, label: 'Horas Trabajo' },
-    sales: { page: 'sales', icon: DollarSign, label: 'Ventas' },
+    clinic: { page: 'clinic', icon: Stethoscope, label: 'Mi Clínica' },
+    clinic_packages: { page: 'clinic_packages', icon: Package, label: 'Bonos y Suscripciones' },
     howitworks: { page: 'howitworks', icon: BookOpen, label: 'Cómo funciona' },
     about: { page: 'about', icon: Info, label: 'Acerca de' },
-    terms: { page: 'terms', icon: FileText, label: 'Términos' },
-    privacy: { page: 'privacy', icon: ShieldCheck, label: 'Privacidad' },
   };
-
-  const allModules = [
-    { key: 'dashboard', page: 'dashboard', icon: Home, label: 'Dashboard' },
-    { key: 'accounting', page: 'accounting', icon: Wallet, label: 'Contabilidad' },
-    { key: 'budgets', page: 'budgets', icon: Target, label: 'Presupuestos' },
-    { key: 'agenda', page: 'agenda', icon: Calendar, label: 'Agenda' },
-    { key: 'shopping', page: 'shopping', icon: ShoppingCart, label: 'Lista Compra' },
-    { key: 'tasks', page: 'tasks', icon: ListChecks, label: 'Tareas' },
-    { key: 'habits', page: 'habits', icon: CheckCircle, label: 'Hábitos' },
-    { key: 'notes', page: 'notes', icon: StickyNote, label: 'Notas' },
-    { key: 'meals', page: 'meals', icon: ChefHat, label: 'Comidas' },
-    { key: 'birthdays', page: 'birthdays', icon: Cake, label: 'Cumpleaños' },
-    { key: 'books_movies', page: 'books_movies', icon: BookOpen, label: 'Libros y Películas' },
-    { key: 'gifts', page: 'gifts', icon: Gift, label: 'Regalos' },
-    { key: 'restaurants', page: 'restaurants', icon: UtensilsCrossed, label: 'Restaurantes' },
-    { key: 'contacts', page: 'contacts', icon: Users, label: 'Contactos' },
-    { key: 'gallery', page: 'gallery', icon: Image, label: 'Galería' },
-    { key: 'chatbot', page: 'chatbot', icon: Bot, label: 'Chat IA' },
-    { key: 'home_inventory', page: 'home_inventory', icon: Package, label: 'Inventario Hogar' },
-    { key: 'home_maintenance', page: 'home_maintenance', icon: Wrench, label: 'Mantenimiento' },
-    { key: 'subscriptions', page: 'subscriptions', icon: CreditCard, label: 'Suscripciones' },
-    { key: 'pet_tracker', page: 'pet_tracker', icon: Dog, label: 'Mascotas' },
-    { key: 'travel_manager', page: 'travel_manager', icon: Plane, label: 'Viajes' },
-    { key: 'savings_goals', page: 'savings_goals', icon: PiggyBank, label: 'Ahorros' },
-    { key: 'internal_debts', page: 'internal_debts', icon: TrendingUp, label: 'Deudas' },
-    { key: 'utility_bills', page: 'utility_bills', icon: Zap, label: 'Facturas' },
-    { key: 'family_library', page: 'family_library', icon: Library, label: 'Biblioteca' },
-    { key: 'extra_school', page: 'extra_school', icon: GraduationCap, label: 'Extraescolares' },
-    { key: 'work_hours', page: 'work_hours', icon: Clock, label: 'Horas Trabajo' },
-    { key: 'sales', page: 'sales', icon: DollarSign, label: 'Ventas' },
-    { key: 'howitworks', page: 'howitworks', icon: BookOpen, label: 'Cómo funciona' },
-    { key: 'about', page: 'about', icon: Info, label: 'Acerca de' },
-    { key: 'terms', page: 'terms', icon: FileText, label: 'Términos' },
-    { key: 'privacy', page: 'privacy', icon: ShieldCheck, label: 'Privacidad' },
-  ];
 
   // Removed premium pages effect as tabs are now always visible
 
@@ -146,35 +149,35 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     <aside
       onMouseEnter={() => !isMobile && setIsHovered(true)}
       onMouseLeave={() => !isMobile && setIsHovered(false)}
-      className={`bg-white border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col transition-all duration-200 ${
+      className={`bg-[var(--color-surface)] border-r border-[var(--color-border)] h-screen fixed left-0 top-0 flex flex-col transition-all duration-300 ${
         isExpanded ? 'w-60' : 'w-16'
-      } ${isMobile ? 'w-64 shadow-2xl' : ''}`}
+      } ${isMobile ? 'w-64 shadow-xl' : ''}`}
     >
-      <div className={`border-b border-gray-200 transition-all duration-200 ${isExpanded ? 'p-4' : 'p-3'}`}>
+      <div className={`border-b border-[var(--color-border)] transition-all duration-200 ${isExpanded ? 'p-4' : 'p-3'}`}>
         {isExpanded ? (
-          <h1 className="text-lg font-bold text-primary truncate">{profile.family_name}</h1>
+          <h1 className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent truncate">{companyName}</h1>
         ) : (
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-            {profile.family_name?.[0]?.toUpperCase() || 'F'}
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-lg">
+            {companyName?.[0]?.toUpperCase() || 'F'}
           </div>
         )}
       </div>
       
       <nav className={`flex-1 transition-all duration-200 overflow-y-auto ${isExpanded ? 'p-3' : 'p-2'}`}>
-        <ul className="space-y-1">
+        <ul className="space-y-1.5">
           {isAdmin && (
             <li>
               <button
                 onClick={() => onNavigate('admin')}
-                className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                className={`w-full flex items-center gap-3 rounded-lg transition-all duration-200 ${
                   activePage === 'admin'
-                    ? 'bg-primary text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-[var(--color-primary)] text-white'
+                    : 'text-[var(--color-text)] hover:bg-[var(--color-border)]'
                 } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
                 title={isExpanded ? undefined : 'Admin'}
               >
                 <Shield size={18} />
-                {isExpanded && <span className="text-sm">Admin</span>}
+                {isExpanded && <span className="text-sm font-medium">Admin</span>}
               </button>
             </li>
           )}
@@ -182,19 +185,19 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
           <li>
             <button
               onClick={() => onNavigate('dashboard')}
-              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center gap-3 rounded-lg transition-all duration-200 ${
                 activePage === 'dashboard'
-                  ? 'bg-primary text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-[var(--color-primary)] text-white'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]'
               } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
               title={isExpanded ? undefined : 'Dashboard'}
             >
               <Home size={18} />
-              {isExpanded && <span className="text-sm">Dashboard</span>}
+              {isExpanded && <span className="text-sm font-medium">Dashboard</span>}
             </button>
           </li>
           
-          {getModuleOrder().filter(key => key !== 'dashboard').map((moduleKey) => {
+          {getModuleOrder().filter(key => key !== 'dashboard' && isModuleEnabled(key)).map((moduleKey) => {
             const module = moduleMap[moduleKey];
             if (!module) return null;
             const Icon = module.icon;
@@ -202,15 +205,15 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
               <li key={moduleKey}>
                 <button
                   onClick={() => onNavigate(module.page as any)}
-                  className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                  className={`w-full flex items-center gap-3 rounded-lg transition-all duration-200 ${
                     activePage === module.page
-                      ? 'bg-primary text-white'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-[var(--color-primary)] text-white'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]'
                   } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
                   title={isExpanded ? undefined : module.label}
                 >
                   <Icon size={18} />
-                  {isExpanded && <span className="text-sm">{module.label}</span>}
+                  {isExpanded && <span className="text-sm font-medium">{module.label}</span>}
                 </button>
               </li>
             );
@@ -219,52 +222,24 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
           <li>
             <button
               onClick={() => onNavigate('modules')}
-              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center gap-3 rounded-lg transition-all duration-200 ${
                 activePage === 'modules'
-                  ? 'bg-primary text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-[var(--color-primary)] text-white'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]'
               } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
               title={isExpanded ? undefined : 'Módulos'}
             >
               <Settings size={18} />
-              {isExpanded && <span className="text-sm">Módulos</span>}
-            </button>
-          </li>
-          <li>
-            <button
-              onClick={() => onNavigate('terms')}
-              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
-                activePage === 'terms'
-                  ? 'bg-primary text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
-              title={isExpanded ? undefined : 'Términos'}
-            >
-              <FileText size={18} />
-              {isExpanded && <span className="text-sm">Términos</span>}
-            </button>
-          </li>
-          <li>
-            <button
-              onClick={() => onNavigate('privacy')}
-              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
-                activePage === 'privacy'
-                  ? 'bg-primary text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
-              title={isExpanded ? undefined : 'Privacidad'}
-            >
-              <ShieldCheck size={18} />
-              {isExpanded && <span className="text-sm">Privacidad</span>}
+              {isExpanded && <span className="text-sm font-medium">Módulos</span>}
             </button>
           </li>
           <li>
             <button
               onClick={() => onNavigate('profile')}
-              className={`w-full flex items-center gap-3 rounded-xl transition-all ${
+              className={`w-full flex items-center gap-3 rounded-xl transition-all duration-200 ${
                 activePage === 'profile'
-                  ? 'bg-gradient-to-r from-primary to-pink-500 text-white shadow-lg shadow-primary/25'
-                  : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+                  ? 'bg-[var(--color-primary)] text-white'
+                  : 'bg-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-border)]'
               } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
               title={isExpanded ? undefined : (profile.name || 'Mi perfil')}
             >

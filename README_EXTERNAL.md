@@ -1,5 +1,15 @@
 # Family Agent - Exposición Externa
 
+## ⚠️ Nota: Nginx ha sido removido del docker-compose.yml
+
+El servicio `nginx-proxy-manager` ha sido removido del archivo `docker-compose.yml` actual. Este documento se mantiene como referencia, pero para usar nginx necesitarías mantenerlo en tu docker-compose o agregarlo manualmente.
+
+Los servicios actuales son:
+- `api_clinic` (Backend API en puerto 3000)
+- `frontend_clinic` (Frontend en puerto 5173)
+
+---
+
 ## Configuración para acceso externo con Nginx Proxy Manager y DuckDNS
 
 ### 1. Crear cuenta en DuckDNS
@@ -44,7 +54,7 @@ docker compose up -d
 3. **Crear Proxy Host para Frontend:**
    - Domain Names: `mifamilia.duckdns.org`
    - Scheme: `http`
-   - Forward Hostname: `frontend`
+   - Forward Hostname: `frontend_clinic`
    - Forward Port: `5173`
    - Enable SSL, Force SSL
    - Request a certificado Let's Encrypt automático
@@ -52,7 +62,7 @@ docker compose up -d
 4. **Crear Proxy Host para API:**
    - Domain Names: `api.mifamilia.duckdns.org`
    - Scheme: `http`
-   - Forward Hostname: `api`
+   - Forward Hostname: `api_clinic`
    - Forward Port: `3000`
    - Enable SSL
 

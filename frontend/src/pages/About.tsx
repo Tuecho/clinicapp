@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Heart, Star, Share2, Mail, ExternalLink, Github, Coffee, MessageSquare, Code, Send, Check } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
+import { useCompany } from '../i18n/CompanyContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -17,13 +18,6 @@ const shareTelegram = () => {
   window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`, '_blank');
 };
 
-const shareFacebook = () => {
-  window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
-};
-
-const shareX = () => {
-  window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
-};
 const features = [
   { version: '1.0.8', date: 'Abril 2026', changes: [
     'Dashboard siempre visible (no se puede desactivar)',
@@ -37,16 +31,9 @@ const features = [
   { version: '1.0.7', date: 'Abril 2026', changes: [
     'Módulo Hogar: Inventario del hogar con garantías y manuales',
     'Módulo Hogar: Mantenimiento del hogar (caldera, filtros A/C, ITV)',
-    'Módulo Hogar: Gestor de suscripciones (Netflix, Spotify, gimnasio...)',
-    'Módulo Organización: Seguimiento de mascotas (vacunas, veterinario)',
-    'Módulo Organización: Gestor de viajes y vacaciones',
-    'Módulo Finanzas: Hucha digital / ahorro por objetivos',
-    'Módulo Finanzas: Control de deudas internas familiares',
     'Módulo Finanzas: Comparador de facturas (luz, agua, gas)',
-    'Módulo Educación: Biblioteca familiar (libros físicos y ebooks)',
-    'Módulo Educación: Gestor de extraescolares',
     'Sistema de módulos habilitables desde el perfil',
-    'Módulos disponibles: Mascotas, Educación, Cumpleaños, Contabilidad, Presupuestos'
+    'Módulos disponibles: Clínica, Cumpleaños, Contabilidad, Presupuestos'
   ]},
   { version: '1.0.6', date: 'Marzo 2026', changes: [
     'Fix: Error al actualizar perfil de usuario normal',
@@ -59,7 +46,7 @@ const features = [
     'Múltiples listas de compra con nombre y color',
     'Múltiples tableros de notas organizados por secciones',
     'Notas y productos editables',
-    'Tareas familiares editables',
+    'Tareas empresa editables',
     'Recordar última página visitada',
     'Widget de chat oculto en página de Chat IA'
   ]},
@@ -79,7 +66,7 @@ const features = [
     'Mejorada la legibilidad en pantallas pequeñas'
   ]},
   { version: '1.0.2', date: 'Marzo 2026', changes: [
-    'Lista de compra y tareas familiares separadas en el menú',
+    'Lista de compra y tareas empresa separadas en el menú',
     'Sistema de sugerencias para usuarios',
     'Presupuestos recurrentes',
     'Eventos de varios días',
@@ -92,7 +79,7 @@ const features = [
   { version: '1.0.1', date: 'Marzo 2026', changes: [
     'Nueva sección de Notas para apuntes rápidos',
     'Lista de la compra con compartición (WhatsApp, Telegram, Email, Facebook, X)',
-    'Tareas familiares con prioridades y fechas',
+    'Tareas empresa con prioridades y fechas',
     'Selector de idioma (Español/Inglés/Portugués)',
     'Exportar e importar datos (backup)',
     'Contraseñas seguras con validación',
@@ -108,14 +95,15 @@ export function About() {
   const [suggestionContent, setSuggestionContent] = useState('');
   const [sendingSuggestion, setSendingSuggestion] = useState(false);
   const [suggestionSent, setSuggestionSent] = useState(false);
+  const { companyName } = useCompany();
 
   const shareApp = () => {
-    const text = 'Echa un vistazo a Family Agent, una aplicación para gestionar las finanzas familiares. ¡Increíble!';
+    const text = `Echa un vistazo a ${companyName}, una aplicación para gestionar las finanzas familiares. ¡Increíble!`;
     const url = window.location.href;
     
     if (navigator.share) {
       navigator.share({
-        title: 'Family Agent',
+        title: companyName,
         text: text,
         url: url
       }).catch(console.error);
@@ -126,8 +114,8 @@ export function About() {
   };
 
   const sendEmail = () => {
-    const subject = encodeURIComponent('Recomendación: Family Agent');
-    const body = encodeURIComponent(`Hola,\n\nTe recomiendo esta aplicación para gestionar las finanzas familiares:\n\nFamily Agent - ${window.location.href}\n\n¡Es muy útil!`);
+    const subject = encodeURIComponent(`Recomendación: ${companyName}`);
+    const body = encodeURIComponent(`Hola,\n\nTe recomiendo esta aplicación para gestionar las finanzas familiares:\n\n${companyName} - ${window.location.href}\n\n¡Es muy útil!`);
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
@@ -207,24 +195,6 @@ export function About() {
                 <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
               </svg>
               <span className="text-sm font-medium">Telegram</span>
-            </button>
-            <button
-              onClick={shareFacebook}
-              className="flex flex-col items-center gap-2 px-4 py-3 bg-[#1877F2] text-white rounded-lg hover:bg-[#166fe5] transition-colors"
-            >
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-              </svg>
-              <span className="text-sm font-medium">Facebook</span>
-            </button>
-            <button
-              onClick={shareX}
-              className="flex flex-col items-center gap-2 px-4 py-3 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
-            >
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-              </svg>
-              <span className="text-sm font-medium">X</span>
             </button>
           </div>
           <div className="mt-4 pt-4 border-t border-gray-100">

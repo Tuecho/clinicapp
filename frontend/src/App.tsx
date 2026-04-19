@@ -2,50 +2,37 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { Accounting } from './pages/Accounting';
-
+import { ClinicManager } from './pages/ClinicManager';
+import { ClinicPackages } from './pages/ClinicPackages';
 import { Budgets } from './pages/Budgets';
 import { Profile } from './pages/Profile';
 import { Agenda } from './pages/Agenda';
 import { ShoppingList } from './pages/ShoppingList';
 import { FamilyTasks } from './pages/FamilyTasks';
 import { Notes } from './pages/Notes';
-import { MealPlanning } from './pages/MealPlanning';
 import { Birthdays } from './pages/Birthdays';
-import { BooksMovies } from './pages/BooksMovies';
 import { AdminPage } from './pages/AdminPage';
 import { About } from './pages/About';
 import { HowItWorks } from './pages/HowItWorks';
-import { FavoriteRestaurants } from './pages/FavoriteRestaurants';
-import { FamilyGallery } from './pages/FamilyGallery';
 import { Premium } from './pages/Premium';
 import { ChatBotPage } from './pages/ChatBotPage';
-import { SalesContact } from './pages/SalesContact';
+import { ChatWidget } from './components/ChatWidget';
+import { Login, useAuth, AuthProvider } from './components/Auth';
+import { CompanyProvider } from './i18n/CompanyContext';
+import { Menu, X } from 'lucide-react';
+import { ReportsAnalytics } from './pages/ReportsAnalytics';
+import { ModuleManager } from './pages/ModuleManager';
 import { Terms } from './pages/Terms';
 import { Privacy } from './pages/Privacy';
 import { Contact } from './pages/Contact';
-import { Gifts } from './pages/Gifts';
-import { HomeInventory } from './pages/HomeInventory';
 import { HomeMaintenance } from './pages/HomeMaintenance';
-import { SubscriptionManager } from './pages/SubscriptionManager';
-import { PetTracker } from './pages/PetTracker';
-import { TravelManager } from './pages/TravelManager';
-import { SavingsGoals } from './pages/SavingsGoals';
-import { InternalDebts } from './pages/InternalDebts';
 import { UtilityBills } from './pages/UtilityBills';
-import { FamilyLibrary } from './pages/FamilyLibrary';
-import { ExtraSchoolManager } from './pages/ExtraSchoolManager';
-import { HabitTracker } from './pages/HabitTracker';
-import { ModuleManager } from './pages/ModuleManager';
-import { WorkHours } from './pages/WorkHours';
-import { ChatWidget } from './components/ChatWidget';
-import { Login, useAuth, AuthProvider } from './components/Auth';
-import { Menu, X } from 'lucide-react';
 
-type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours';
+type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'birthdays' | 'chatbot' | 'sales' | 'home_maintenance' | 'utility_bills' | 'modules' | 'work_hours' | 'clinic' | 'reports';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<PageType>(() => {
-    const saved = localStorage.getItem('lastPage');
+    const saved = localStorage.getItem('clinica_lastPage');
     return (saved as PageType) || 'dashboard';
   });
   const { isAuthenticated, isAdmin, login, logout } = useAuth();
@@ -58,7 +45,7 @@ function AppContent() {
   };
 
   useEffect(() => {
-    localStorage.setItem('lastPage', activePage);
+    localStorage.setItem('clinica_lastPage', activePage);
   }, [activePage]);
 
   useEffect(() => {
@@ -90,13 +77,14 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+    <div className="min-h-screen">
+      <div className="relative min-h-screen">
+        {isMobileMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
       
       <div className="lg:hidden fixed top-3 left-3 z-50 flex gap-2">
         <button
@@ -132,8 +120,8 @@ function AppContent() {
         </div>
       )}
       
-      <main className={`transition-all duration-200 pt-14 lg:pt-0 ${isSidebarHovered ? 'lg:ml-60' : 'lg:ml-16'} ml-0 min-h-screen`}>
-        <div className="p-2 sm:p-4 md:p-6 max-w-7xl mx-auto overflow-x-hidden">
+      <main className={`transition-all duration-300 pt-14 lg:pt-0 ${isSidebarHovered ? 'lg:ml-60' : 'lg:ml-16'} ml-0 min-h-screen relative z-10`}>
+        <div className="p-2 sm:p-4 md:p-6 max-w-7xl mx-auto">
           {activePage === 'dashboard' && <Dashboard onNavigate={handleNavigate} />}
           {activePage === 'accounting' && <Accounting />}
           {activePage === 'budgets' && <Budgets />}
@@ -143,38 +131,27 @@ function AppContent() {
           {activePage === 'shopping' && <ShoppingList />}
           {activePage === 'tasks' && <FamilyTasks />}
           {activePage === 'notes' && <Notes />}
-          {activePage === 'meals' && <MealPlanning />}
           {activePage === 'birthdays' && <Birthdays />}
-          {activePage === 'books_movies' && <BooksMovies />}
           {activePage === 'admin' && isAdmin && <AdminPage />}
+          {activePage === 'clinic' && <ClinicManager />}
+          {activePage === 'clinic_packages' && <ClinicPackages />}
           {activePage === 'about' && <About />}
           {activePage === 'howitworks' && <HowItWorks />}
-          {activePage === 'restaurants' && <FavoriteRestaurants />}
-          {activePage === 'gallery' && <FamilyGallery />}
           {activePage === 'contacts' && <Premium />}
           {activePage === 'chatbot' && <ChatBotPage />}
-          {activePage === 'gifts' && <Gifts />}
-          {activePage === 'habits' && <HabitTracker />}
-          {activePage === 'sales' && <SalesContact />}
           {activePage === 'terms' && <Terms />}
           {activePage === 'privacy' && <Privacy />}
           {activePage === 'contact' && <Contact />}
-          {activePage === 'home_inventory' && <HomeInventory />}
           {activePage === 'home_maintenance' && <HomeMaintenance />}
-          {activePage === 'subscriptions' && <SubscriptionManager />}
-          {activePage === 'pet_tracker' && <PetTracker />}
-          {activePage === 'travel_manager' && <TravelManager />}
-          {activePage === 'savings_goals' && <SavingsGoals />}
-          {activePage === 'internal_debts' && <InternalDebts />}
           {activePage === 'utility_bills' && <UtilityBills />}
-          {activePage === 'family_library' && <FamilyLibrary />}
-          {activePage === 'extra_school' && <ExtraSchoolManager />}
           {activePage === 'modules' && <ModuleManager />}
-          {activePage === 'work_hours' && <WorkHours />}
+          {activePage === 'clinic' && <ClinicManager />}
+          {activePage === 'reports' && <ReportsAnalytics />}
         </div>
       </main>
 
       <ChatWidget hidden={activePage === 'contacts'} />
+      </div>
     </div>
   );
 }
@@ -182,7 +159,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <CompanyProvider>
+        <AppContent />
+      </CompanyProvider>
     </AuthProvider>
   );
 }

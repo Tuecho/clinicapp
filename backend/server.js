@@ -861,7 +861,304 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_clients (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      birthdate TEXT,
+      address TEXT,
+      city TEXT,
+      postal_code TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_services (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      duration_minutes INTEGER DEFAULT 60,
+      price REAL NOT NULL,
+      category TEXT,
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_appointments (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      client_id TEXT NOT NULL,
+      service_id TEXT NOT NULL,
+      professional_id TEXT,
+      appointment_date TEXT NOT NULL,
+      appointment_time TEXT NOT NULL,
+      duration_minutes INTEGER DEFAULT 60,
+      status TEXT DEFAULT 'scheduled',
+      price REAL,
+      notes TEXT,
+      reminder_sent INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (client_id) REFERENCES clinic_clients(id),
+      FOREIGN KEY (service_id) REFERENCES clinic_services(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_appointment_reminders (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      appointment_id TEXT NOT NULL,
+      reminder_type TEXT DEFAULT 'email',
+      reminder_time TEXT NOT NULL,
+      sent_at TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (appointment_id) REFERENCES clinic_appointments(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_professionals (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      specialties TEXT,
+      bio TEXT,
+      photo_url TEXT,
+      active INTEGER DEFAULT 1,
+      color TEXT,
+      dni TEXT,
+      collegiate_number TEXT,
+      role TEXT,
+      service_ids TEXT,
+      work_schedule TEXT,
+      buffer_time_minutes INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_specialties (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_professional_schedules (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      professional_id TEXT NOT NULL,
+      day_of_week INTEGER,
+      start_time TEXT,
+      end_time TEXT,
+      break_start TEXT,
+      break_end TEXT,
+      is_available INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(professional_id) REFERENCES clinic_professionals(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_professional_availability (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      professional_id TEXT NOT NULL,
+      date TEXT,
+      start_time TEXT,
+      end_time TEXT,
+      is_available INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(professional_id) REFERENCES clinic_professionals(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_products (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      sku TEXT,
+      category TEXT,
+      unit TEXT DEFAULT 'unit',
+      cost_price REAL DEFAULT 0,
+      selling_price REAL NOT NULL,
+      min_stock INTEGER DEFAULT 0,
+      current_stock INTEGER DEFAULT 0,
+      supplier TEXT,
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_product_movements (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      product_id TEXT NOT NULL,
+      movement_type TEXT NOT NULL,
+      quantity INTEGER NOT NULL,
+      reference TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES clinic_products(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_budgets (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      client_id TEXT NOT NULL,
+      description TEXT,
+      items TEXT NOT NULL,
+      subtotal REAL NOT NULL,
+      discount_percent REAL DEFAULT 0,
+      discount_amount REAL DEFAULT 0,
+      tax_percent REAL DEFAULT 21,
+      tax_amount REAL NOT NULL,
+      total REAL NOT NULL,
+      valid_until TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (client_id) REFERENCES clinic_clients(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_notification_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      reminder_email_enabled INTEGER DEFAULT 1,
+      reminder_sms_enabled INTEGER DEFAULT 0,
+      reminder_hours_before INTEGER DEFAULT 24,
+      reminder_time TEXT DEFAULT '20:00',
+      sms_provider TEXT DEFAULT 'twilio',
+      twilio_account_sid TEXT,
+      twilio_auth_token TEXT,
+      twilio_phone_number TEXT,
+      confirmation_email_enabled INTEGER DEFAULT 1,
+      confirmation_sms_enabled INTEGER DEFAULT 0,
+      cancellation_email_enabled INTEGER DEFAULT 1,
+      cancellation_sms_enabled INTEGER DEFAULT 0,
+      follow_up_email_enabled INTEGER DEFAULT 1,
+      follow_up_days_after INTEGER DEFAULT 7,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_communication_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      appointment_id TEXT,
+      client_id TEXT,
+      type TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      status TEXT NOT NULL,
+      sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      error_message TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (appointment_id) REFERENCES clinic_appointments(id),
+      FOREIGN KEY (client_id) REFERENCES clinic_clients(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_visits (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      client_id TEXT NOT NULL,
+      appointment_id TEXT,
+      visit_date TEXT NOT NULL,
+      clinical_notes TEXT,
+      observations TEXT,
+      medications_prescribed TEXT,
+      follow_up_date TEXT,
+      next_appointment_date TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (client_id) REFERENCES clinic_clients(id),
+      FOREIGN KEY (appointment_id) REFERENCES clinic_appointments(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_consents (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      client_id TEXT NOT NULL,
+      consent_type TEXT NOT NULL,
+      consent_text TEXT,
+      signed_at TEXT NOT NULL,
+      signature_data TEXT NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      valid_until TEXT,
+      revoked INTEGER DEFAULT 0,
+      revoked_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (client_id) REFERENCES clinic_clients(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_gdpr_data (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      client_id TEXT NOT NULL,
+      consent_marketing INTEGER DEFAULT 0,
+      consent_data_processing INTEGER DEFAULT 1,
+      consent_third_parties INTEGER DEFAULT 0,
+      data_retention_days INTEGER DEFAULT 365,
+      notes TEXT,
+      right_to_access_requested_at TEXT,
+      deletion_requested_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (client_id) REFERENCES clinic_clients(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS clinic_blocked_hours (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT,
+      reason TEXT,
+      is_holiday INTEGER DEFAULT 0,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  console.log('✅ Base de datos (incluyendo Clínica) inicializada');
   saveDb();
 }
 
@@ -8285,6 +8582,583 @@ app.post('/api/family/pets/medications', (req, res) => {
   stmt.free();
   saveDb();
   res.json({ id, success: true });
+});
+
+// ============================================
+// CLINIC PACKAGES API
+// ============================================
+
+// GET all packages
+app.get('/api/clinic/packages', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM clinic_packages WHERE owner_id = ? ORDER BY created_at DESC');
+  stmt.bind([userId]);
+  const packages = [];
+  while (stmt.step()) packages.push(stmt.getAsObject());
+  stmt.free();
+  res.json(packages);
+});
+
+// POST new package
+app.post('/api/clinic/packages', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, description, service_id, total_sessions, price, session_price } = req.body;
+  if (!name || !service_id || !total_sessions || !price) {
+    return res.status(400).json({ error: 'Faltan datos obligatorios' });
+  }
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO clinic_packages (id, owner_id, name, description, service_id, total_sessions, price, session_price, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)');
+  stmt.run([id, userId, name, description || null, service_id, total_sessions, price, session_price || (price / total_sessions)]);
+  stmt.free();
+  saveDb();
+  res.json({ id, success: true });
+});
+
+// PUT update package
+app.put('/api/clinic/packages/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, description, service_id, total_sessions, price, session_price, active } = req.body;
+  
+  const stmt = db.prepare('UPDATE clinic_packages SET name = ?, description = ?, service_id = ?, total_sessions = ?, price = ?, session_price = ?, active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_id = ?');
+  stmt.run([name, description || null, service_id, total_sessions, price, session_price || (price / total_sessions), active !== undefined ? active : 1, id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+// DELETE package
+app.delete('/api/clinic/packages/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM clinic_package_usage WHERE package_id = ? AND owner_id = ?', [id, userId]);
+  db.run('DELETE FROM clinic_packages WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+// GET all package usage
+app.get('/api/clinic/packages/usage/all', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM clinic_package_usage WHERE owner_id = ? ORDER BY purchase_date DESC');
+  stmt.bind([userId]);
+  const usage = [];
+  while (stmt.step()) usage.push(stmt.getAsObject());
+  stmt.free();
+  res.json(usage);
+});
+
+// POST register usage
+app.post('/api/clinic/packages/usage/register', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { client_id, package_id, sessions_consumed } = req.body;
+  if (!client_id || !package_id) {
+    return res.status(400).json({ error: 'Cliente y paquete son obligatorios' });
+  }
+  
+  const packageStmt = db.prepare('SELECT * FROM clinic_packages WHERE id = ? AND owner_id = ?');
+  packageStmt.bind([package_id, userId]);
+  let packageData = null;
+  if (packageStmt.step()) packageData = packageStmt.getAsObject();
+  packageStmt.free();
+  
+  if (!packageData) {
+    return res.status(400).json({ error: 'Paquete no encontrado' });
+  }
+  
+  const sessionsRemaining = (packageData.total_sessions || 0) - (sessions_consumed || 0);
+  const status = sessionsRemaining <= 0 ? 'completed' : 'active';
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO clinic_package_usage (id, owner_id, client_id, package_id, sessions_consumed, sessions_remaining, status, purchase_date) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)');
+  stmt.run([id, userId, client_id, package_id, sessions_consumed || 0, sessionsRemaining, status]);
+  stmt.free();
+  saveDb();
+  res.json({ id, success: true });
+});
+
+// PUT update usage
+app.put('/api/clinic/packages/usage/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { client_id, package_id, sessions_consumed } = req.body;
+  
+  const usageStmt = db.prepare('SELECT * FROM clinic_package_usage WHERE id = ? AND owner_id = ?');
+  usageStmt.bind([id, userId]);
+  let usageData = null;
+  if (usageStmt.step()) usageData = usageStmt.getAsObject();
+  usageStmt.free();
+  
+  if (!usageData) {
+    return res.status(404).json({ error: 'Registro no encontrado' });
+  }
+  
+  let totalSessions = 0;
+  if (package_id && package_id !== usageData.package_id) {
+    const packageStmt = db.prepare('SELECT total_sessions FROM clinic_packages WHERE id = ? AND owner_id = ?');
+    packageStmt.bind([package_id, userId]);
+    if (packageStmt.step()) {
+      const pkg = packageStmt.getAsObject();
+      totalSessions = pkg.total_sessions || 0;
+    }
+    packageStmt.free();
+  } else {
+    const packageStmt = db.prepare('SELECT total_sessions FROM clinic_packages WHERE id = ? AND owner_id = ?');
+    packageStmt.bind([usageData.package_id, userId]);
+    if (packageStmt.step()) {
+      const pkg = packageStmt.getAsObject();
+      totalSessions = pkg.total_sessions || 0;
+    }
+    packageStmt.free();
+  }
+  
+  const finalPackageId = package_id || usageData.package_id;
+  const finalSessionsConsumed = sessions_consumed !== undefined ? sessions_consumed : usageData.sessions_consumed;
+  const sessionsRemaining = totalSessions - finalSessionsConsumed;
+  const status = sessionsRemaining <= 0 ? 'completed' : 'active';
+  
+  const stmt = db.prepare('UPDATE clinic_package_usage SET client_id = ?, package_id = ?, sessions_consumed = ?, sessions_remaining = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_id = ?');
+  stmt.run([client_id || usageData.client_id, finalPackageId, finalSessionsConsumed, sessionsRemaining, status, id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+// DELETE usage
+app.delete('/api/clinic/packages/usage/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM clinic_package_usage WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+// ============ CLINIC CLIENTS API ============
+app.get('/api/clinic/clients', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const stmt = db.prepare('SELECT * FROM clinic_clients WHERE owner_id = ? ORDER BY name');
+    stmt.bind([userId]);
+    const clients = [];
+    while (stmt.step()) clients.push(stmt.getAsObject());
+    stmt.free();
+    res.json(clients);
+  } catch (error) {
+    console.error('Error fetching clinic clients:', error);
+    res.status(500).json({ error: 'Error obteniendo clientes' });
+  }
+});
+
+app.post('/api/clinic/clients', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, email, phone, birthdate, address, city, postal_code, notes } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare(`
+    INSERT INTO clinic_clients (id, owner_id, name, email, phone, birthdate, address, city, postal_code, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  
+  try {
+    stmt.run([id, userId, name, email || null, phone || null, birthdate || null, address || null, city || null, postal_code || null, notes || null]);
+    stmt.free();
+    saveDb();
+    res.json({ id, success: true });
+  } catch (error) {
+    console.error('Error creating clinic client:', error);
+    res.status(500).json({ error: 'Error al crear cliente: ' + error.message });
+  }
+});
+
+app.put('/api/clinic/clients/:id', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, email, phone, birthdate, address, city, postal_code, notes } = req.body;
+  
+  const stmt = db.prepare(`
+    UPDATE clinic_clients SET name = ?, email = ?, phone = ?, birthdate = ?, address = ?, 
+    city = ?, postal_code = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND owner_id = ?
+  `);
+  
+  try {
+    stmt.run([name, email || null, phone || null, birthdate || null, address || null, city || null, postal_code || null, notes || null, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating clinic client:', error);
+    res.status(500).json({ error: 'Error al actualizar cliente' });
+  }
+});
+
+app.delete('/api/clinic/clients/:id', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  try {
+    db.run('DELETE FROM clinic_clients WHERE id = ? AND owner_id = ?', [id, userId]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting clinic client:', error);
+    res.status(500).json({ error: 'Error al eliminar cliente' });
+  }
+});
+
+// ============ CLINIC SERVICES API ============
+app.get('/api/clinic/services', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const stmt = db.prepare('SELECT * FROM clinic_services WHERE owner_id = ? AND active = 1 ORDER BY category, name');
+    stmt.bind([userId]);
+    const services = [];
+    while (stmt.step()) services.push(stmt.getAsObject());
+    stmt.free();
+    res.json(services);
+  } catch (error) {
+    console.error('Error fetching clinic services:', error);
+    res.status(500).json({ error: 'Error obteniendo servicios' });
+  }
+});
+
+app.post('/api/clinic/services', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, description, duration_minutes, price, category } = req.body;
+  if (!name || isNaN(price)) return res.status(400).json({ error: 'Nombre y precio son obligatorios' });
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare(`
+    INSERT INTO clinic_services (id, owner_id, name, description, duration_minutes, price, category)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  
+  try {
+    stmt.run([id, userId, name, description || null, duration_minutes || 60, price, category || 'General']);
+    stmt.free();
+    saveDb();
+    res.json({ id, success: true });
+  } catch (error) {
+    console.error('Error creating clinic service:', error);
+    res.status(500).json({ error: 'Error al crear servicio: ' + error.message });
+  }
+});
+
+app.put('/api/clinic/services/:id', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, description, duration_minutes, price, category, active } = req.body;
+  
+  const stmt = db.prepare(`
+    UPDATE clinic_services SET name = ?, description = ?, duration_minutes = ?, 
+    price = ?, category = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND owner_id = ?
+  `);
+  
+  try {
+    stmt.run([name, description || null, duration_minutes || 60, price, category || 'General', active !== undefined ? (active ? 1 : 0) : 1, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating clinic service:', error);
+    res.status(500).json({ error: 'Error al actualizar servicio' });
+  }
+});
+
+app.delete('/api/clinic/services/:id', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  try {
+    db.run('UPDATE clinic_services SET active = 0 WHERE id = ? AND owner_id = ?', [id, userId]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting clinic service:', error);
+    res.status(500).json({ error: 'Error al eliminar servicio' });
+  }
+});
+
+// ============ CLINIC APPOINTMENTS API ============
+app.get('/api/clinic/appointments', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { from, to } = req.query;
+  
+  try {
+    let query = `
+      SELECT ca.*, cc.name as client_name, cs.name as service_name
+      FROM clinic_appointments ca
+      JOIN clinic_clients cc ON ca.client_id = cc.id
+      JOIN clinic_services cs ON ca.service_id = cs.id
+      WHERE ca.owner_id = ?
+    `;
+    const params = [userId];
+    
+    if (from && to) {
+      query += ' AND ca.appointment_date BETWEEN ? AND ?';
+      params.push(from, to);
+    }
+    
+    query += ' ORDER BY ca.appointment_date, ca.appointment_time';
+    
+    const stmt = db.prepare(query);
+    stmt.bind(params);
+    const appointments = [];
+    while (stmt.step()) appointments.push(stmt.getAsObject());
+    stmt.free();
+    res.json(appointments);
+  } catch (error) {
+    console.error('Error fetching clinic appointments:', error);
+    res.status(500).json({ error: 'Error obteniendo citas' });
+  }
+});
+
+app.post('/api/clinic/appointments', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { client_id, service_id, professional_id, appointment_date, appointment_time, duration_minutes, price, notes } = req.body;
+  if (!client_id || !service_id || !appointment_date || !appointment_time) {
+    return res.status(400).json({ error: 'Campos obligatorios faltantes' });
+  }
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare(`
+    INSERT INTO clinic_appointments (id, owner_id, client_id, service_id, professional_id, appointment_date, appointment_time, duration_minutes, price, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  
+  try {
+    stmt.run([id, userId, client_id, service_id, professional_id || null, appointment_date, appointment_time, duration_minutes || 60, price || null, notes || null]);
+    stmt.free();
+    saveDb();
+    res.json({ id, success: true });
+  } catch (error) {
+    console.error('Error creating clinic appointment:', error);
+    res.status(500).json({ error: 'Error al crear la cita: ' + error.message });
+  }
+});
+
+app.put('/api/clinic/appointments/:id', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { status, appointment_date, appointment_time, notes } = req.body;
+  
+  try {
+    const stmt = db.prepare('UPDATE clinic_appointments SET status = ?, appointment_date = ?, appointment_time = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_id = ?');
+    stmt.run([status || 'scheduled', appointment_date, appointment_time, notes || null, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating appointment:', error);
+    res.status(500).json({ error: 'Error al actualizar cita' });
+  }
+});
+
+// ============ CLINIC PRODUCTS API ============
+app.get('/api/clinic/products', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const stmt = db.prepare('SELECT * FROM clinic_products WHERE owner_id = ? ORDER BY category, name');
+    stmt.bind([userId]);
+    const products = [];
+    while (stmt.step()) products.push(stmt.getAsObject());
+    stmt.free();
+    res.json(products);
+  } catch (error) {
+    console.error('Error fetching clinic products:', error);
+    res.status(500).json({ error: 'Error obteniendo productos' });
+  }
+});
+
+app.post('/api/clinic/products', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, description, sku, category, unit, cost_price, selling_price, min_stock, current_stock, supplier } = req.body;
+  if (!name || isNaN(selling_price)) return res.status(400).json({ error: 'Nombre y precio venta son obligatorios' });
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare(`
+    INSERT INTO clinic_products (id, owner_id, name, description, sku, category, unit, cost_price, selling_price, min_stock, current_stock, supplier)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  
+  try {
+    stmt.run([id, userId, name, description || null, sku || null, category || null, unit || 'unit', cost_price || 0, selling_price, min_stock || 0, current_stock || 0, supplier || null]);
+    stmt.free();
+    saveDb();
+    res.json({ id, success: true });
+  } catch (error) {
+    console.error('Error creating product:', error);
+    res.status(500).json({ error: 'Error al crear producto: ' + error.message });
+  }
+});
+
+// ============ CLINIC PROFESSIONALS API ============
+app.get('/api/clinic/professionals', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const stmt = db.prepare('SELECT * FROM clinic_professionals WHERE owner_id = ? AND active = 1 ORDER BY name');
+    stmt.bind([userId]);
+    const professionals = [];
+    while (stmt.step()) professionals.push(stmt.getAsObject());
+    stmt.free();
+    res.json(professionals);
+  } catch (error) {
+    console.error('Error fetching professionals:', error);
+    res.status(500).json({ error: 'Error obteniendo profesionales' });
+  }
+});
+
+app.post('/api/clinic/professionals', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, email, phone, specialties, bio, color } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare(`
+    INSERT INTO clinic_professionals (id, owner_id, name, email, phone, specialties, bio, color)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  
+  try {
+    stmt.run([id, userId, name, email || null, phone || null, specialties || null, bio || null, color || '#4f46e5']);
+    stmt.free();
+    saveDb();
+    res.json({ id, success: true });
+  } catch (error) {
+    console.error('Error creating professional:', error);
+    res.status(500).json({ error: 'Error al crear profesional' });
+  }
+});
+
+// ============ CLINIC BUDGETS & VISITS API ============
+app.get('/api/clinic/budgets', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const stmt = db.prepare(`
+      SELECT b.*, c.name as client_name 
+      FROM clinic_budgets b
+      JOIN clinic_clients c ON b.client_id = c.id
+      WHERE b.owner_id = ? ORDER BY b.created_at DESC
+    `);
+    stmt.bind([userId]);
+    const budgets = [];
+    while (stmt.step()) {
+      const budget = stmt.getAsObject();
+      budget.items = JSON.parse(budget.items);
+      budgets.push(budget);
+    }
+    stmt.free();
+    res.json(budgets);
+  } catch (error) {
+    console.error('Error fetching budgets:', error);
+    res.status(500).json({ error: 'Error obteniendo presupuestos' });
+  }
+});
+
+app.get('/api/clinic/visits/:clientId', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { clientId } = req.params;
+  try {
+    const stmt = db.prepare('SELECT * FROM clinic_visits WHERE client_id = ? AND owner_id = ? ORDER BY visit_date DESC');
+    stmt.bind([clientId, userId]);
+    const visits = [];
+    while (stmt.step()) visits.push(stmt.getAsObject());
+    stmt.free();
+    res.json(visits);
+  } catch (error) {
+    console.error('Error fetching visits:', error);
+    res.status(500).json({ error: 'Error obteniendo historial' });
+  }
+});
+
+// ============ CLINIC REMINDERS CRON ============
+async function sendClinicReminders() {
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  
+  console.log(`[Cron] Checking clinic reminders for ${tomorrowStr}`);
+  
+  const stmt = db.prepare(`
+    SELECT ca.*, cc.name as client_name, cc.email as client_email, cs.name as service_name
+    FROM clinic_appointments ca
+    JOIN clinic_clients cc ON ca.client_id = cc.id
+    JOIN clinic_services cs ON ca.service_id = cs.id
+    WHERE ca.appointment_date = ? AND ca.reminder_sent = 0 AND ca.status = 'scheduled'
+  `);
+  stmt.bind([tomorrowStr]);
+  
+  const appointments = [];
+  while (stmt.step()) appointments.push(stmt.getAsObject());
+  stmt.free();
+  
+  for (const appt of appointments) {
+    if (!appt.client_email) continue;
+    
+    // Here we would use the existing sendNotificationEmail or a specialized one
+    // For now, let's mark as sent to simulate logic
+    console.log(`[Cron] Sending reminder to ${appt.client_email} for ${appt.service_name}`);
+    
+    db.run('UPDATE clinic_appointments SET reminder_sent = 1 WHERE id = ?', [appt.id]);
+    saveDb();
+  }
+}
+
+// Scheduled at 20:00 every day
+cron.schedule('0 20 * * *', async () => {
+  await sendClinicReminders();
 });
 
 app.listen(PORT, () => {

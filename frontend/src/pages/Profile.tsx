@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X, Download, Upload, Settings, Calendar, Palette, GripVertical } from 'lucide-react';
+import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Download, Upload, Settings, Calendar, Palette, GripVertical } from 'lucide-react';
 import { NotificationSettings } from '../components/NotificationSettings';
 import { ImportDB } from '../components/ImportDB';
 import { useAuth } from '../components/Auth';
@@ -22,75 +22,6 @@ interface Profile {
   enabled_modules: string | null;
 }
 
-interface Invitation {
-  id: number;
-  from_user_id: number;
-  from_username: string;
-  to_username: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  created_at: string;
-}
-
-interface SharedUser {
-  id: number;
-  shared_with_id: number;
-  shared_with_username: string;
-  created_at: string;
-  share_dashboard: number;
-  share_accounting: number;
-  share_budgets: number;
-  share_agenda: number;
-  share_tasks: number;
-  share_notes: number;
-  share_shopping: number;
-  share_contacts: number;
-  share_recipes: number;
-  share_restaurants: number;
-  share_family_members: number;
-  share_gifts: number;
-  share_books: number;
-  share_movies: number;
-  share_habits: number;
-  share_home_inventory: number;
-  share_home_maintenance: number;
-  share_subscriptions: number;
-  share_pet_tracker: number;
-  share_travel_manager: number;
-  share_savings_goals: number;
-  share_internal_debts: number;
-  share_utility_bills: number;
-  share_family_library: number;
-  share_extra_school: number;
-}
-
-interface SharePreferences {
-  share_dashboard: boolean;
-  share_accounting: boolean;
-  share_budgets: boolean;
-  share_agenda: boolean;
-  share_tasks: boolean;
-  share_notes: boolean;
-  share_shopping: boolean;
-  share_contacts: boolean;
-  share_recipes: boolean;
-  share_restaurants: boolean;
-  share_family_members: boolean;
-  share_gifts: boolean;
-  share_books: boolean;
-  share_movies: boolean;
-  share_habits: boolean;
-  share_home_inventory: boolean;
-  share_home_maintenance: boolean;
-  share_subscriptions: boolean;
-  share_pet_tracker: boolean;
-  share_travel_manager: boolean;
-  share_savings_goals: boolean;
-  share_internal_debts: boolean;
-  share_utility_bills: boolean;
-  share_family_library: boolean;
-  share_extra_school: boolean;
-}
-
 export function Profile() {
   const { logout, isAdmin } = useAuth();
   const { theme, setTheme } = useTheme();
@@ -102,7 +33,7 @@ export function Profile() {
     phone: null,
     sex: null,
     birth_date: null,
-    family_name: 'Mi Familia',
+    family_name: '',
     city: null,
     currency: 'EUR',
     enabled_modules: null
@@ -110,42 +41,6 @@ export function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
-  const [availableUsers, setAvailableUsers] = useState<{id: number; username: string}[]>([]);
-  const [inviteUsername, setInviteUsername] = useState('');
-  const [inviting, setInviting] = useState(false);
-  const [inviteError, setInviteError] = useState('');
-  const [inviteSuccess, setInviteSuccess] = useState('');
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [editingShare, setEditingShare] = useState<SharedUser | null>(null);
-  const [sharePrefs, setSharePrefs] = useState<SharePreferences>({
-    share_dashboard: true,
-    share_accounting: true,
-    share_budgets: true,
-    share_agenda: true,
-    share_tasks: true,
-    share_notes: false,
-    share_shopping: false,
-    share_contacts: false,
-    share_recipes: false,
-    share_restaurants: false,
-    share_family_members: false,
-    share_gifts: false,
-    share_books: false,
-    share_movies: false,
-    share_habits: false,
-    share_home_inventory: true,
-    share_home_maintenance: true,
-    share_subscriptions: true,
-    share_pet_tracker: true,
-    share_travel_manager: true,
-    share_savings_goals: true,
-    share_internal_debts: true,
-    share_utility_bills: true,
-    share_family_library: true,
-    share_extra_school: true,
-  });
 
   useEffect(() => {
     fetchProfile();
@@ -169,6 +64,9 @@ export function Profile() {
       const headers = getAuthHeaders();
       const response = await fetch(`${API_URL}/api/profile`, { headers });
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Error fetching profile');
+      }
       setProfile(data);
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -221,23 +119,8 @@ export function Profile() {
           share_notes: false,
           share_shopping: false,
           share_contacts: false,
-          share_recipes: false,
-          share_restaurants: false,
-          share_family_members: false,
-          share_gifts: false,
-          share_books: false,
-          share_movies: false,
-          share_habits: false,
-          share_home_inventory: true,
           share_home_maintenance: true,
-          share_subscriptions: true,
-          share_pet_tracker: true,
-          share_travel_manager: true,
-          share_savings_goals: true,
-          share_internal_debts: true,
           share_utility_bills: true,
-          share_family_library: true,
-          share_extra_school: true,
         });
         fetchInvitations();
       } else {
@@ -281,23 +164,8 @@ export function Profile() {
       share_notes: !!share.share_notes,
       share_shopping: !!share.share_shopping,
       share_contacts: !!share.share_contacts,
-      share_recipes: !!share.share_recipes,
-      share_restaurants: !!share.share_restaurants,
-      share_family_members: !!share.share_family_members,
-      share_gifts: !!share.share_gifts,
-      share_books: !!share.share_books,
-      share_movies: !!share.share_movies,
-      share_habits: !!share.share_habits,
-      share_home_inventory: !!share.share_home_inventory,
       share_home_maintenance: !!share.share_home_maintenance,
-      share_subscriptions: !!share.share_subscriptions,
-      share_pet_tracker: !!share.share_pet_tracker,
-      share_travel_manager: !!share.share_travel_manager,
-      share_savings_goals: !!share.share_savings_goals,
-      share_internal_debts: !!share.share_internal_debts,
       share_utility_bills: !!share.share_utility_bills,
-      share_family_library: !!share.share_family_library,
-      share_extra_school: !!share.share_extra_school,
     });
     setShowShareModal(true);
   };
@@ -313,23 +181,8 @@ export function Profile() {
       share_notes: false,
       share_shopping: false,
       share_contacts: false,
-      share_recipes: false,
-      share_restaurants: false,
-      share_family_members: false,
-      share_gifts: false,
-      share_books: false,
-      share_movies: false,
-      share_habits: false,
-      share_home_inventory: true,
       share_home_maintenance: true,
-      share_subscriptions: true,
-      share_pet_tracker: true,
-      share_travel_manager: true,
-      share_savings_goals: true,
-      share_internal_debts: true,
       share_utility_bills: true,
-      share_family_library: true,
-      share_extra_school: true,
     });
     setInviteUsername('');
     setAvailableUsers([]);
@@ -572,15 +425,15 @@ export function Profile() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Users size={14} className="inline mr-1" />
-                  Nombre de familia
+                  <User size={14} className="inline mr-1" />
+                  Apellidos
                 </label>
                 <input
                   type="text"
                   value={profile.family_name}
                   onChange={(e) => setProfile({ ...profile, family_name: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  placeholder="Mi Familia"
+                  placeholder="Tus apellidos"
                 />
               </div>
 
@@ -665,8 +518,6 @@ export function Profile() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
                   <option value="EUR">Euro (€)</option>
-                  <option value="USD">Dólar ($)</option>
-                  <option value="GBP">Libra (£)</option>
                 </select>
               </div>
             </div>
@@ -744,213 +595,7 @@ export function Profile() {
             </button>
           </div>
 
-          <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
-            <div className="flex items-center justify-between mb-3 sm:mb-4">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center gap-2">
-                <Share2 size={18} className="text-primary" />
-                Compartir datos
-              </h3>
-              <button
-                onClick={openNewShare}
-                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm"
-              >
-                <UserPlus size={16} />
-                Compartir con usuario
-              </button>
-            </div>
-
-            {sharedUsers.length > 0 && (
-              <div className="mb-4">
-                <h4 className="font-medium text-gray-700 mb-2 text-sm">Usuarios con acceso:</h4>
-                <div className="space-y-2">
-                  {sharedUsers.map((share) => (
-                    <div key={share.shared_with_id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <User size={16} className="text-primary" />
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-800 text-sm">{share.username || share.shared_with_username}</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {share.share_dashboard === 1 && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Dashboard</span>}
-                            {share.share_accounting === 1 && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Contabilidad</span>}
-                            {share.share_budgets === 1 && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">Presupuestos</span>}
-                            {share.share_agenda === 1 && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">Agenda</span>}
-                            {share.share_tasks === 1 && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">Tareas</span>}
-                            {share.share_notes === 1 && <span className="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded">Notas</span>}
-                            {share.share_shopping === 1 && <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded">Compra</span>}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openEditShare(share)}
-                          className="text-gray-500 hover:text-primary text-sm flex items-center gap-1 p-1"
-                          title="Editar compartición"
-                        >
-                          <Settings size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleRemoveShare(share.shared_with_id)}
-                          className="text-expense hover:text-red-700 text-sm flex items-center gap-1"
-                        >
-                          <X size={14} />
-                          Quitar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {invitations.filter(i => i.status === 'pending').length > 0 && (
-              <div>
-                <h4 className="font-medium text-gray-700 mb-2 text-sm">Invitaciones pendientes:</h4>
-                <div className="space-y-2">
-                  {invitations.filter(i => i.status === 'pending').map((inv) => (
-                    <div key={inv.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-yellow-50 rounded-lg p-3 gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
-                          <User size={16} className="text-yellow-600" />
-                        </div>
-                        <span className="font-medium text-gray-800 text-sm">{inv.from_username} quiere compartir contigo</span>
-                      </div>
-                      <div className="flex items-center gap-2 ml-11 sm:ml-0">
-                        <button
-                          onClick={() => handleInvitationAction(inv.id, 'accept')}
-                          className="flex items-center gap-1 bg-income text-white px-3 py-1 rounded-lg text-sm hover:bg-income/90"
-                        >
-                          <Check size={14} />
-                          Aceptar
-                        </button>
-                        <button
-                          onClick={() => handleInvitationAction(inv.id, 'reject')}
-                          className="flex items-center gap-1 bg-expense text-white px-3 py-1 rounded-lg text-sm hover:bg-expense/90"
-                        >
-                          <X size={14} />
-                          Rechazar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {sharedUsers.length === 0 && invitations.filter(i => i.status === 'pending').length === 0 && (
-              <p className="text-gray-500 text-sm">
-                No has compartido datos ni tienes invitaciones pendientes.
-              </p>
-            )}
           </div>
-
-          {showShareModal && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    {editingShare ? 'Editar compartición' : 'Compartir datos'}
-                  </h3>
-                  <button onClick={() => { setShowShareModal(false); setInviteUsername(''); }} className="text-gray-500 hover:text-gray-700">
-                    <X size={20} />
-                  </button>
-                </div>
-
-                {!editingShare && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Usuario
-                    </label>
-                    {availableUsers.length > 0 ? (
-                      <select
-                        value={inviteUsername}
-                        onChange={(e) => setInviteUsername(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                      >
-                        <option value="">Selecciona un usuario...</option>
-                        {availableUsers.map((user) => (
-                          <option key={user.id} value={user.username}>{user.username}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={inviteUsername}
-                        onChange={(e) => setInviteUsername(e.target.value)}
-                        placeholder="Nombre de usuario"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                      />
-                    )}
-                    {inviteError && <p className="text-expense text-sm mt-1">{inviteError}</p>}
-                  </div>
-                )}
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Datos a compartir
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { key: 'share_dashboard', label: 'Dashboard', color: 'blue' },
-                      { key: 'share_accounting', label: 'Contabilidad', color: 'green' },
-                      { key: 'share_budgets', label: 'Presupuestos', color: 'yellow' },
-                      { key: 'share_agenda', label: 'Agenda', color: 'purple' },
-                      { key: 'share_tasks', label: 'Tareas', color: 'orange' },
-                      { key: 'share_notes', label: 'Notas', color: 'pink' },
-                      { key: 'share_shopping', label: 'Lista de compra', color: 'teal' },
-                      { key: 'share_contacts', label: 'Contactos', color: 'indigo' },
-                      { key: 'share_recipes', label: 'Recetas', color: 'red' },
-                      { key: 'share_restaurants', label: 'Restaurantes', color: 'amber' },
-                      { key: 'share_family_members', label: 'Miembros familia (cumpleaños)', color: 'cyan' },
-                      { key: 'share_gifts', label: 'Regalos', color: 'rose' },
-                      { key: 'share_books', label: 'Libros', color: 'indigo' },
-                      { key: 'share_movies', label: 'Películas', color: 'purple' },
-                      { key: 'share_habits', label: 'Hábitos', color: 'emerald' },
-                      { key: 'share_home_inventory', label: 'Inventario Hogar', color: 'slate' },
-                      { key: 'share_home_maintenance', label: 'Mantenimiento Hogar', color: 'orange' },
-                      { key: 'share_subscriptions', label: 'Suscripciones', color: 'violet' },
-                      { key: 'share_pet_tracker', label: 'Mascotas', color: 'amber' },
-                      { key: 'share_travel_manager', label: 'Viajes', color: 'sky' },
-                      { key: 'share_savings_goals', label: 'Ahorros', color: 'green' },
-                      { key: 'share_internal_debts', label: 'Deudas', color: 'red' },
-                      { key: 'share_utility_bills', label: 'Facturas', color: 'yellow' },
-                      { key: 'share_family_library', label: 'Biblioteca', color: 'indigo' },
-                      { key: 'share_extra_school', label: 'Extraescolares', color: 'pink' },
-                    ].map((item) => (
-                      <label key={item.key} className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={sharePrefs[item.key as keyof SharePreferences]}
-                          onChange={(e) => setSharePrefs({ ...sharePrefs, [item.key]: e.target.checked })}
-                          className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
-                        />
-                        <span className="text-sm text-gray-700">{item.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setShowShareModal(false)}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={editingShare ? handleUpdateShare : handleInvite}
-                    disabled={inviting || (!editingShare && !inviteUsername.trim())}
-                    className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
-                  >
-                    {inviting ? <Loader2 size={16} className="animate-spin" /> : null}
-                    {editingShare ? 'Guardar' : 'Invitar'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

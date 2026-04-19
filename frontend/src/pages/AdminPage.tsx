@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon, Database, Download, Upload } from 'lucide-react';
+import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon, Database, Download, Upload, Mail, Home, Wallet, Target, Calendar, ShoppingCart, ListChecks, StickyNote, Cake, Bot, Wrench, Zap, DollarSign, BookOpen, Info, FileText, ShieldCheck, Save, GripVertical, Package } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -47,20 +47,52 @@ export function AdminPage() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserError, setNewUserError] = useState('');
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login' | 'database'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login' | 'database' | 'smtp' | 'modules'>('users');
+  
+  // Password related states
+  const [confirmUserPassword, setConfirmUserPassword] = useState('');
+  const [showUserPass1, setShowUserPass1] = useState(false);
+  const [showUserPass2, setShowUserPass2] = useState(false);
+  
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showChangePass1, setShowChangePass1] = useState(false);
+  const [showChangePass2, setShowChangePass2] = useState(false);
   
   const [loginImage, setLoginImage] = useState('');
   const [showLock, setShowLock] = useState(true);
   const [savingLogin, setSavingLogin] = useState(false);
+  const [companyName, setCompanyName] = useState('Clínica Valencia');
+  const [savingCompany, setSavingCompany] = useState(false);
   const [downloadingDb, setDownloadingDb] = useState(false);
   const [uploadingDb, setUploadingDb] = useState(false);
   const [dbMessage, setDbMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [deleteSuggestionId, setDeleteSuggestionId] = useState<number | null>(null);
+  const [enabledModules, setEnabledModules] = useState<string[]>([]);
+  const [savingModules, setSavingModules] = useState(false);
+
+  // SMTP Settings
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState(587);
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [smtpFromEmail, setSmtpFromEmail] = useState('');
+  const [smtpEnabled, setSmtpEnabled] = useState(false);
+  const [savingSmtp, setSavingSmtp] = useState(false);
+  const [smtpMessage, setSmtpMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     fetchData();
     fetchSuggestions();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'login') {
+      fetchLoginSettings();
+      fetchCompanyName();
+    } else if (activeTab === 'modules') {
+      fetchEnabledModules();
+    }
+  }, [activeTab]);
 
   const fetchData = async () => {
     try {
@@ -104,9 +136,122 @@ export function AdminPage() {
     }
   };
 
+  const fetchCompanyName = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/settings/company-name`, { headers });
+      const data = await response.json();
+      setCompanyName(data.companyName || 'Clínica Valencia');
+    } catch (error) {
+      console.error('Error fetching company name:', error);
+    }
+  };
+
+  const saveCompanyName = async () => {
+    setSavingCompany(true);
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/settings/company-name`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ companyName })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('Nombre de empresa guardado');
+        localStorage.setItem('companyName', companyName);
+        fetchCompanyName();
+      } else {
+        alert(data.error || 'Error al guardar');
+      }
+    } catch (error) {
+      console.error('Error saving company name:', error);
+      alert('Error al guardar');
+    }
+    setSavingCompany(false);
+  };
+
+  const fetchEnabledModules = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/settings/global-modules`, { headers });
+      const data = await response.json();
+      if (Array.isArray(data.enabled_modules)) {
+        setEnabledModules(data.enabled_modules);
+      } else {
+        setEnabledModules(defaultModulesList.map(m => m.key));
+      }
+    } catch (error) {
+      console.error('Error fetching enabled modules:', error);
+      setEnabledModules(defaultModulesList.map(m => m.key));
+    }
+  };
+
+  const saveEnabledModules = async (modules: string[]) => {
+    setSavingModules(true);
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const url = API_URL ? `${API_URL}/api/settings/global-modules` : '/api/settings/global-modules';
+      console.log('Saving modules to:', url, 'with headers:', headers);
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ enabled_modules: modules })
+      });
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Response data:', data);
+      if (response.ok && data.success) {
+        setEnabledModules(modules);
+      } else {
+        const errorMsg = data.error || `Error: ${response.status}`;
+        console.error('Error saving modules:', errorMsg);
+        alert(errorMsg);
+      }
+    } catch (error) {
+      console.error('Error saving modules:', error);
+      alert('Error al guardar');
+    }
+    setSavingModules(false);
+  };
+
+  const defaultModulesList = [
+    { key: 'dashboard', label: 'Dashboard', icon: Home },
+    { key: 'accounting', label: 'Contabilidad', icon: Wallet },
+    { key: 'budgets', label: 'Presupuestos', icon: Target },
+    { key: 'agenda', label: 'Agenda', icon: Calendar },
+    { key: 'shopping', label: 'Lista de Compra', icon: ShoppingCart },
+    { key: 'tasks', label: 'Tareas', icon: ListChecks },
+    { key: 'notes', label: 'Notas', icon: StickyNote },
+    { key: 'birthdays', label: 'Cumpleaños', icon: Cake },
+    { key: 'chatbot', label: 'Chat IA', icon: Bot },
+    { key: 'home_maintenance', label: 'Mantenimiento', icon: Wrench },
+    { key: 'utility_bills', label: 'Facturas', icon: Zap },
+    
+    { key: 'clinic', label: 'Mi Clínica', icon: Shield },
+    { key: 'clinic_packages', label: 'Bonos y Suscripciones', icon: Package },
+    { key: 'howitworks', label: 'Cómo Funciona', icon: BookOpen },
+    { key: 'about', label: 'Acerca de', icon: Info },
+    { key: 'terms', label: 'Términos', icon: FileText },
+    { key: 'privacy', label: 'Privacidad', icon: ShieldCheck },
+  ];
+
+  const toggleModule = async (moduleKey: string) => {
+    let updatedModules: string[];
+    if (enabledModules.includes(moduleKey)) {
+      updatedModules = enabledModules.filter((m: string) => m !== moduleKey);
+    } else {
+      updatedModules = [...enabledModules, moduleKey];
+    }
+    setEnabledModules(updatedModules);
+    await saveEnabledModules(updatedModules);
+  };
+
   useEffect(() => {
     if (activeTab === 'login') {
       fetchLoginSettings();
+    } else if (activeTab === 'smtp') {
+      fetchSmtpSettings();
     }
   }, [activeTab]);
 
@@ -121,8 +266,14 @@ export function AdminPage() {
       });
       const data = await resp.json();
       if (data.success) {
+        await fetch(`${API_URL}/api/settings/company-name`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ companyName })
+        });
         alert('Configuración guardada');
         fetchLoginSettings();
+        fetchCompanyName();
       } else {
         alert(data.error || 'Error al guardar');
       }
@@ -131,6 +282,61 @@ export function AdminPage() {
       alert('Error al guardar');
     }
     setSavingLogin(false);
+  };
+
+  const fetchSmtpSettings = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/settings/smtp`, { headers });
+      const data = await response.json();
+      setSmtpHost(data.smtp_host || '');
+      setSmtpPort(data.smtp_port || 587);
+      setSmtpUser(data.smtp_user || '');
+      setSmtpPassword(data.smtp_password || '');
+      setSmtpFromEmail(data.smtp_from_email || '');
+      setSmtpEnabled(data.smtp_enabled === true);
+    } catch (error) {
+      console.error('Error fetching SMTP settings:', error);
+    }
+  };
+
+  const saveSmtpSettings = async () => {
+    setSavingSmtp(true);
+    setSmtpMessage(null);
+
+    if (!smtpHost.trim() || !smtpUser.trim() || !smtpFromEmail.trim()) {
+      setSmtpMessage({ type: 'error', text: 'Por favor completa los campos obligatorios' });
+      setSavingSmtp(false);
+      return;
+    }
+
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/settings/smtp`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          smtp_host: smtpHost,
+          smtp_port: smtpPort,
+          smtp_user: smtpUser,
+          smtp_password: smtpPassword,
+          smtp_from_email: smtpFromEmail,
+          smtp_enabled: smtpEnabled
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setSmtpMessage({ type: 'success', text: data.message || 'Configuración SMTP guardada correctamente' });
+      } else {
+        setSmtpMessage({ type: 'error', text: data.error || 'Error guardando configuración SMTP' });
+      }
+    } catch (error) {
+      console.error('Error saving SMTP settings:', error);
+      setSmtpMessage({ type: 'error', text: 'Error guardando configuración SMTP' });
+    }
+
+    setSavingSmtp(false);
   };
 
   const downloadDatabase = async () => {
@@ -353,6 +559,10 @@ export function AdminPage() {
       setNewUserError('La contraseña debe tener al menos 4 caracteres');
       return;
     }
+    if (newUserPassword !== confirmUserPassword) {
+      setNewUserError('Las contraseñas no coinciden');
+      return;
+    }
 
     setCreating(true);
     try {
@@ -478,6 +688,10 @@ export function AdminPage() {
       setPasswordError('La contraseña debe tener al menos 4 caracteres');
       return;
     }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('Las contraseñas no coinciden');
+      return;
+    }
 
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
@@ -531,15 +745,16 @@ export function AdminPage() {
           </div>
           <h2 className="text-2xl font-bold text-gray-800">Panel de Administración</h2>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <UserPlus size={18} />
-          Crear Usuario
-        </button>
+        {activeTab === 'users' && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <UserPlus size={18} />
+            Crear Usuario
+          </button>
+        )}
       </div>
-
       <div className="flex gap-2 md:gap-4 mb-6 border-b border-gray-200 overflow-x-auto pb-1">
         <button
           onClick={() => setActiveTab('users')}
@@ -593,6 +808,30 @@ export function AdminPage() {
           <Database size={16} className="inline" />
           <span className="hidden sm:inline">Base de Datos</span>
           <span className="sm:hidden text-xs">BBDD</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('smtp')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+            activeTab === 'smtp'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Mail size={16} className="inline" />
+          <span className="hidden sm:inline">SMTP</span>
+          <span className="sm:hidden text-xs">SMTP</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('modules')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+            activeTab === 'modules'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Settings size={16} className="inline" />
+          <span className="hidden sm:inline">Módulos</span>
+          <span className="sm:hidden text-xs">Mod</span>
         </button>
       </div>
 
@@ -981,6 +1220,22 @@ export function AdminPage() {
             </div>
 
             <div className="border-t pt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nombre de la Empresa
+              </label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Clínica Valencia"
+                className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Este nombre aparecerá en la página de login y en el footer
+              </p>
+            </div>
+
+            <div className="border-t pt-6">
               <button
                 onClick={saveLoginSettings}
                 disabled={savingLogin}
@@ -1213,6 +1468,190 @@ export function AdminPage() {
         </div>
       )}
 
+      {activeTab === 'smtp' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2 text-gray-600">
+              <Mail size={18} />
+              <span className="font-medium">Configuración del servidor SMTP</span>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-1">Servidor SMTP propio</h4>
+                  <p className="text-sm text-blue-600">
+                    Configura tu servidor SMTP para enviar notificaciones por email. Esto te permite usar tu propio dominio y servidor de email.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Servidor SMTP
+                  </label>
+                  <input
+                    type="text"
+                    value={smtpHost}
+                    onChange={(e) => setSmtpHost(e.target.value)}
+                    placeholder="smtp.gmail.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Puerto
+                  </label>
+                  <input
+                    type="number"
+                    value={smtpPort}
+                    onChange={(e) => setSmtpPort(parseInt(e.target.value) || 587)}
+                    placeholder="587"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email remitente
+                  </label>
+                  <input
+                    type="email"
+                    value={smtpFromEmail}
+                    onChange={(e) => setSmtpFromEmail(e.target.value)}
+                    placeholder="tu@email.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Usuario SMTP
+                  </label>
+                  <input
+                    type="text"
+                    value={smtpUser}
+                    onChange={(e) => setSmtpUser(e.target.value)}
+                    placeholder="tu@email.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Contraseña
+                  </label>
+                  <input
+                    type="password"
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 pt-6">
+                  <button
+                    onClick={() => setSmtpEnabled(!smtpEnabled)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      smtpEnabled ? 'bg-primary' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        smtpEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-gray-700">
+                    {smtpEnabled ? 'SMTP activo' : 'SMTP desactivado'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {smtpMessage && (
+              <div className={`p-4 rounded-lg ${smtpMessage.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+                <div className="flex items-center gap-2">
+                  {smtpMessage.type === 'success' ? <Check size={18} /> : <AlertTriangle size={18} />}
+                  {smtpMessage.text}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                onClick={saveSmtpSettings}
+                disabled={savingSmtp}
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                {savingSmtp ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save size={18} />
+                    Guardar configuración SMTP
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'modules' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2 text-gray-600">
+              <Settings size={18} />
+              <span className="font-medium">Módulos</span>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-4">
+            <div className="space-y-2">
+              {defaultModulesList.filter(m => m.key !== 'dashboard').map(module => {
+                const isEnabled = enabledModules.includes(module.key);
+                const IconComponent = module.icon;
+                return (
+                  <div key={module.key} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-3">
+                      {IconComponent && <IconComponent size={20} className={isEnabled ? 'text-primary' : 'text-gray-400'} />}
+                      <span className={`font-medium ${isEnabled ? 'text-gray-800' : 'text-gray-500'}`}>{module.label}</span>
+                    </div>
+                    <button
+                      onClick={() => toggleModule(module.key)}
+                      disabled={savingModules}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${
+                        isEnabled ? 'bg-primary' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                          isEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -1221,7 +1660,7 @@ export function AdminPage() {
                 <Key className="text-blue-500" size={20} />
                 Cambiar contraseña
               </h3>
-              <button onClick={() => { setShowPasswordModal(null); setNewPassword(''); setPasswordError(''); }}>
+              <button onClick={() => { setShowPasswordModal(null); setNewPassword(''); setConfirmNewPassword(''); setPasswordError(''); setShowChangePass1(false); setShowChangePass2(false); }}>
                 <X size={24} className="text-gray-500" />
               </button>
             </div>
@@ -1230,14 +1669,42 @@ export function AdminPage() {
               Nueva contraseña para <strong>{showPasswordModal.username}</strong>
             </p>
 
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
-              placeholder="Nueva contraseña (mín. 4 caracteres)"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
-              autoFocus
-            />
+            <div className="space-y-4 mb-4">
+              <div className="relative">
+                <input
+                  type={showChangePass1 ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
+                  placeholder="Nueva contraseña (mín. 4 caracteres)"
+                  className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowChangePass1(!showChangePass1)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showChangePass1 ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type={showChangePass2 ? 'text' : 'password'}
+                  value={confirmNewPassword}
+                  onChange={(e) => { setConfirmNewPassword(e.target.value); setPasswordError(''); }}
+                  placeholder="Confirmar contraseña"
+                  className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowChangePass2(!showChangePass2)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showChangePass2 ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
 
             {passwordError && (
               <p className="text-red-500 text-sm mb-4 flex items-center gap-1">
@@ -1255,7 +1722,7 @@ export function AdminPage() {
 
             <div className="flex gap-3">
               <button
-                onClick={() => { setShowPasswordModal(null); setNewPassword(''); setPasswordError(''); }}
+                onClick={() => { setShowPasswordModal(null); setNewPassword(''); setConfirmNewPassword(''); setPasswordError(''); setShowChangePass1(false); setShowChangePass2(false); }}
                 className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
               >
                 Cancelar
@@ -1280,7 +1747,7 @@ export function AdminPage() {
                 <UserPlus className="text-primary" size={20} />
                 Crear Nuevo Usuario
               </h3>
-              <button onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setNewUserError(''); }}>
+              <button onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setConfirmUserPassword(''); setNewUserError(''); setShowUserPass1(false); setShowUserPass2(false); }}>
                 <X size={24} className="text-gray-500" />
               </button>
             </div>
@@ -1299,13 +1766,42 @@ export function AdminPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                <input
-                  type="password"
-                  value={newUserPassword}
-                  onChange={(e) => { setNewUserPassword(e.target.value); setNewUserError(''); }}
-                  placeholder="Mínimo 4 caracteres"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
+                <div className="relative">
+                  <input
+                    type={showUserPass1 ? 'text' : 'password'}
+                    value={newUserPassword}
+                    onChange={(e) => { setNewUserPassword(e.target.value); setNewUserError(''); }}
+                    placeholder="Mínimo 4 caracteres"
+                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowUserPass1(!showUserPass1)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showUserPass1 ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+                <div className="relative">
+                  <input
+                    type={showUserPass2 ? 'text' : 'password'}
+                    value={confirmUserPassword}
+                    onChange={(e) => { setConfirmUserPassword(e.target.value); setNewUserError(''); }}
+                    placeholder="Repite la contraseña"
+                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowUserPass2(!showUserPass2)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showUserPass2 ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               {newUserError && (
@@ -1324,7 +1820,7 @@ export function AdminPage() {
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setNewUserError(''); }}
+                onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setConfirmUserPassword(''); setNewUserError(''); setShowUserPass1(false); setShowUserPass2(false); }}
                 className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
               >
                 Cancelar

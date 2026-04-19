@@ -4,7 +4,25 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Family Agent</title>
+    <title>Clínica Valencia</title>
+    <script>
+      // Load company name from localStorage first for immediate display
+      const storedName = localStorage.getItem('companyName');
+      if (storedName) {
+        document.title = storedName;
+      }
+      // Then fetch from API to ensure it's up to date
+      fetch('/api/settings/company-name')
+        .then(res => res.json())
+        .then(data => {
+          const companyName = data.companyName || 'Clínica Valencia';
+          document.title = companyName;
+          localStorage.setItem('companyName', companyName);
+        })
+        .catch(() => {
+          // If API is not available, keep current title
+        });
+    </script>
   </head>
   <body>
     <div id="root"></div>

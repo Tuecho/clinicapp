@@ -1,7 +1,7 @@
 export const translations = {
   es: {
     app: {
-      title: 'Family Agent',
+      title: 'Clínica Valencia',
     },
     nav: {
       dashboard: 'Dashboard',
@@ -44,7 +44,7 @@ export const translations = {
     tasks: {
       title: 'Tareas y Lista',
       shoppingList: 'Lista de la Compra',
-      familyTasks: 'Tareas Familiares',
+      familyTasks: 'Tareas Empresa',
       addProduct: 'Añadir producto',
       newTask: 'Nueva Tarea',
       product: 'Producto',
@@ -63,7 +63,7 @@ export const translations = {
       share: 'Compartir',
       clean: 'Limpiar',
       emptyShopping: 'Tu lista está vacía',
-      emptyTasks: 'No hay tareas familiares',
+      emptyTasks: 'No hay tareas empresa',
       addToStart: 'Añade productos para empezar',
       addTasksHint: 'Añade tareas como "Lavar la ropa", "Ir al médico"...',
       overdue: 'Atrasada',
@@ -117,7 +117,7 @@ export const translations = {
   },
   en: {
     app: {
-      title: 'Family Agent',
+      title: 'Clínica Valencia',
     },
     nav: {
       dashboard: 'Dashboard',
@@ -233,7 +233,7 @@ export const translations = {
   },
   pt: {
     app: {
-      title: 'Family Agent',
+      title: 'Clínica Valencia',
     },
     nav: {
       dashboard: 'Painel',
