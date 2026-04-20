@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, BookOpen, FileText, ShieldCheck, ChefHat, Image, Bot, DollarSign, Users, Cake, CheckCircle, Package, Wrench, CreditCard, Dog, Plane, PiggyBank, TrendingUp, Zap, Library, GraduationCap, Calendar, Settings, Clock, Stethoscope, BarChart3 } from 'lucide-react';
+import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, BookOpen, Bot, Users, Package, Calendar, Settings, Stethoscope, BarChart3, Cake } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import { useCompany } from '../i18n/CompanyContext';
 
@@ -13,8 +13,8 @@ interface Profile {
 }
 
 interface SidebarProps {
-  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'birthdays' | 'chatbot' | 'home_maintenance' | 'utility_bills' | 'modules' | 'clinic' | 'clinic_packages' | 'reports';
-  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'birthdays' | 'chatbot' | 'home_maintenance' | 'utility_bills' | 'modules' | 'clinic' | 'clinic_packages' | 'reports') => void;
+  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'chatbot' | 'modules' | 'clinic' | 'clinic_packages' | 'reports' | 'birthdays';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'chatbot' | 'modules' | 'clinic' | 'clinic_packages' | 'reports' | 'birthdays') => void;
   onLogout?: () => void;
   isAdmin?: boolean;
   isMobile?: boolean;
@@ -72,20 +72,26 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     };
     window.addEventListener('profile_updated', handleProfileUpdate);
     
+    const handleCompanyNameUpdate = () => {
+      window.dispatchEvent(new CustomEvent('company_name_update_sidebar'));
+    };
+    window.addEventListener('company_name_updated', handleCompanyNameUpdate);
+    
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('profile_updated', handleProfileUpdate);
+      window.removeEventListener('company_name_updated', handleCompanyNameUpdate);
       clearInterval(interval);
     };
   }, []);
 
-  const defaultModules = ['dashboard', 'agenda', 'accounting', 'birthdays', 'shopping', 'notes', 'tasks', 'clinic', 'clinic_packages', 'howitworks', 'about', 'terms', 'privacy'];
+  const defaultModules = ['dashboard', 'agenda', 'accounting', 'shopping', 'notes', 'tasks', 'clinic', 'clinic_packages', 'howitworks', 'about', 'terms', 'privacy'];
 
   const isModuleEnabled = (key: string) => {
     if (key === 'dashboard') return true;
     if (key === 'terms' || key === 'privacy' || key === 'about' || key === 'howitworks') return true;
     if (Array.isArray(globalModules)) {
-      return globalModules.includes(key);
+      if (!globalModules.includes(key)) return false;
     }
     if (!profile.enabled_modules) return defaultModules.includes(key);
     return profile.enabled_modules.split(',').includes(key);
@@ -122,7 +128,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     return profile.enabled_modules.split(',').filter(Boolean);
   };
 
-  const moduleMap: Record<string, { page: string; icon: any; label: string }> = {
+const moduleMap: Record<string, { page: string; icon: any; label: string }> = {
     dashboard: { page: 'dashboard', icon: Home, label: 'Dashboard' },
     accounting: { page: 'accounting', icon: Wallet, label: 'Contabilidad' },
     budgets: { page: 'budgets', icon: Target, label: 'Presupuestos' },
@@ -133,8 +139,6 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     birthdays: { page: 'birthdays', icon: Cake, label: 'Cumpleaños' },
     contacts: { page: 'contacts', icon: Users, label: 'Contactos' },
     chatbot: { page: 'chatbot', icon: Bot, label: 'Chat IA' },
-home_maintenance: { page: 'home_maintenance', icon: Wrench, label: 'Mantenimiento' },
-    utility_bills: { page: 'utility_bills', icon: Zap, label: 'Facturas' },
     clinic: { page: 'clinic', icon: Stethoscope, label: 'Mi Clínica' },
     clinic_packages: { page: 'clinic_packages', icon: Package, label: 'Bonos y Suscripciones' },
     howitworks: { page: 'howitworks', icon: BookOpen, label: 'Cómo funciona' },

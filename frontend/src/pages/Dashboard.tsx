@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home, ListChecks, Calendar, AlertCircle, Cake, Eye, EyeOff, Briefcase, Building2, Award } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home, ListChecks, Calendar, AlertCircle, Eye, EyeOff, Briefcase, Building2, Award, Cake } from 'lucide-react';
 import { useStore } from '../store';
 import { useCompany } from '../i18n/CompanyContext';
 import { formatMoneyEs, formatDateEsLower } from '../utils/format';
@@ -531,12 +531,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [todayClinicAppointments, setTodayClinicAppointments] = useState<any[]>([]);
   const [tomorrowClinicAppointments, setTomorrowClinicAppointments] = useState<any[]>([]);
   const [clinicAppointmentsLoading, setClinicAppointmentsLoading] = useState(false);
-  const [monthBirthdays, setMonthBirthdays] = useState<any[]>([]);
-  const [birthdaysLoading, setBirthdaysLoading] = useState(false);
   const [showFinancialData, setShowFinancialData] = useState(() => {
     const saved = localStorage.getItem('showFinancialData');
     return saved !== null ? saved === 'true' : true;
   });
+  const [upcomingBirthdays, setUpcomingBirthdays] = useState<any[]>([]);
+  const [birthdaysLoading, setBirthdaysLoading] = useState(true);
 
   useEffect(() => {
     localStorage.setItem('showFinancialData', String(showFinancialData));
@@ -620,16 +620,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         setPlansLoading(false);
       })
       .catch(() => setPlansLoading(false));
-    
-    fetch(`${API_URL}/api/family-members/birthdays`, { headers: getAuthHeaders() })
-      .then(res => res.json())
-      .then(data => {
-        const currentMonth = new Date().getMonth() + 1;
-        const monthBirthdays = (Array.isArray(data) ? data : []).filter((b: any) => b.month === currentMonth);
-        setMonthBirthdays(monthBirthdays);
-        setBirthdaysLoading(false);
-      })
-      .catch(() => setBirthdaysLoading(false));
 
     fetch(`${API_URL}/api/clinic/appointments`, { headers: getAuthHeaders() })
       .then(res => res.json())
@@ -648,6 +638,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         setClinicAppointmentsLoading(false);
       })
       .catch(() => setClinicAppointmentsLoading(false));
+
+    fetch(`${API_URL}/api/family-members/birthdays`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        const birthdays = Array.isArray(data) ? data : [];
+        setUpcomingBirthdays(birthdays.slice(0, 5));
+      })
+      .catch(() => {})
+      .finally(() => setBirthdaysLoading(false));
   }, []);
 
   const fetchProfile = async () => {
@@ -809,7 +808,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="relative inline-flex items-center gap-3 sm:gap-4">
             <div>
               <h2 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                {profile.family_name}
+                Hola {profile.name} {profile.family_name}
               </h2>
               <p className="text-gray-600 mt-1 text-sm sm:text-base flex items-center justify-center gap-2">
                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
@@ -1043,38 +1042,44 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <p className="text-xs text-gray-400 mt-2 text-center">{pendingTasks.length} tarea{pendingTasks.length !== 1 ? 's' : ''} pendiente{pendingTasks.length !== 1 ? 's' : ''}</p>
           )}
         </div>
-        
+
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
             <Cake size={20} className="text-pink-500" />
-            Cumpleaños del mes
+            Próximos Cumpleaños
           </h3>
           {birthdaysLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="animate-spin text-gray-400" size={24} />
             </div>
-          ) : monthBirthdays.length === 0 ? (
+          ) : upcomingBirthdays.length === 0 ? (
             <div className="text-center py-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-pink-100 to-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <span className="text-2xl">🎂</span>
-              </div>
-              <p className="text-gray-500 text-sm font-medium">No hay cumpleaños este mes</p>
+              <span className="text-4xl mb-2 block">🎂</span>
+              <p className="text-gray-500 text-sm">No hay cumpleaños próximos</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {monthBirthdays.map((b: any) => (
-                <div key={b.id} className="flex items-center gap-3 p-2 rounded-lg bg-pink-50 border border-pink-100">
-                  <span className="text-2xl">🎂</span>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{b.name}</p>
-                    <p className="text-xs text-gray-500">{b.day} de {formatDateEsLower(new Date(b.birthdate), { month: 'long' })}</p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {upcomingBirthdays.map((b: any) => {
+                const isToday = b.daysUntil === 0;
+                return (
+                  <div key={b.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                    <div className={`w-2 h-2 rounded-full ${isToday ? 'bg-pink-500' : b.daysUntil <= 30 ? 'bg-yellow-500' : 'bg-pink-300'}`}></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{b.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {b.day}/{b.month} • Cumple {b.age} años
+                      </p>
+                    </div>
+                    {isToday && (
+                      <span className="text-xs bg-pink-500 text-white px-2 py-0.5 rounded-full">🎉 Hoy</span>
+                    )}
                   </div>
-                  <span className="text-xs bg-pink-200 text-pink-700 px-2 py-0.5 rounded-full">
-                    {b.age} años
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
+          )}
+          {upcomingBirthdays.length > 0 && (
+            <p className="text-xs text-gray-400 mt-2 text-center">{upcomingBirthdays.length} cumpleaños próximo{upcomingBirthdays.length !== 1 ? 's' : ''}</p>
           )}
         </div>
       </div>

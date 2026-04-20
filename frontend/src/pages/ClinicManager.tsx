@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import { formatDateEs } from '../utils/format';
+import ClinicNotificationSettings from '../components/ClinicNotificationSettings';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -391,7 +392,7 @@ export function ClinicManager() {
   const openEditService = (service: Service) => { setEditingService(service); setServiceForm(service); setServiceFormTab(0); setShowServiceModal(true); };
   const openEditProfessional = (professional: Professional) => { setEditingProfessional(professional); setProfessionalForm(professional); setProfessionalFormTab(0); setShowProfessionalModal(true); };
   const openEditProduct = (product: Product) => { setEditingProduct(product); setProductForm(product); setShowProductModal(true); };
-  const openEditAppointment = (appointment: Appointment) => { setEditingAppointment(appointment); setAppointmentForm(appointment); setShowAppointmentModal(true); };
+  const openEditAppointment = (appointment: Appointment) => { setEditingAppointment(appointment); setAppointmentForm({ ...appointment, total_price: appointment.total_price || appointment.price }); setShowAppointmentModal(true); };
   const openEditInvoice = (invoice: Invoice) => { setEditingInvoice(invoice); setInvoiceForm({ ...invoice, items: invoice.items || [] }); setShowInvoiceModal(true); };
 
   const getDaysInMonth = (date: Date) => {
@@ -400,9 +401,19 @@ export function ClinicManager() {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const days: Date[] = [];
-    for (let i = 0; i < firstDay.getDay(); i++) days.push(new Date(year, month, -i));
-    for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
-    return days.sort((a, b) => a.getDate() - b.getDate());
+    const firstDayOfWeek = (firstDay.getDay() + 6) % 7;
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      const d = new Date(year, month, 1 - (firstDayOfWeek - i));
+      days.push(d);
+    }
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      days.push(new Date(year, month, i));
+    }
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      days.push(new Date(year, month + 1, i));
+    }
+    return days;
   };
 
   const getAppointmentsForDate = (date: Date) => {
@@ -413,6 +424,8 @@ export function ClinicManager() {
     return appointments.filter(a => a.appointment_date === dateStr);
   };
 
+  type View = 'appointments' | 'calendar' | 'clients' | 'services' | 'professionals' | 'products' | 'invoices' | 'reports' | 'notifications';
+
   const navItems: { key: View; label: string; icon: any }[] = [
     { key: 'appointments', label: 'Citas', icon: Calendar },
     { key: 'calendar', label: 'Calendario', icon: Calendar },
@@ -422,6 +435,7 @@ export function ClinicManager() {
     { key: 'products', label: 'Productos', icon: Package },
     { key: 'invoices', label: 'Facturas', icon: Receipt },
     { key: 'reports', label: 'Reportes', icon: BarChart3 },
+    { key: 'notifications', label: 'Notificaciones', icon: Settings },
   ];
 
   if (loading) return <div className="flex flex-col items-center justify-center min-h-screen gap-4"><div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div><p className="text-slate-400 font-medium text-sm animate-pulse">Cargando clínica...</p></div>;
@@ -553,7 +567,7 @@ export function ClinicManager() {
 
             {calendarMode === 'month' && (
               <div className="grid grid-cols-7 gap-1">
-                {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => <div key={d} className="text-center font-bold text-sm text-slate-500 py-2 border-b-2 border-purple-100 mb-1">{d}</div>)}
+                {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => <div key={d} className="text-center font-bold text-sm text-slate-500 py-2 border-b-2 border-purple-100 mb-1">{d}</div>)}
                 {getDaysInMonth(currentDate).map((day, i) => {
                   const dayAppointments = getAppointmentsForDate(day);
                   const isToday = day.toDateString() === new Date().toDateString();
@@ -583,7 +597,8 @@ export function ClinicManager() {
                     {Array.from({length: 7}).map((_, i) => {
                       const d = new Date(currentDate);
                       const currentDayOfWeek = d.getDay();
-                      d.setDate(d.getDate() - currentDayOfWeek + i);
+                      const daysFromMonday = (currentDayOfWeek + 6) % 7;
+                      d.setDate(d.getDate() - daysFromMonday + i);
                       const isToday = d.toDateString() === new Date().toDateString();
                       return (
                         <div key={i} className={`p-3 text-center border-r last:border-r-0 ${isToday ? 'bg-purple-100/50 text-purple-700' : 'text-slate-700'}`}>
@@ -602,7 +617,8 @@ export function ClinicManager() {
                           {Array.from({length: 7}).map((_, i) => {
                             const d = new Date(currentDate);
                             const currentDayOfWeek = d.getDay();
-                            d.setDate(d.getDate() - currentDayOfWeek + i);
+                            const daysFromMonday = (currentDayOfWeek + 6) % 7;
+                            d.setDate(d.getDate() - daysFromMonday + i);
                             const dayApts = getAppointmentsForDate(d).filter(a => parseInt(a.appointment_time.split(':')[0]) === hour);
                             return (
                               <div key={i} className="p-1.5 border-r border-slate-100 last:border-r-0 relative hover:bg-slate-50/50 transition-colors">
@@ -889,6 +905,13 @@ export function ClinicManager() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* NOTIFICATIONS */}
+        {view === 'notifications' && (
+          <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+            <ClinicNotificationSettings />
           </div>
         )}
 
@@ -1410,7 +1433,7 @@ export function ClinicManager() {
                 <option value="">Seleccionar Cliente</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              <select value={appointmentForm.service_id || ''} onChange={(e) => { const svc = services.find(s => s.id === e.target.value); setAppointmentForm({ ...appointmentForm, service_id: e.target.value, price: svc?.price, duration_minutes: svc?.duration_minutes }); }} className="w-full border rounded px-3 py-2">
+              <select value={appointmentForm.service_id || ''} onChange={(e) => { const svc = services.find(s => s.id === e.target.value); setAppointmentForm({ ...appointmentForm, service_id: e.target.value, price: svc?.price, total_price: svc?.price, duration_minutes: svc?.duration_minutes }); }} className="w-full border rounded px-3 py-2">
                 <option value="">Seleccionar Servicio</option>
                 {services.map(s => <option key={s.id} value={s.id}>{s.name} - €{s.price}</option>)}
               </select>

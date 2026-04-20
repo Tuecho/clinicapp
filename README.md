@@ -50,9 +50,9 @@ cd backend && npm start
 cd frontend && npm run dev
 ```
 
-La app estará disponible en http://localhost:5173
+La app estará disponible en http://localhost:5174
 
-## Módulos Implementados (40 tablas)
+## Módulos Implementados (42 tablas)
 
 ### Sistema
 - auth_user, user_profile, app_settings, notification_settings
@@ -70,16 +70,29 @@ La app estará disponible en http://localhost:5173
 - home_inventory, home_inventory_categories, home_maintenance
 - utility_bills
 
-### Clínica (21 tablas)
+### Clínica (22 tablas)
 - clinic_clients, clinic_services, clinic_appointments
 - clinic_appointment_reminders, clinic_visits, clinic_consents
-- clinic_gdpr_data, clinic_resources, clinic_notification_settings
+- clinic_consent_audit, clinic_gdpr_data
+- clinic_resources, clinic_notification_settings
 - clinic_communication_log, clinic_packages, clinic_package_usage
 - clinic_blocked_hours, clinic_professionals
 - clinic_professional_schedules, clinic_professional_availability
 - clinic_products, clinic_product_movements
 - clinic_budgets, clinic_invoices
 - clinic_revenue_report, clinic_appointment_notes
+
+## 🔒 Seguridad y Privacidad (RGPD)
+
+### Encriptación de Datos
+- **Algoritmo**: AES-256-GCM (authenticated encryption)
+- **Campos encriptados**: name, email, phone, birthdate, address, city, postal_code, notes
+- **Clave**: se genera automáticamente en primer inicio
+
+### Consentimientos Informados
+- **Hash SHA-256**: Integridad verificable
+- **Auditoría completa**: created, revoked, viewed
+- **Tabla**: clinic_consent_audit
 
 ## Backup
 

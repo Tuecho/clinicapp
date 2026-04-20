@@ -173,16 +173,20 @@ export default function Professionals() {
     if (!confirm('¿Estás segura de que deseas eliminar este profesional?')) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/professionals/${id}`, {
+      const response = await fetch(`${API_URL}/api/clinic/professionals/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
 
       if (response.ok) {
         await loadProfessionals();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Error al eliminar profesional');
       }
     } catch (err) {
       console.error('Error deleting professional:', err);
+      setError('Error al eliminar profesional');
     }
   };
 

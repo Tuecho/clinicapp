@@ -10,7 +10,7 @@ import { Agenda } from './pages/Agenda';
 import { ShoppingList } from './pages/ShoppingList';
 import { FamilyTasks } from './pages/FamilyTasks';
 import { Notes } from './pages/Notes';
-import { Birthdays } from './pages/Birthdays';
+
 import { AdminPage } from './pages/AdminPage';
 import { About } from './pages/About';
 import { HowItWorks } from './pages/HowItWorks';
@@ -25,10 +25,10 @@ import { ModuleManager } from './pages/ModuleManager';
 import { Terms } from './pages/Terms';
 import { Privacy } from './pages/Privacy';
 import { Contact } from './pages/Contact';
-import { HomeMaintenance } from './pages/HomeMaintenance';
-import { UtilityBills } from './pages/UtilityBills';
+import { Birthdays } from './pages/Birthdays';
 
-type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'birthdays' | 'chatbot' | 'sales' | 'home_maintenance' | 'utility_bills' | 'modules' | 'work_hours' | 'clinic' | 'reports';
+
+type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'chatbot' | 'sales' | 'modules' | 'work_hours' | 'clinic' | 'clinic_packages' | 'reports' | 'birthdays';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<PageType>(() => {
@@ -142,8 +142,6 @@ function AppContent() {
           {activePage === 'terms' && <Terms />}
           {activePage === 'privacy' && <Privacy />}
           {activePage === 'contact' && <Contact />}
-          {activePage === 'home_maintenance' && <HomeMaintenance />}
-          {activePage === 'utility_bills' && <UtilityBills />}
           {activePage === 'modules' && <ModuleManager />}
           {activePage === 'reports' && <ReportsAnalytics />}
         </div>

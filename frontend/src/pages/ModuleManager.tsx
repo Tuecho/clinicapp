@@ -28,15 +28,30 @@ const DEFAULT_MODULES = ['dashboard', 'agenda', 'accounting', 'birthdays', 'shop
 
 export function ModuleManager() {
   const [enabledModules, setEnabledModules] = useState<string[]>(DEFAULT_MODULES);
+  const [globalModules, setGlobalModules] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
 
+  const isGloballyEnabled = (key: string) => {
+    if (globalModules === null) return true;
+    return globalModules.includes(key);
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const profileRes = await fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() });
+        const [profileRes, globalRes] = await Promise.all([
+          fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() }),
+          fetch(`${API_URL}/api/settings/global-modules`, { headers: getAuthHeaders() })
+        ]);
+        
         const profileData = await profileRes.json();
+        const globalData = await globalRes.json();
+        
+        if (Array.isArray(globalData?.enabled_modules)) {
+          setGlobalModules(globalData.enabled_modules);
+        }
         
         const saved = (profileData.enabled_modules || '').split(',').filter(Boolean);
         setEnabledModules(saved.length > 0 ? saved : DEFAULT_MODULES);
@@ -52,6 +67,11 @@ export function ModuleManager() {
 
   const toggleModule = async (moduleKey: string) => {
     const isEnabled = enabledModules.includes(moduleKey);
+    
+    if (!isEnabled && !isGloballyEnabled(moduleKey)) {
+      return;
+    }
+    
     let newModules: string[];
     
     if (isEnabled) {
@@ -142,6 +162,9 @@ export function ModuleManager() {
     m => !enabledModules.includes(m.key)
   );
 
+  const globallyDisabledModules = disabledModules.filter(m => !isGloballyEnabled(m.key));
+  const userDisabledModules = disabledModules.filter(m => isGloballyEnabled(m.key));
+
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -157,7 +180,7 @@ export function ModuleManager() {
 
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
           <p className="text-sm text-blue-700">
-            <strong>Nota:</strong> Dashboard siempre esta activo. Arrastra los modulos para ordenarlos. Los modulos activados aparecen con borde azul.
+            <strong>Nota:</strong> Dashboard siempre esta activo. Arrastra los modulos para ordenarlos. Los modulos activados aparecen con borde azul. Los modulos deshabilitados por el administrador no se pueden activar.
           </p>
         </div>
 
@@ -207,7 +230,7 @@ export function ModuleManager() {
         <div className="mb-6">
           <h3 className="font-semibold text-gray-700 mb-2">Modulos disponibles</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {disabledModules.map((module) => {
+            {userDisabledModules.map((module) => {
               return (
                 <div
                   key={module.key}
@@ -234,6 +257,26 @@ export function ModuleManager() {
             })}
           </div>
         </div>
+
+        {globallyDisabledModules.length > 0 && (
+          <div className="mb-6">
+            <h3 className="font-semibold text-gray-700 mb-2">Modulos deshabilitados por el administrador</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {globallyDisabledModules.map((module) => {
+                return (
+                  <div
+                    key={module.key}
+                    className="flex items-center gap-2 p-3 rounded-lg border-2 border-gray-100 bg-gray-50 opacity-60"
+                  >
+                    <span className="text-xl">{module.icon}</span>
+                    <span className="flex-1 font-medium text-gray-500 text-sm">{module.label}</span>
+                    <span className="text-xs text-gray-400">Deshabilitado</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         
 

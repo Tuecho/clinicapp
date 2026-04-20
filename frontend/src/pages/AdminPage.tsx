@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon, Database, Download, Upload, Mail, Home, Wallet, Target, Calendar, ShoppingCart, ListChecks, StickyNote, Cake, Bot, Wrench, Zap, DollarSign, BookOpen, Info, FileText, ShieldCheck, Save, GripVertical, Package } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
+import { useCompany } from '../i18n/CompanyContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -34,6 +35,7 @@ interface Stats {
 }
 
 export function AdminPage() {
+  const { setCompanyName: setGlobalCompanyName } = useCompany();
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, active: 0, blocked: 0, pending: 0, admins: 0, totalTransactions: 0, totalBudgets: 0 });
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -160,7 +162,8 @@ export function AdminPage() {
       if (data.success) {
         alert('Nombre de empresa guardado');
         localStorage.setItem('companyName', companyName);
-        fetchCompanyName();
+        setGlobalCompanyName(companyName);
+        window.dispatchEvent(new Event('company_name_updated'));
       } else {
         alert(data.error || 'Error al guardar');
       }

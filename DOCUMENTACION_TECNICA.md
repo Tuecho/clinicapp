@@ -365,4 +365,65 @@ Para verificar que todo funciona:
 4. **Zona Horaria:** Respeta configuración por usuario
 5. **Validación:** Frontend + Backend
 
+---
+
+## 🔒 Seguridad y Privacidad (RGPD)
+
+### Medidas Implementadas
+
+#### 1. Encriptación de Datos Personales
+
+Se implementa **AES-256-GCM** (Authenticated Encryption) para proteger datos sensibles:
+
+| Tabla | Campos Encriptados |
+|-------|------------------|
+| `clinic_clients` | name, email, phone, birthdate, address, city, postal_code, notes |
+| `family_members` | name, birthdate, restrictions, allergies, intolerances, notes |
+
+**Clave de encriptación:**
+- Se genera automáticamente en primer inicio (`backend/.encryption_key`)
+- Se puede configurar manualmente en variable de entorno `ENCRYPTION_KEY`
+- Formato: 64+ caracteres hexadecimales
+
+**Configuración:**
+```bash
+# .env
+ENCRYPTION_ENABLED=1  # 1=activada, 0=desactivada
+ENCRYPTION_KEY=openssl_rand -hex 32  # Opcional
+```
+
+#### 2. Consentimientos Informados (Inalterables)
+
+Sistema de consentimientos con integridad verificable:
+
+**Hash SHA-256**: Cada consentimiento incluye un hash que verifica que no ha sido modificado, calculado a partir de:
+- client_id + consent_type + consent_text + signature_data + signed_at + ip_address + user_agent
+
+**Tabla de auditoría**: Se registra cada operación:
+- `created`: Consentimiento creado
+- `revoked`: Consentimiento revocado
+- `viewed`: Consentimiento consultado
+
+**API Endpoints:**
+```javascript
+GET  /api/clinic/consents/:clientId     // Listar consentimientos
+POST /api/clinic/consents            // Crear consentimiento
+PUT  /api/clinic/consents/:id/revoke // Revocar consentimiento
+GET  /api/clinic/consents/:id/audit // Ver auditoría
+```
+
+#### 3. Cumplimiento RGPD
+
+- ✅ **Cifrado**: Datos personales en reposo (AES-256-GCM)
+- ✅ **Consentimiento**: Sistema de firmas con logs auditables
+- ✅ **Derecho de acceso**: Datos accesibles vía API
+- ✅ **Derecho de supresión**: Eliminación lógica con auditoría
+- ✅ **Trazabilidad**: Auditoría completa de consentimientos
+
+#### 4. Notas Adicionales
+
+- SSL/TLS protegido en tránsito (configurar en proxy/reverse proxy)
+- Contraseñas hasheadas con SHA-256 + salt
+- Logging de auditoría para acciones sensibles
+
 ¡El sistema está listo para usar! 🚀
