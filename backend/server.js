@@ -2040,7 +2040,14 @@ app.post('/api/motivational-quotes', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const admin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId);
+  const adminStmt = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?');
+  adminStmt.bind([userId]);
+  let admin = null;
+  if (adminStmt.step()) {
+    admin = adminStmt.getAsObject();
+  }
+  adminStmt.free();
+  
   if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
   
   const { quote, active } = req.body;
@@ -2049,7 +2056,7 @@ app.post('/api/motivational-quotes', (req, res) => {
   }
   
   const stmt = db.prepare('INSERT INTO motivational_quotes (quote, active) VALUES (?, ?)');
-  stmt.run(quote.trim(), active !== undefined ? (active ? 1 : 0) : 1);
+  stmt.run([quote.trim(), active !== undefined ? (active ? 1 : 0) : 1]);
   stmt.free();
   
   saveDb();
@@ -2061,7 +2068,7 @@ app.put('/api/motivational-quotes/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const admin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId);
+  const admin = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?').get(userId);
   if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
   
   const { id } = req.params;
@@ -2087,7 +2094,7 @@ app.delete('/api/motivational-quotes/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const admin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId);
+  const admin = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?').get(userId);
   if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
   
   const { id } = req.params;
