@@ -588,8 +588,6 @@ async function initDb() {
     )
   `);
 
-  db.run(`ALTER TABLE clinic_clients ADD COLUMN gender TEXT`);
-
   db.run(`
     CREATE TABLE IF NOT EXISTS clinic_services (
       id TEXT PRIMARY KEY,
@@ -1200,11 +1198,10 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  const auth = getStoredAuth(req.headers);
-  if (!auth) return res.status(401).json({ error: 'No autorizado' });
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
 
-  const userId = parseInt(auth.userId);
-  if (!isNaN(userId)) {
+  if (userId) {
     removeActiveSession(userId);
     const now = new Date().toISOString();
     const updateStmt = db.prepare('UPDATE auth_user SET last_logout = ? WHERE id = ?');
