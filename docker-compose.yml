@@ -37,8 +37,7 @@ services:
     ports:
       - "3001:3000"
     volumes:
-      - ./backend:/app
-      - ./backend/db-data:/app/data
+      - clinic-db-data:/app/data
     environment:
       - REDIS_HOST=redis_clinic
       - REDIS_PORT=6379
@@ -54,6 +53,7 @@ services:
 
 volumes:
   redis-data:
+  clinic-db-data:
 
 networks:
   clinic-network:

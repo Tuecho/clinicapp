@@ -94,6 +94,48 @@ La app estará disponible en http://localhost:5174
 - **Auditoría completa**: created, revoked, viewed
 - **Tabla**: clinic_consent_audit
 
+## Docker Compose
+
+```yaml
+services:
+  redis_clinic:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - clinic-network
+
+  frontend_clinic:
+    build: ./frontend
+    ports:
+      - "5174:5173"
+
+  api_clinic:
+    build: ./backend
+    ports:
+      - "3001:3000"
+    environment:
+      - REDIS_HOST=redis_clinic
+      - REDIS_PORT=6379
+    depends_on:
+      redis_clinic:
+        condition: service_healthy
+
+volumes:
+  redis-data:
+  clinic-db-data:
+
+networks:
+  clinic-network:
+```
+
+### Puertos
+- **Frontend**: http://localhost:5174
+- **Backend API**: http://localhost:3001
+- **Redis**: localhost:6379
+
 ## Backup
 
 Desde AdminPage (solo administradores):

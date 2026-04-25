@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    allowedHosts:['nuriacheca.es'],
     proxy: {
       '/api': {
         target: 'http://api_clinic:3000',

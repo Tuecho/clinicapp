@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import { formatDateEs } from '../utils/format';
+import { DateInput, TimeInput } from '../utils/DateTimeInput';
 import ClinicNotificationSettings from '../components/ClinicNotificationSettings';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -135,8 +136,12 @@ interface Invoice {
 type View = 'appointments' | 'calendar' | 'clients' | 'services' | 'professionals' | 'products' | 'invoices' | 'reports';
 
 export function ClinicManager() {
-  const [view, setView] = useState<View>('calendar');
+  const [view, setView] = useState<View>('appointments');
   const [loading, setLoading] = useState(false);
+  const [hiddenCategories, setHiddenCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('hiddenCategories');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   // Data states
   const [clients, setClients] = useState<Client[]>([]);
@@ -166,11 +171,26 @@ export function ClinicManager() {
 
   // Form states
   const [clientForm, setClientForm] = useState<Partial<Client>>({});
+  const [birthdateDisplay, setBirthdateDisplay] = useState('');
   const [serviceForm, setServiceForm] = useState<Partial<Service>>({});
   const [appointmentForm, setAppointmentForm] = useState<Partial<Appointment>>({});
   const [professionalForm, setProfessionalForm] = useState<Partial<Professional>>({});
   const [productForm, setProductForm] = useState<Partial<Product>>({});
   const [invoiceForm, setInvoiceForm] = useState<Partial<Invoice & { items: InvoiceItem[] }>>({ items: [] });
+
+  const parseDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+  };
+
+  const formatDateForInput = (dateDisplay: string) => {
+    const parts = dateDisplay.split('/');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return '';
+  };
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
@@ -181,7 +201,7 @@ export function ClinicManager() {
   const [clientFormTab, setClientFormTab] = useState(0);
   const [serviceFormTab, setServiceFormTab] = useState(0);
   const [professionalFormTab, setProfessionalFormTab] = useState(0);
-  const [calendarMode, setCalendarMode] = useState<'month' | 'week' | 'day'>('month');
+  const [calendarMode, setCalendarMode] = useState<'month' | 'week' | 'day'>('day');
 
   // Initialize date range
   useEffect(() => {
@@ -388,7 +408,7 @@ export function ClinicManager() {
     loadData();
   };
 
-  const openEditClient = (client: Client) => { setEditingClient(client); setClientForm(client); setClientFormTab(0); setShowClientModal(true); };
+  const openEditClient = (client: Client) => { setEditingClient(client); setClientForm(client); setBirthdateDisplay(parseDate(client.birthdate)); setClientFormTab(0); setShowClientModal(true); };
   const openEditService = (service: Service) => { setEditingService(service); setServiceForm(service); setServiceFormTab(0); setShowServiceModal(true); };
   const openEditProfessional = (professional: Professional) => { setEditingProfessional(professional); setProfessionalForm(professional); setProfessionalFormTab(0); setShowProfessionalModal(true); };
   const openEditProduct = (product: Product) => { setEditingProduct(product); setProductForm(product); setShowProductModal(true); };
@@ -695,7 +715,7 @@ export function ClinicManager() {
           <div>
             <div className="flex justify-between items-center mb-5">
               <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Clientes</h2>
-              <button onClick={() => { setEditingClient(null); setClientForm({}); setClientFormTab(0); setShowClientModal(true); }}
+              <button onClick={() => { setEditingClient(null); setClientForm({}); setBirthdateDisplay(''); setClientFormTab(0); setShowClientModal(true); }}
                 className="bg-gradient-to-r from-violet-600 to-purple-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:shadow-lg hover:shadow-purple-200/50 transition-all font-semibold text-sm active:scale-[0.97]">
                 <Plus className="w-4 h-4" /> Nuevo Cliente
               </button>
@@ -1081,16 +1101,34 @@ export function ClinicManager() {
                   <div><label className="text-xs text-slate-500 mb-1 block">Nombre completo *</label><input type="text" value={clientForm.name || ''} onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })} className="w-full border rounded px-3 py-2" /></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><label className="text-xs text-slate-500 mb-1 block">DNI/NIE</label><input type="text" value={clientForm.dni || ''} onChange={(e) => setClientForm({ ...clientForm, dni: e.target.value })} className="w-full border rounded px-3 py-2" /></div>
-                    <div><label className="text-xs text-slate-500 mb-1 block">F. Nacimiento</label><input type="date" lang="es" value={clientForm.birthdate || ''} onChange={(e) => setClientForm({ ...clientForm, birthdate: e.target.value })} className="w-full border rounded px-3 py-2" /></div>
+                    <div><label className="text-xs text-slate-500 mb-1 block">F. Nacimiento</label>
+                      <input type="text" placeholder="dd/mm/aaaa" value={birthdateDisplay} onChange={(e) => {
+                        let value = e.target.value.replace(/\D/g, '');
+                        if (value.length > 8) value = value.slice(0, 8);
+                        if (value.length > 0) {
+                          if (value.length <= 2) {
+                          } else if (value.length <= 4) {
+                            value = value.slice(0, 2) + '/' + value.slice(2);
+                          } else {
+                            value = value.slice(0, 2) + '/' + value.slice(2, 4) + '/' + value.slice(4);
+                          }
+                        }
+                        setBirthdateDisplay(value);
+                        setClientForm({ ...clientForm, birthdate: formatDateForInput(value) });
+                      }} onBlur={() => {
+                        if (birthdateDisplay && !/^\d{2}\/\d{2}\/\d{4}$/.test(birthdateDisplay)) {
+                          setBirthdateDisplay('');
+                          setClientForm({ ...clientForm, birthdate: '' });
+                        }
+                      }} className="w-full border rounded px-3 py-2" />
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">Género</label>
                     <select value={clientForm.gender || ''} onChange={(e) => setClientForm({ ...clientForm, gender: e.target.value })} className="w-full border rounded px-3 py-2">
                       <option value="">Seleccione género</option>
-                      <option value="femenino">Femenino</option>
                       <option value="masculino">Masculino</option>
-                      <option value="no binario">No binario</option>
-                      <option value="otro">Otro / Prefiero no decir</option>
+                      <option value="femenino">Femenino</option>
                     </select>
                   </div>
                   <div className="pt-2 flex justify-end"><button onClick={() => setClientFormTab(1)} className="bg-slate-100 px-4 py-2 rounded text-sm font-medium text-slate-700 hover:bg-slate-200">Siguiente</button></div>
@@ -1177,27 +1215,9 @@ export function ClinicManager() {
                   <div>
                     <label className="text-xs text-slate-500 mb-1.5 block">Categoría</label>
                     <div className="flex flex-wrap gap-1.5 mb-2">
-                      {['Facial', 'Corporal', 'Medicina Estética', 'Bienestar'].map(cat => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setServiceForm({ ...serviceForm, category: cat })}
-                          className={`px-3 py-1 text-[10px] uppercase font-bold rounded-full border transition-all ${
-                            serviceForm.category === cat 
-                              ? 'bg-purple-600 text-white border-purple-600 shadow-sm' 
-                              : 'bg-white text-slate-500 border-slate-200 hover:border-purple-300'
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                      {services
-                        .filter(s => s.category && !['Facial', 'Corporal', 'Medicina Estética', 'Bienestar'].includes(s.category))
-                        .map(s => s.category)
-                        .filter((v, i, a) => a.indexOf(v) === i)
-                        .map(cat => (
+                      {['Facial', 'Corporal', 'Medicina Estética', 'Bienestar'].filter(cat => !hiddenCategories.includes(cat)).map(cat => (
+                        <div key={cat} className="flex items-center gap-1">
                           <button
-                            key={cat}
                             type="button"
                             onClick={() => setServiceForm({ ...serviceForm, category: cat })}
                             className={`px-3 py-1 text-[10px] uppercase font-bold rounded-full border transition-all ${
@@ -1208,6 +1228,42 @@ export function ClinicManager() {
                           >
                             {cat}
                           </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); if (confirm(`¿Ocultar categoría "${cat}" de la lista?`)) { const newHidden = [...hiddenCategories, cat]; setHiddenCategories(newHidden); localStorage.setItem('hiddenCategories', JSON.stringify(newHidden)); }}}
+                            className="w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                            title="Ocultar categoría"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      {services
+                        .filter(s => s.category && !['Facial', 'Corporal', 'Medicina Estética', 'Bienestar'].includes(s.category) && !hiddenCategories.includes(s.category))
+                        .map(s => s.category)
+                        .filter((v, i, a) => a.indexOf(v) === i)
+                        .map(cat => (
+                          <div key={cat} className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setServiceForm({ ...serviceForm, category: cat })}
+                              className={`px-3 py-1 text-[10px] uppercase font-bold rounded-full border transition-all ${
+                                serviceForm.category === cat 
+                                  ? 'bg-purple-600 text-white border-purple-600 shadow-sm' 
+                                  : 'bg-white text-slate-500 border-slate-200 hover:border-purple-300'
+                              }`}
+                            >
+                              {cat}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); if (confirm(`¿Ocultar categoría "${cat}" de la lista? Esta acción no elimina los servicios existentes.`)) { const newHidden = [...hiddenCategories, cat]; setHiddenCategories(newHidden); localStorage.setItem('hiddenCategories', JSON.stringify(newHidden)); }}}
+                              className="w-5 h-5 flex items-center justify-center rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                              title="Ocultar categoría"
+                            >
+                              ×
+                            </button>
+                          </div>
                         ))
                       }
                     </div>
@@ -1446,8 +1502,14 @@ export function ClinicManager() {
                   {professionals.filter(p => !appointmentForm.service_id || !p.service_ids || p.service_ids.includes(appointmentForm.service_id)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               )}
-              <input type="date" lang="es" value={appointmentForm.appointment_date || ''} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: e.target.value })} className="w-full border rounded px-3 py-2" />
-              <input type="time" value={appointmentForm.appointment_time || ''} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_time: e.target.value })} className="w-full border rounded px-3 py-2" />
+              <DateInput
+                value={appointmentForm.appointment_date || ''}
+                onChange={(value) => setAppointmentForm({ ...appointmentForm, appointment_date: value })}
+              />
+              <TimeInput
+                value={appointmentForm.appointment_time || ''}
+                onChange={(value) => setAppointmentForm({ ...appointmentForm, appointment_time: value })}
+              />
               <input type="number" placeholder="Duración (min)" value={appointmentForm.duration_minutes || 60} onChange={(e) => setAppointmentForm({ ...appointmentForm, duration_minutes: parseInt(e.target.value) })} className="w-full border rounded px-3 py-2" />
               <input type="number" placeholder="Precio" step="0.01" value={appointmentForm.price || ''} onChange={(e) => setAppointmentForm({ ...appointmentForm, price: parseFloat(e.target.value) })} className="w-full border rounded px-3 py-2" />
               <textarea placeholder="Notas" value={appointmentForm.notes || ''} onChange={(e) => setAppointmentForm({ ...appointmentForm, notes: e.target.value })} className="w-full border rounded px-3 py-2" rows={2} />

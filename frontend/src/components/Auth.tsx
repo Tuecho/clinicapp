@@ -812,7 +812,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return getStoredAuth().isAdmin;
   });
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const { username, password } = JSON.parse(stored);
+      try {
+        await fetch(`${API_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers: { username, password }
+        });
+      } catch (e) {}
+    }
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem('clinica_lastPage');
     setIsAuthenticated(false);

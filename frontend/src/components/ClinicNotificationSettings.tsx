@@ -9,20 +9,12 @@ interface NotificationSettings {
   reminder_sms_enabled: number;
   reminder_hours_before: number;
   reminder_time: string;
-  sms_provider: string;
-  twilio_account_sid: string;
-  twilio_auth_token: string;
-  twilio_phone_number: string;
   confirmation_email_enabled: number;
   confirmation_sms_enabled: number;
   cancellation_email_enabled: number;
   cancellation_sms_enabled: number;
   follow_up_email_enabled: number;
   follow_up_days_after: number;
-  smtp_user: string;
-  smtp_password: string;
-  smtp_host: string;
-  smtp_port: number;
 }
 
 export default function ClinicNotificationSettings() {
@@ -30,7 +22,7 @@ export default function ClinicNotificationSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'reminders' | 'confirmations' | 'sms' | 'email'>('reminders');
+  const [activeTab, setActiveTab] = useState<'reminders' | 'confirmations' | 'sms'>('reminders');
 
   useEffect(() => {
     fetchSettings();
@@ -127,17 +119,6 @@ export default function ClinicNotificationSettings() {
         >
           <MessageSquare className="inline mr-2 h-4 w-4" />
           SMS
-        </button>
-        <button
-          onClick={() => setActiveTab('email')}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'email'
-              ? 'text-indigo-600 border-b-2 border-indigo-600'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <Mail className="inline mr-2 h-4 w-4" />
-          Email SMTP
         </button>
       </div>
 
@@ -442,89 +423,6 @@ export default function ClinicNotificationSettings() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
                 <p className="text-xs text-gray-600 mt-1">El número de Twilio desde el que se enviarán SMS</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* EMAIL SMTP CONFIGURATION */}
-      {activeTab === 'email' && (
-        <div className="space-y-6 bg-white p-6 rounded-lg border border-gray-200">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <Mail className="mr-2 h-5 w-5 text-indigo-600" />
-              Configuración de Email SMTP
-            </h3>
-
-            <div className="space-y-4">
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                <p className="font-medium">Configura tu servidor SMTP</p>
-                <p className="mt-1">
-                  Usa credenciales de Gmail u otro proveedor. Para Gmail, usa una{' '}
-                  <a
-                    href="https://support.google.com/accounts/answer/185833"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold underline"
-                  >
-                    contraseña de aplicación
-                  </a>
-                  .
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Usuario SMTP (email)
-                </label>
-                <input
-                  type="email"
-                  value={settings.smtp_user || ''}
-                  onChange={(e) => updateSetting('smtp_user', e.target.value)}
-                  placeholder="tuemail@gmail.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Contraseña SMTP
-                </label>
-                <input
-                  type="password"
-                  value={settings.smtp_password || ''}
-                  onChange={(e) => updateSetting('smtp_password', e.target.value)}
-                  placeholder="Contraseña de aplicación"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                />
-                <p className="text-xs text-gray-600 mt-1">No es tu contraseña normal, sino una contraseña de aplicación</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Servidor SMTP
-                </label>
-                <input
-                  type="text"
-                  value={settings.smtp_host || 'smtp.gmail.com'}
-                  onChange={(e) => updateSetting('smtp_host', e.target.value)}
-                  placeholder="smtp.gmail.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Puerto SMTP
-                </label>
-                <input
-                  type="number"
-                  value={settings.smtp_port || 587}
-                  onChange={(e) => updateSetting('smtp_port', parseInt(e.target.value))}
-                  placeholder="587"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                />
               </div>
             </div>
           </div>

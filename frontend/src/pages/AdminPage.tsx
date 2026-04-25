@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon, Database, Download, Upload, Mail, Home, Wallet, Target, Calendar, ShoppingCart, ListChecks, StickyNote, Cake, Bot, Wrench, Zap, DollarSign, BookOpen, Info, FileText, ShieldCheck, Save, GripVertical, Package } from 'lucide-react';
+import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon, Database, Download, Upload, Mail, Home, Wallet, Target, Calendar, ShoppingCart, ListChecks, StickyNote, Cake, Bot, Wrench, Zap, DollarSign, BookOpen, Info, FileText, ShieldCheck, Save, GripVertical, Package, Plus } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import { useCompany } from '../i18n/CompanyContext';
 
@@ -11,6 +11,8 @@ interface User {
   is_admin: number;
   status: string;
   created_at: string;
+  last_login?: string;
+  last_logout?: string;
 }
 
 interface Suggestion {
@@ -35,7 +37,7 @@ interface Stats {
 }
 
 export function AdminPage() {
-  const { setCompanyName: setGlobalCompanyName } = useCompany();
+  const { companyName, setCompanyName: setGlobalCompanyName } = useCompany();
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, active: 0, blocked: 0, pending: 0, admins: 0, totalTransactions: 0, totalBudgets: 0 });
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -49,7 +51,7 @@ export function AdminPage() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserError, setNewUserError] = useState('');
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login' | 'database' | 'smtp' | 'modules'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login' | 'database' | 'smtp' | 'sms' | 'modules' | 'quotes' | 'logs'>('users');
   
   // Password related states
   const [confirmUserPassword, setConfirmUserPassword] = useState('');
@@ -63,7 +65,7 @@ export function AdminPage() {
   const [loginImage, setLoginImage] = useState('');
   const [showLock, setShowLock] = useState(true);
   const [savingLogin, setSavingLogin] = useState(false);
-  const [companyName, setCompanyName] = useState('Clínica Valencia');
+  const [localCompanyName, setLocalCompanyName] = useState(companyName);
   const [savingCompany, setSavingCompany] = useState(false);
   const [downloadingDb, setDownloadingDb] = useState(false);
   const [uploadingDb, setUploadingDb] = useState(false);
@@ -82,6 +84,44 @@ export function AdminPage() {
   const [savingSmtp, setSavingSmtp] = useState(false);
   const [smtpMessage, setSmtpMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // SMS Settings (Twilio)
+  const [smsProvider, setSmsProvider] = useState('twilio');
+  const [twilioAccountSid, setTwilioAccountSid] = useState('');
+  const [twilioAuthToken, setTwilioAuthToken] = useState('');
+  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState('');
+  const [savingSms, setSavingSms] = useState(false);
+  const [smsMessage, setSmsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const [quotes, setQuotes] = useState<{id: number; quote: string; active: number}[]>([]);
+  const [quotesLoading, setQuotesLoading] = useState(false);
+
+  const [logs, setLogs] = useState<any[]>([]);
+  const [errorLogs, setErrorLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [logType, setLogType] = useState<'app' | 'error'>('app');
+
+  const fetchLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/logs?type=${logType}&lines=200`, { headers });
+      const data = await response.json();
+      if (logType === 'error') {
+        setErrorLogs(Array.isArray(data) ? data : []);
+      } else {
+        setLogs(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+    }
+    setLoadingLogs(false);
+  };
+  const [newQuote, setNewQuote] = useState('');
+  const [addingQuote, setAddingQuote] = useState(false);
+  const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
+  const [editingQuoteText, setEditingQuoteText] = useState('');
+  const [quoteMessage, setQuoteMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
   useEffect(() => {
     fetchData();
     fetchSuggestions();
@@ -93,8 +133,101 @@ export function AdminPage() {
       fetchCompanyName();
     } else if (activeTab === 'modules') {
       fetchEnabledModules();
+    } else if (activeTab === 'quotes') {
+      fetchQuotes();
+    } else if (activeTab === 'logs') {
+      fetchLogs();
     }
   }, [activeTab]);
+
+  const fetchQuotes = async () => {
+    setQuotesLoading(true);
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/motivational-quotes`, { headers });
+      const data = await response.json();
+      setQuotes(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching quotes:', error);
+    }
+    setQuotesLoading(false);
+  };
+
+  const addQuote = async () => {
+    if (!newQuote.trim()) return;
+    setAddingQuote(true);
+    setQuoteMessage(null);
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/motivational-quotes`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quote: newQuote.trim(), active: 1 })
+      });
+      if (response.ok) {
+        setNewQuote('');
+        fetchQuotes();
+        setQuoteMessage({type: 'success', text: 'Frase añadida correctamente'});
+      } else {
+        const data = await response.json();
+        setQuoteMessage({type: 'error', text: data.error || 'Error al añadir frase'});
+      }
+    } catch (error) {
+      console.error('Error adding quote:', error);
+      setQuoteMessage({type: 'error', text: 'Error de conexión'});
+    }
+    setAddingQuote(false);
+    setTimeout(() => setQuoteMessage(null), 3000);
+  };
+
+  const saveEditQuote = async (id: number) => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/motivational-quotes/${id}`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quote: editingQuoteText.trim() })
+      });
+      if (response.ok) {
+        setEditingQuoteId(null);
+        fetchQuotes();
+      }
+    } catch (error) {
+      console.error('Error updating quote:', error);
+    }
+  };
+
+  const toggleQuoteActive = async (quote: {id: number; active: number}) => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/motivational-quotes/${quote.id}`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: quote.active === 1 ? 0 : 1 })
+      });
+      if (response.ok) {
+        fetchQuotes();
+      }
+    } catch (error) {
+      console.error('Error toggling quote:', error);
+    }
+  };
+
+  const deleteQuote = async (id: number) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar esta frase?')) return;
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/motivational-quotes/${id}`, {
+        method: 'DELETE',
+        headers
+      });
+      if (response.ok) {
+        fetchQuotes();
+      }
+    } catch (error) {
+      console.error('Error deleting quote:', error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -143,9 +276,12 @@ export function AdminPage() {
       const headers = getAuthHeaders();
       const response = await fetch(`${API_URL}/api/settings/company-name`, { headers });
       const data = await response.json();
-      setCompanyName(data.companyName || 'Clínica Valencia');
+      const name = data.companyName || 'Clínica Valencia';
+      setLocalCompanyName(name);
+      setGlobalCompanyName(name);
     } catch (error) {
       console.error('Error fetching company name:', error);
+      setLocalCompanyName(companyName);
     }
   };
 
@@ -156,13 +292,13 @@ export function AdminPage() {
       const response = await fetch(`${API_URL}/api/settings/company-name`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify({ companyName })
+        body: JSON.stringify({ companyName: localCompanyName })
       });
       const data = await response.json();
       if (data.success) {
         alert('Nombre de empresa guardado');
-        localStorage.setItem('companyName', companyName);
-        setGlobalCompanyName(companyName);
+        localStorage.setItem('companyName', localCompanyName);
+        setGlobalCompanyName(localCompanyName);
         window.dispatchEvent(new Event('company_name_updated'));
       } else {
         alert(data.error || 'Error al guardar');
@@ -255,8 +391,14 @@ export function AdminPage() {
       fetchLoginSettings();
     } else if (activeTab === 'smtp') {
       fetchSmtpSettings();
+    } else if (activeTab === 'sms') {
+      fetchSmsSettings();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    setLocalCompanyName(companyName);
+  }, [companyName]);
 
   const saveLoginSettings = async () => {
     setSavingLogin(true);
@@ -272,8 +414,12 @@ export function AdminPage() {
         await fetch(`${API_URL}/api/settings/company-name`, {
           method: 'PUT',
           headers,
-          body: JSON.stringify({ companyName })
+          body: JSON.stringify({ companyName: localCompanyName })
         });
+        const newName = localCompanyName;
+        setGlobalCompanyName(newName);
+        localStorage.setItem('companyName', newName);
+        window.dispatchEvent(new Event('company_name_updated'));
         alert('Configuración guardada');
         fetchLoginSettings();
         fetchCompanyName();
@@ -340,6 +486,51 @@ export function AdminPage() {
     }
 
     setSavingSmtp(false);
+  };
+
+  const fetchSmsSettings = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/clinic/notification-settings`, { headers });
+      const data = await response.json();
+      setSmsProvider(data.sms_provider || 'twilio');
+      setTwilioAccountSid(data.twilio_account_sid || '');
+      setTwilioAuthToken(data.twilio_auth_token || '');
+      setTwilioPhoneNumber(data.twilio_phone_number || '');
+    } catch (error) {
+      console.error('Error fetching SMS settings:', error);
+    }
+  };
+
+  const saveSmsSettings = async () => {
+    setSavingSms(true);
+    setSmsMessage(null);
+
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/clinic/notification-settings`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          sms_provider: smsProvider,
+          twilio_account_sid: twilioAccountSid,
+          twilio_auth_token: twilioAuthToken,
+          twilio_phone_number: twilioPhoneNumber
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setSmsMessage({ type: 'success', text: 'Configuración SMS guardada correctamente' });
+      } else {
+        setSmsMessage({ type: 'error', text: data.error || 'Error guardando configuración SMS' });
+      }
+    } catch (error) {
+      console.error('Error saving SMS settings:', error);
+      setSmsMessage({ type: 'error', text: 'Error guardando configuración SMS' });
+    }
+
+    setSavingSms(false);
   };
 
   const downloadDatabase = async () => {
@@ -825,6 +1016,18 @@ export function AdminPage() {
           <span className="sm:hidden text-xs">SMTP</span>
         </button>
         <button
+          onClick={() => setActiveTab('sms')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+            activeTab === 'sms'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <MessageSquare size={16} className="inline" />
+          <span className="hidden sm:inline">SMS</span>
+          <span className="sm:hidden text-xs">SMS</span>
+        </button>
+        <button
           onClick={() => setActiveTab('modules')}
           className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
             activeTab === 'modules'
@@ -835,6 +1038,29 @@ export function AdminPage() {
           <Settings size={16} className="inline" />
           <span className="hidden sm:inline">Módulos</span>
           <span className="sm:hidden text-xs">Mod</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('quotes')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+            activeTab === 'quotes'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Lightbulb size={16} className="inline" />
+          <span className="hidden sm:inline">Frases</span>
+          <span className="sm:hidden text-xs">FQ</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('logs')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+            activeTab === 'logs'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <FileText size={16} className="inline" />
+          <span className="hidden sm:inline">Logs</span>
         </button>
       </div>
 
@@ -945,6 +1171,8 @@ export function AdminPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Registrado</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Último Login</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Último Logout</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
               </tr>
             </thead>
@@ -974,6 +1202,12 @@ export function AdminPage() {
                   <td className="px-4 py-3">{getStatusBadge(user.status)}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">
                     {new Date(user.created_at).toLocaleDateString('es')}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {user.last_login ? new Date(user.last_login).toLocaleString('es') : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {user.last_logout ? new Date(user.last_logout).toLocaleString('es') : '-'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
@@ -1228,8 +1462,8 @@ export function AdminPage() {
               </label>
               <input
                 type="text"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
+                value={localCompanyName}
+                onChange={(e) => setLocalCompanyName(e.target.value)}
                 placeholder="Clínica Valencia"
                 className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
               />
@@ -1614,6 +1848,119 @@ export function AdminPage() {
         </div>
       )}
 
+      {activeTab === 'sms' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2 text-gray-600">
+              <MessageSquare size={18} />
+              <span className="font-medium">Configuración de SMS (Twilio)</span>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-6">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-yellow-800 mb-1">Requiere cuenta en Twilio</h4>
+                  <p className="text-sm text-yellow-600">
+                    Para usar SMS, necesitas una cuenta en Twilio. Obtén tus credenciales del dashboard de Twilio.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Proveedor de SMS
+                  </label>
+                  <select
+                    value={smsProvider}
+                    onChange={(e) => setSmsProvider(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="twilio">Twilio</option>
+                    <option value="otros">Otros (próximamente)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Account SID
+                  </label>
+                  <input
+                    type="password"
+                    value={twilioAccountSid}
+                    onChange={(e) => setTwilioAccountSid(e.target.value)}
+                    placeholder="Tu Account SID de Twilio"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Auth Token
+                  </label>
+                  <input
+                    type="password"
+                    value={twilioAuthToken}
+                    onChange={(e) => setTwilioAuthToken(e.target.value)}
+                    placeholder="Tu Auth Token de Twilio"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Número de Teléfono de Twilio
+                  </label>
+                  <input
+                    type="tel"
+                    value={twilioPhoneNumber}
+                    onChange={(e) => setTwilioPhoneNumber(e.target.value)}
+                    placeholder="+1234567890"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {smsMessage && (
+              <div className={`p-4 rounded-lg ${smsMessage.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+                <div className="flex items-center gap-2">
+                  {smsMessage.type === 'success' ? <Check size={18} /> : <AlertTriangle size={18} />}
+                  {smsMessage.text}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                onClick={saveSmsSettings}
+                disabled={savingSms}
+                className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {savingSms ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save size={18} />
+                    Guardar configuración SMS
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'modules' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-4 border-b border-gray-200 bg-gray-50">
@@ -1651,6 +1998,171 @@ export function AdminPage() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'quotes' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-gray-600">
+                <Lightbulb size={18} />
+                <span className="font-medium">Frases Motivacionales</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-4">
+            {quoteMessage && (
+              <div className={`p-3 rounded-lg text-sm ${quoteMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                {quoteMessage.text}
+              </div>
+            )}
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={newQuote}
+                onChange={(e) => setNewQuote(e.target.value)}
+                placeholder="Escribe una nueva frase motivacional..."
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                onKeyDown={(e) => e.key === 'Enter' && addQuote()}
+              />
+              <button
+                onClick={addQuote}
+                disabled={addingQuote || !newQuote.trim()}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 flex items-center gap-2 disabled:opacity-50"
+              >
+                {addingQuote ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+                Añadir
+              </button>
+            </div>
+
+            {quotesLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="animate-spin text-primary" size={24} />
+              </div>
+            ) : quotes.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Lightbulb size={48} className="mx-auto mb-3 text-gray-300" />
+                <p>No hay frases motivacionales. ¡Añade la primera!</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {quotes.map((quote) => (
+                  <div key={quote.id} className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    {editingQuoteId === quote.id ? (
+                      <>
+                        <input
+                          type="text"
+                          value={editingQuoteText}
+                          onChange={(e) => setEditingQuoteText(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveEditQuote(quote.id);
+                            if (e.key === 'Escape') setEditingQuoteId(null);
+                          }}
+                        />
+                        <button
+                          onClick={() => saveEditQuote(quote.id)}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                        >
+                          <Check size={18} />
+                        </button>
+                        <button
+                          onClick={() => setEditingQuoteId(null)}
+                          className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+                        >
+                          <X size={18} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex-1">
+                          <p className="text-gray-800">{quote.quote}</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {quote.active === 1 ? 'Activa' : 'Inactiva'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => toggleQuoteActive(quote)}
+                          className={`p-2 rounded-lg ${quote.active === 1 ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}
+                          title={quote.active === 1 ? 'Desactivar' : 'Activar'}
+                        >
+                          {quote.active === 1 ? <Eye size={18} /> : <EyeOff size={18} />}
+                        </button>
+                        <button
+                          onClick={() => { setEditingQuoteId(quote.id); setEditingQuoteText(quote.quote); }}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                          title="Editar"
+                        >
+                          <Settings size={18} />
+                        </button>
+                        <button
+                          onClick={() => deleteQuote(quote.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'logs' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-gray-600">
+                <FileText size={18} />
+                <span className="font-medium">Logs del Sistema</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={logType}
+                  onChange={(e) => { setLogType(e.target.value as 'app' | 'error'); }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="app">Application</option>
+                  <option value="error">Errors</option>
+                </select>
+                <button
+                  onClick={fetchLogs}
+                  disabled={loadingLogs}
+                  className="px-3 py-1.5 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 flex items-center gap-1"
+                >
+                  {loadingLogs ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
+                  Recargar
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-4">
+            {loadingLogs ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="animate-spin text-primary" size={24} />
+              </div>
+            ) : (
+              <div className="bg-gray-900 rounded-lg p-4 max-h-96 overflow-y-auto font-mono text-xs">
+                {(logType === 'error' ? errorLogs : logs).length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No hay logs disponibles</p>
+                  </div>
+                ) : (
+                  <pre className="text-green-400 whitespace-pre-wrap">
+                    {JSON.stringify(logType === 'error' ? errorLogs : logs, null, 2)}
+                  </pre>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

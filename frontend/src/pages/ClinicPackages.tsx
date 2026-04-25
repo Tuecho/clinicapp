@@ -100,7 +100,7 @@ export function ClinicPackages() {
 
   const handleSavePackage = async () => {
     try {
-      if (!packageForm.name || !packageForm.service_id || packageForm.total_sessions <= 0) {
+      if (!packageForm.name || !packageForm.service_id || packageForm.total_sessions <= 0 || packageForm.price <= 0) {
         alert('Por favor completa todos los campos requeridos');
         return;
       }
@@ -124,11 +124,12 @@ export function ClinicPackages() {
         setPackageForm({ name: '', description: '', service_id: '', total_sessions: 10, price: 0 });
         fetchData();
       } else {
-        alert('Error al guardar el paquete');
+        const errorData = await response.json();
+        alert(errorData.error || 'Error al guardar el paquete');
       }
     } catch (error) {
       console.error('Error saving package:', error);
-      alert('Error al guardar el paquete');
+      alert(error instanceof Error ? error.message : 'Error al guardar el paquete');
     }
   };
 
