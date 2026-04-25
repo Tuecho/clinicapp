@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import { formatDateEs } from '../utils/format';
+import { DateInput, TimeInput } from '../utils/DateTimeInput';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -670,32 +671,25 @@ const handleStatusChange = async (aptId: string, newStatus: string) => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
-                <input
-                  type="date"
-                  lang="es"
+                <DateInput
                   value={blockForm.date}
-                  onChange={(e) => setBlockForm({ ...blockForm, date: e.target.value })}
-                  className="w-full border rounded px-3 py-2"
+                  onChange={(value) => setBlockForm({ ...blockForm, date: value })}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Hora Inicio</label>
-                  <input
-                    type="time"
+                  <TimeInput
                     value={blockForm.start_time}
-                    onChange={(e) => setBlockForm({ ...blockForm, start_time: e.target.value })}
-                    className="w-full border rounded px-3 py-2"
+                    onChange={(value) => setBlockForm({ ...blockForm, start_time: value })}
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Hora Fin</label>
-                  <input
-                    type="time"
+                  <TimeInput
                     value={blockForm.end_time}
-                    onChange={(e) => setBlockForm({ ...blockForm, end_time: e.target.value })}
-                    className="w-full border rounded px-3 py-2"
+                    onChange={(value) => setBlockForm({ ...blockForm, end_time: value })}
                   />
                 </div>
               </div>

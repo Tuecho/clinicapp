@@ -537,30 +537,28 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
   const [upcomingBirthdays, setUpcomingBirthdays] = useState<any[]>([]);
   const [birthdaysLoading, setBirthdaysLoading] = useState(true);
+  const [quotes, setQuotes] = useState<string[]>([]);
+  const [dailyQuote, setDailyQuote] = useState<string>('');
 
   useEffect(() => {
     localStorage.setItem('showFinancialData', String(showFinancialData));
   }, [showFinancialData]);
-  
-  const quotes = [
-    "El éxito es la suma de pequeños esfuerzos repetidos cada día.",
-    "Cada cliente satisfecho es el mejor anuncio.",
-    "La calidad no es un acto, es un hábito.",
-    "El trabajo en equipo hace el sueño realidad.",
-    "La innovación distingue a los líderes.",
-    "Cliente feliz, negocio próspero.",
-    "El tiempo es tu activo más valioso.",
-    "Primero resuelve el problema, luego vende la solución.",
-    "El servicio excelente genera clientes fiéis.",
-    "Simplifica, optimiza, growing.",
-    "La excelencia es hacer lo común de manera extraordinaria.",
-    " cada paso cuenta, cada cliente importa.",
-    "Tu clínica, tu legado, tu éxito.",
-    "Cuidar bien a tus clientes es cuidar bien de tu negocio.",
-    "La satisfacción del cliente es tu mejor metric."
-  ];
-  
-  const [dailyQuote] = useState(() => quotes[Math.floor(Math.random() * quotes.length)]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/motivational-quotes`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          const activeQuotes = data.filter((q: any) => q.active === 1 || q.active === true);
+          const quoteTexts = activeQuotes.length > 0 ? activeQuotes.map((q: any) => q.quote) : data.map((q: any) => q.quote);
+          setQuotes(quoteTexts);
+          if (quoteTexts.length > 0) {
+            setDailyQuote(quoteTexts[Math.floor(Math.random() * quoteTexts.length)]);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
   
   useEffect(() => {
     fetchTransactions({ month: selectedMonth, year: selectedYear });

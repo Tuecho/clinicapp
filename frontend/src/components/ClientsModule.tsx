@@ -88,6 +88,21 @@ export function ClientsModule() {
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [clientForm, setClientForm] = useState<Partial<Client>>({});
+  const [birthdateDisplay, setBirthdateDisplay] = useState('');
+
+  const parseDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+  };
+
+  const formatDateForInput = (dateDisplay: string) => {
+    const parts = dateDisplay.split('/');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return '';
+  };
 
   // Visits
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -414,6 +429,7 @@ export function ClientsModule() {
                 onClick={() => {
                   setEditingClient(null);
                   setClientForm({});
+                  setBirthdateDisplay('');
                   setShowClientModal(true);
                 }}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2"
@@ -461,6 +477,7 @@ export function ClientsModule() {
                         e.stopPropagation();
                         setEditingClient(client);
                         setClientForm(client);
+                        setBirthdateDisplay(parseDate(client.birthdate));
                         setShowClientModal(true);
                       }}
                       className="flex-1 px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 text-sm transition-all flex items-center justify-center gap-1"
@@ -503,6 +520,7 @@ export function ClientsModule() {
                   onClick={() => {
                     setEditingClient(selectedClient);
                     setClientForm(selectedClient);
+                    setBirthdateDisplay(parseDate(selectedClient.birthdate));
                     setShowClientModal(true);
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2"
@@ -873,10 +891,29 @@ export function ClientsModule() {
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <input
-                    type="date" lang="es"
-                    placeholder="Fecha de nacimiento"
-                    value={clientForm.birthdate || ''}
-                    onChange={(e) => setClientForm({ ...clientForm, birthdate: e.target.value })}
+                    type="text"
+                    placeholder="dd/mm/aaaa"
+                    value={birthdateDisplay}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, '');
+                      if (value.length > 8) value = value.slice(0, 8);
+                      if (value.length > 0) {
+                        if (value.length <= 2) {
+                        } else if (value.length <= 4) {
+                          value = value.slice(0, 2) + '/' + value.slice(2);
+                        } else {
+                          value = value.slice(0, 2) + '/' + value.slice(2, 4) + '/' + value.slice(4);
+                        }
+                      }
+                      setBirthdateDisplay(value);
+                      setClientForm({ ...clientForm, birthdate: formatDateForInput(value) });
+                    }}
+                    onBlur={() => {
+                      if (birthdateDisplay && !/^\d{2}\/\d{2}\/\d{4}$/.test(birthdateDisplay)) {
+                        setBirthdateDisplay('');
+                        setClientForm({ ...clientForm, birthdate: '' });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -886,10 +923,8 @@ export function ClientsModule() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Seleccionar género</option>
-                  <option value="femenino">Femenino</option>
                   <option value="masculino">Masculino</option>
-                  <option value="otro">Otro</option>
-                  <option value="prefiero_no_decir">Prefiero no decir</option>
+                  <option value="femenino">Femenino</option>
                 </select>
 
                 <div>

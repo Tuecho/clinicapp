@@ -29,6 +29,7 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
           const name = data.companyName || 'Clínica Valencia';
           setCompanyName(name);
           localStorage.setItem(STORAGE_KEY, name);
+          document.title = `${name} - Panel de Administración`;
           setIsLoaded(true);
         }
       } catch (error) {
@@ -39,6 +40,10 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
 
     const handleCompanyNameUpdate = () => {
       fetchCompanyName();
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        document.title = `${stored} - Panel de Administración`;
+      }
     };
 
     const handleStorageChange = (e: StorageEvent) => {
@@ -60,6 +65,7 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
   const updateCompanyName = (name: string) => {
     setCompanyName(name);
     localStorage.setItem(STORAGE_KEY, name);
+    document.title = `${name} - Panel de Administración`;
   };
 
   return (

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
+import { getAuthHeaders } from './utils/auth';
 import { Dashboard } from './pages/Dashboard';
 import { Accounting } from './pages/Accounting';
 import { ClinicManager } from './pages/ClinicManager';
@@ -71,6 +72,71 @@ function AppContent() {
       setIsMobileMenuOpen(false);
     }
   }, [activePage]);
+
+  const heartbeatInterval = useRef<number>();
+  useEffect(() => {
+    if (isAuthenticated) {
+      const sendHeartbeat = async () => {
+        try {
+          const headers = getAuthHeaders();
+          const userId = headers.userId;
+          if (userId) {
+            await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/heartbeat`, {
+              method: 'POST',
+              headers: { userId }
+            });
+          }
+        } catch (e) {
+          // Ignorar errores de heartbeat
+        }
+      };
+      
+      sendHeartbeat();
+      heartbeatInterval.current = window.setInterval(sendHeartbeat, 60000);
+      
+      return () => {
+        if (heartbeatInterval.current) {
+          clearInterval(heartbeatInterval.current);
+        }
+      };
+    }
+  }, [isAuthenticated]);
+
+  const [showInactivityModal, setShowInactivityModal] = useState(false);
+  const inactivityTimeout = useRef<number>();
+  const warningTimeout = useRef<number>();
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimeout.current) clearTimeout(inactivityTimeout.current);
+      if (warningTimeout.current) clearTimeout(warningTimeout.current);
+      setShowInactivityModal(false);
+
+      const WARNING_TIME = 28 * 60 * 1000;
+      const LOGOUT_TIME = 30 * 60 * 1000;
+
+      warningTimeout.current = window.setTimeout(() => {
+        setShowInactivityModal(true);
+      }, WARNING_TIME);
+
+      inactivityTimeout.current = window.setTimeout(() => {
+        logout();
+      }, LOGOUT_TIME);
+    };
+
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(event => window.addEventListener(event, resetInactivityTimer));
+
+    resetInactivityTimer();
+
+    return () => {
+      if (inactivityTimeout.current) clearTimeout(inactivityTimeout.current);
+      if (warningTimeout.current) clearTimeout(warningTimeout.current);
+      events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
+    };
+  }, [isAuthenticated, logout]);
 
   if (!isAuthenticated) {
     return <Login onLogin={login} />;
@@ -145,9 +211,45 @@ function AppContent() {
           {activePage === 'modules' && <ModuleManager />}
           {activePage === 'reports' && <ReportsAnalytics />}
         </div>
-      </main>
+</main>
 
-      <ChatWidget hidden={activePage === 'contacts'} />
+        <ChatWidget hidden={activePage === 'contacts'} />
+
+        {showInactivityModal && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 animate-in fade-in zoom-in duration-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Sesión por vencer</h3>
+                <button
+                  onClick={() => setShowInactivityModal(false)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+              <p className="text-gray-600 mb-4">
+                Tu sesión se cerrará en <strong>2 minutos</strong> por inactividad.
+              </p>
+              <p className="text-sm text-gray-500 mb-6">
+                Mueve el ratón o presiona cualquier tecla para mantener la sesión activa.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => logout()}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cerrar sesión
+                </button>
+                <button
+                  onClick={() => setShowInactivityModal(false)}
+                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  Mantener activo
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
