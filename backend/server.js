@@ -8050,16 +8050,25 @@ app.get('/api/clinic/packages', (req, res) => {
 // POST new package
 app.post('/api/clinic/packages', (req, res) => {
   const userId = getCurrentUserId(req.headers);
-  if (!userId) return res.status(401).json({ error: 'No autorizado' });
-  if (!checkAdmin(req.headers)) return res.status(403).json({ error: 'Solo el administrador puede crear paquetes' });
+  console.log('[POST /api/clinic/packages] userId:', userId, 'headers:', req.headers);
+  if (!userId) {
+    console.log('[POST /api/clinic/packages] ERROR: No autorizado - headers vacíos o inválidos');
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  if (!checkAdmin(req.headers)) {
+    console.log('[POST /api/clinic/packages] ERROR: No es admin');
+    return res.status(403).json({ error: 'Solo el administrador puede crear paquetes' });
+  }
   
   const { name, description, service_id, total_sessions, price, session_price } = req.body;
+  console.log('[POST /api/clinic/packages] body:', req.body);
   if (!name || !service_id || !total_sessions || !price) {
     return res.status(400).json({ error: 'Faltan datos obligatorios: name, service_id, total_sessions y price son requeridos' });
   }
 
   const accessibleIds = getAccessibleUserIds(userId);
   if (accessibleIds.length === 0) {
+    console.log('[POST /api/clinic/packages] ERROR: No hay servicios accesibles');
     return res.status(400).json({ error: 'No tienes servicios disponibles para crear paquetes' });
   }
   
@@ -8068,16 +8077,25 @@ app.post('/api/clinic/packages', (req, res) => {
   checkStmt.bind([service_id, ...accessibleIds]);
   if (!checkStmt.step()) {
     checkStmt.free();
+    console.log('[POST /api/clinic/packages] ERROR: Servicio no válido:', service_id);
     return res.status(400).json({ error: 'Servicio no válido. Selecciona un servicio de la lista.' });
   }
   checkStmt.free();
   
-  const id = crypto.randomUUID();
-  const stmt = db.prepare('INSERT INTO clinic_packages (id, owner_id, name, description, service_id, total_sessions, price, session_price, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)');
-  stmt.run([id, userId, name, description || null, service_id, total_sessions, price, session_price || (price / total_sessions)]);
-  stmt.free();
-  saveDb();
-  res.json({ id, success: true });
+  try {
+    const id = crypto.randomUUID();
+    const computedSessionPrice = session_price || (price / total_sessions);
+    console.log('[POST /api/clinic/packages] INSERTANDO paquete:', { id, name, service_id, total_sessions, price, computedSessionPrice });
+    const stmt = db.prepare('INSERT INTO clinic_packages (id, owner_id, name, description, service_id, total_sessions, price, session_price, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run([id, userId, name, description || null, service_id, total_sessions, price, computedSessionPrice, 1]);
+    stmt.free();
+    saveDb();
+    console.log('[POST /api/clinic/packages] SUCCESS - Paquete creado con ID:', id);
+    res.json({ id, success: true });
+  } catch (insertError) {
+    console.error('[POST /api/clinic/packages] ERROR SQL:', insertError);
+    res.status(500).json({ error: 'Error al crear el paquete: ' + insertError.message });
+  }
 });
 
 // PUT update package
@@ -9376,6 +9394,17 @@ app.get('/api/reports/occupancy', async (req, res) => {
     console.error('Error generating occupancy report:', error);
     res.status(500).json({ error: 'Error generando reporte de ocupación' });
   }
+});
+
+// Middleware para capturar rutas no encontradas y errores
+app.use((req, res) => {
+  console.log('[404] Ruta no encontrada:', req.method, req.url);
+  res.status(404).json({ error: 'Ruta no encontrada: ' + req.url });
+});
+
+app.use((err, req, res, next) => {
+  console.error('[ERROR] Error no manejado:', err);
+  res.status(500).json({ error: 'Error interno del servidor' });
 });
 
 app.listen(PORT, () => {

@@ -82,10 +82,15 @@ export function ClinicPackages() {
         fetch(`${API_URL}/api/clinic/clients`, { headers }),
       ]);
 
-      const packagesData = await packagesRes.json();
-      const usageData = await usageRes.json();
-      const servicesData = await servicesRes.json();
-      const clientsData = await clientsRes.json();
+      const packagesData = packagesRes.ok ? await packagesRes.json() : [];
+      const usageData = usageRes.ok ? await usageRes.json() : [];
+      const servicesData = servicesRes.ok ? await servicesRes.json() : [];
+      const clientsData = clientsRes.ok ? await clientsRes.json() : [];
+
+      if (!packagesRes.ok) console.error('Error fetching packages:', packagesRes.status);
+      if (!usageRes.ok) console.error('Error fetching usage:', usageRes.status);
+      if (!servicesRes.ok) console.error('Error fetching services:', servicesRes.status);
+      if (!clientsRes.ok) console.error('Error fetching clients:', clientsRes.status);
 
       setPackages(Array.isArray(packagesData) ? packagesData : []);
       setClientUsage(Array.isArray(usageData) ? usageData : []);
@@ -106,6 +111,9 @@ export function ClinicPackages() {
       }
 
       const headers = getAuthHeaders();
+      console.log('[ClinicPackages] Headers:', headers);
+      console.log('[ClinicPackages] Form:', packageForm);
+
       const url = editingPackage
         ? `${API_URL}/api/clinic/packages/${editingPackage.id}`
         : `${API_URL}/api/clinic/packages`;
@@ -118,17 +126,26 @@ export function ClinicPackages() {
         body: JSON.stringify(packageForm),
       });
 
+      const contentType = response.headers.get('content-type');
+      console.log('[ClinicPackages] Response status:', response.status, 'content-type:', contentType);
+
       if (response.ok) {
         setShowPackageModal(false);
         setEditingPackage(null);
         setPackageForm({ name: '', description: '', service_id: '', total_sessions: 10, price: 0 });
         fetchData();
       } else {
-        const errorData = await response.json();
-        alert(errorData.error || 'Error al guardar el paquete');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          alert(errorData.error || 'Error al guardar el paquete');
+        } else {
+          const text = await response.text();
+          console.error('[ClinicPackages] Respuesta no-JSON:', response.status, text);
+          alert(`Error al guardar el paquete (${response.status})`);
+        }
       }
     } catch (error) {
-      console.error('Error saving package:', error);
+      console.error('[ClinicPackages] Error saving package:', error);
       alert(error instanceof Error ? error.message : 'Error al guardar el paquete');
     }
   };
