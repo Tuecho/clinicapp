@@ -1,158 +1,84 @@
 # Clínica - Gestor de Citas
 
-Aplicación web para la gestión de clínicas de estética. Administra clientes, servicios, citas, profesionales, productos, presupuestos y facturación.
+Aplicación web para gestionar citas de una clínica de estética.
 
-## Características Principales
+## Características
 
-- **Gestión de clientes**: CRM completo con historial de visitas
-- **Servicios**: Catálogo de servicios con precios y duración
-- **Citas**: Programación con estado (programada/completada/cancelada)
-- **Profesionales**: Gestión de horarios y disponibilidad
+### Sistema de Roles
+La aplicación dispone de **3 roles** con permisos diferenciados:
+
+| Rol | Descripción |
+|-----|--------------|
+| **Admin** | Acceso total al sistema. Puede gestionar usuarios, módulos y todos los datos |
+| **Administrative** | Gestión completa de Mi Clínica. Puede crear/modificar citas, clientes, servicios, productos, profesionales. Dashboard con ingresos del día |
+| **Worker** | Solo ve sus propias citas en el calendario. Sin acceso a gestión de clientes ni configuración |
+
+### Módulos de Clínica
+- **Clientes**: CRM con datos encriptados, historial de visitas
+- **Servicios**: Catálogo con precios y duración
+- **Citas**: Programación calendario, asignación profesional, estados
+- **Profesionales**: Horarios, disponibilidad, horas bloqueadas
 - **Productos**: Inventario con control de stock
-- **Presupuestos**: Generación de presupuestos
-- **Facturación**: Facturación con control de pagos
-- **Recordatorios**: Automáticos por email
-- **Backup**: Exportar en .db o JSON
+- **Presupuestos**: Generación y facturación
+- **Paquetes**: Gestión de paquetes de servicios
+- **Recordatorios**: Emails automáticos
 
-> **Nota**: Esta es la versión para una única clínica donde todos los usuarios ven los mismos datos.
+### Módulos Reutilizados
+- **Agenda**: Calendario general de eventos
+- **Presupuestos**: Presupuestos generales
+- **Tareas**: Gestión de tareas
+- **Notas**: Notas y tablones
+- **Accounting**: Transacciones ingresos/gastos
+- **Shopping**: Listas de compra
 
-## Stack Tecnológico
+## Stack
 
 - **Frontend**: React + Vite + TypeScript + TailwindCSS
-- **Backend**: Node.js + Express + sql.js (SQLite con persistencia)
-- **Redis**: Cache para optimizar rendimiento
-- **Docker**: Contenedores con Docker Compose
-
-## Requisitos
-
-- **Node.js** 18+
-- **Docker y Docker Compose**
+- **Backend**: Node.js + Express + sql.js
+- **Cache**: Redis
+- **Docker**: Docker Compose
 
 ## Instalación
-
-### Con Docker
 
 ```bash
 docker-compose up -d
 ```
 
-La app estará disponible en:
-- **Frontend**: http://localhost:5174
-- **Backend API**: http://localhost:3001
+Puertos:
+- Frontend: http://localhost:5174
+- Backend: http://localhost:3001
 
-### Desarrollo (sin Docker)
+## Desarrollo
 
 ```bash
-# Terminal 1 - Backend
+# Backend
 cd backend && npm start
 
-# Terminal 2 - Frontend
+# Frontend
 cd frontend && npm run dev
 ```
 
-La app estará disponible en http://localhost:5174
+## Sistema de Autenticación
 
-## Módulos Implementados (42 tablas)
+- Cada usuario se vincula a un **profesional** (campo `user_id` en `clinic_professionals`)
+- Las **citas** se filtran automáticamente según el profesional asignado al usuario
+- El **worker** solo ve sus propias citas
+- El **administrative** y **admin** ven todas las citas y pueden filtrar por profesional
 
-### Sistema
-- auth_user, user_profile, app_settings, notification_settings
-- password_reset_codes, faqs, suggestions, contact_messages
+## Tablas de la Clínica (22)
 
-### Contabilidad
-- transactions, budgets, expense_concepts
-
-### Organización
-- family_events, family_tasks, family_members, birthdays
-- family_notes, note_boards, shopping_lists, shopping_items
-- family_contacts, family_gifts
-
-### Hogar
-- home_inventory, home_inventory_categories, home_maintenance
-- utility_bills
-
-### Clínica (22 tablas)
 - clinic_clients, clinic_services, clinic_appointments
-- clinic_appointment_reminders, clinic_visits, clinic_consents
-- clinic_consent_audit, clinic_gdpr_data
-- clinic_resources, clinic_notification_settings
-- clinic_communication_log, clinic_packages, clinic_package_usage
-- clinic_blocked_hours, clinic_professionals
+- clinic_appointment_reminders, clinic_visits
+- clinic_professionals, clinic_specialties
 - clinic_professional_schedules, clinic_professional_availability
 - clinic_products, clinic_product_movements
 - clinic_budgets, clinic_invoices
-- clinic_revenue_report, clinic_appointment_notes
+- clinic_consents, clinic_consent_audit, clinic_gdpr_data
+- clinic_packages, clinic_package_usage
+- clinic_blocked_hours
+- clinic_notification_settings, clinic_communication_log
 
-## 🔒 Seguridad y Privacidad (RGPD)
+## Seguridad (RGPD)
 
-### Encriptación de Datos
-- **Algoritmo**: AES-256-GCM (authenticated encryption)
-- **Campos encriptados**: name, email, phone, birthdate, address, city, postal_code, notes
-- **Clave**: se genera automáticamente en primer inicio
-
-### Consentimientos Informados
-- **Hash SHA-256**: Integridad verificable
-- **Auditoría completa**: created, revoked, viewed
-- **Tabla**: clinic_consent_audit
-
-## Docker Compose
-
-```yaml
-services:
-  redis_clinic:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - clinic-network
-
-  frontend_clinic:
-    build: ./frontend
-    ports:
-      - "5174:5173"
-
-  api_clinic:
-    build: ./backend
-    ports:
-      - "3001:3000"
-    environment:
-      - REDIS_HOST=redis_clinic
-      - REDIS_PORT=6379
-    depends_on:
-      redis_clinic:
-        condition: service_healthy
-
-volumes:
-  redis-data:
-  clinic-db-data:
-
-networks:
-  clinic-network:
-```
-
-### Puertos
-- **Frontend**: http://localhost:5174
-- **Backend API**: http://localhost:3001
-- **Redis**: localhost:6379
-
-## Backup
-
-Desde AdminPage (solo administradores):
-- **Exportar .db**: Base de datos SQLite completa
-- **Exportar JSON**: Todos los datos en formato JSON
-
-## Estructura
-
-```
-clinic/
-├── backend/           # Servidor Node.js + Express
-│   └── server.js    # API principal
-├── frontend/        # Aplicación React + Vite
-│   ├── src/
-│   │   ├── pages/ # Páginas
-│   │   └── components/
-├── docker-compose.yml
-├── .env
-└── README.md
-```"# clinicapp" 
+- **Encriptación**: AES-256-GCM (datos sensibles)
+- **Consentimientos**: Hash SHA-256 con auditoría

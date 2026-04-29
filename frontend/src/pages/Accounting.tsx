@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Loader2, Pencil, Filter, X, Settings, Upload, Check, AlertCircle } from 'lucide-react';
 import { useStore } from '../store';
-import type { Transaction } from '../types';
+import type { Transaction, UserRole } from '../types';
 import { formatDateEs, formatMoneyEs } from '../utils/format';
 import { ImportExcel } from '../components/ImportExcel';
 import { ImportPDF } from '../components/ImportPDF';
 
-export function Accounting() {
+interface AccountingProps {
+  role?: UserRole;
+}
+
+export function Accounting({ role }: AccountingProps) {
   const { transactions, concepts, fetchConcepts, addTransaction, updateTransaction, deleteTransaction, getMonthlyTransactions, fetchTransactions, loading, selectedMonth, selectedYear, addConcept, updateConceptLabel, deleteConcept } = useStore();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -20,9 +24,26 @@ export function Accounting() {
   const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const isAdmin = role === 'admin';
+  const isAdministrative = role === 'administrative';
+  const canEdit = isAdmin || isAdministrative;
+  const todayOnly = role === 'administrative';
+
   useEffect(() => {
     fetchConcepts();
   }, [fetchConcepts]);
+
+  useEffect(() => {
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    if (todayOnly) {
+      const today = now.toISOString().split('T')[0];
+      fetchTransactions({ month, year, date: today });
+    } else {
+      fetchTransactions({ month, year });
+    }
+  }, [role]);
 
   const slugifyKey = (text: string) => {
     return text.toLowerCase()
@@ -224,10 +245,13 @@ export function Accounting() {
       </div>
 
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 mb-4 sm:mb-6">
+        {canEdit && (
         <div className="flex gap-2">
           <ImportExcel onImportComplete={() => fetchTransactions({ month: selectedMonth, year: selectedYear })} />
           <ImportPDF onImportComplete={() => fetchTransactions({ month: selectedMonth, year: selectedYear })} />
         </div>
+        )}
+        {canEdit && (
         <button
           onClick={openNew}
           className="flex items-center justify-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
@@ -235,42 +259,45 @@ export function Accounting() {
           <Plus size={18} />
           <span className="text-sm">Nueva</span>
         </button>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="border-l border-gray-300 pl-4 flex items-center gap-2 text-gray-600">
-              <Filter size={18} />
-              <span className="text-sm font-medium">Filtrar:</span>
-            </div>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              <option value="all">Todos los tipos</option>
-              <option value="expense">Gastos</option>
-              <option value="income">Ingresos</option>
-            </select>
-            <select
-              value={filterConcept}
-              onChange={(e) => setFilterConcept(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              <option value="all">Todos los conceptos</option>
-              {concepts.map((c) => (
-                <option key={c.key} value={c.key}>{c.label}</option>
-              ))}
-            </select>
-            <button
-              onClick={() => setShowConceptModal(true)}
-              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Gestionar conceptos"
-            >
-              <Settings size={18} />
-            </button>
-            {hasFilters && (
+          <div className="p-4 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="border-l border-gray-300 pl-4 flex items-center gap-2 text-gray-600">
+                <Filter size={18} />
+                <span className="text-sm font-medium">Filtrar:</span>
+              </div>
+              {canEdit && (
+              <>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="all">Todos los tipos</option>
+                <option value="expense">Gastos</option>
+                <option value="income">Ingresos</option>
+              </select>
+              <select
+                value={filterConcept}
+                onChange={(e) => setFilterConcept(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="all">Todos los conceptos</option>
+                {concepts.map((c) => (
+                  <option key={c.key} value={c.key}>{c.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => setShowConceptModal(true)}
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Gestionar conceptos"
+              >
+                <Settings size={18} />
+              </button>
+              {hasFilters && (
               <button
                 onClick={clearFilters}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm text-expense hover:bg-red-50 rounded-lg transition-colors"
@@ -278,12 +305,14 @@ export function Accounting() {
                 <X size={16} />
                 Limpiar
               </button>
-            )}
-            <span className="ml-auto text-sm text-gray-500">
-              {monthlyTransactions.length} {monthlyTransactions.length === 1 ? 'transacción' : 'transacciones'}
-            </span>
+              )}
+              </>
+              )}
+              <span className="ml-auto text-sm text-gray-500">
+                {monthlyTransactions.length} {monthlyTransactions.length === 1 ? 'transacción' : 'transacciones'}
+              </span>
+            </div>
           </div>
-        </div>
 
         {hasFilters && (
           <div className="p-4 bg-blue-50 border-b border-blue-100">
@@ -345,6 +374,8 @@ export function Accounting() {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-end gap-3">
+                        {canEdit && (
+                        <>
                         <button
                           onClick={() => openEdit(t)}
                           className="text-gray-400 hover:text-primary transition-colors"
@@ -359,6 +390,8 @@ export function Accounting() {
                         >
                           <Trash2 size={18} />
                         </button>
+                        </>
+                        )}
                       </div>
                     </td>
                   </tr>

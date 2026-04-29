@@ -62,7 +62,6 @@ function getActiveUsers() {
   }
   return users.sort((a, b) => b.lastActivity - a.lastActivity);
 }
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 
 const ALL_TABLES = [
   'auth_user', 'user_profile', 'transactions', 'budgets', 'family_events',
@@ -145,6 +144,7 @@ async function initDb() {
   try { db.run(`ALTER TABLE user_profile ADD COLUMN enabled_modules TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE auth_user ADD COLUMN last_login TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE auth_user ADD COLUMN last_logout TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE auth_user ADD COLUMN role TEXT DEFAULT 'worker'`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS auth_user (
@@ -153,6 +153,7 @@ async function initDb() {
       password_hash TEXT NOT NULL,
       salt TEXT NOT NULL,
       is_admin INTEGER DEFAULT 0,
+      role TEXT DEFAULT 'worker',
       status TEXT DEFAULT 'pending',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       last_login TEXT,
@@ -650,6 +651,7 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS clinic_professionals (
       id TEXT PRIMARY KEY,
       owner_id INTEGER NOT NULL,
+      user_id INTEGER,
       name TEXT NOT NULL,
       email TEXT,
       phone TEXT,
@@ -660,7 +662,7 @@ async function initDb() {
       color TEXT,
       dni TEXT,
       collegiate_number TEXT,
-      role TEXT,
+      professional_role TEXT,
       service_ids TEXT,
       work_schedule TEXT,
       buffer_time_minutes INTEGER DEFAULT 0,
@@ -668,6 +670,9 @@ async function initDb() {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  try { db.run(`ALTER TABLE clinic_professionals ADD COLUMN user_id INTEGER`); } catch(e) {}
+  try { db.run(`ALTER TABLE clinic_professionals ADD COLUMN professional_role TEXT`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS clinic_specialties (
@@ -1005,6 +1010,75 @@ function checkAdmin(headers) {
   return isAdmin;
 }
 
+function getUserRole(headers) {
+  const userId = getCurrentUserId(headers);
+  if (!userId) return null;
+  
+  const stmt = db.prepare('SELECT role FROM auth_user WHERE id = ?');
+  stmt.bind([userId]);
+  let role = 'worker';
+  if (stmt.step()) {
+    const result = stmt.getAsObject();
+    role = result.role || 'worker';
+  }
+  stmt.free();
+  return role;
+}
+
+function isUserAdmin(headers) {
+  const { username, password } = headers || {};
+  if (!username || !password) return false;
+  
+  const stmt = db.prepare('SELECT is_admin, role FROM auth_user WHERE username = ? AND status IN ("approved", "active")');
+  stmt.bind([username]);
+  let isAdmin = false;
+  if (stmt.step()) {
+    const user = stmt.getAsObject();
+    isAdmin = user.is_admin === 1 || user.role === 'admin';
+  }
+  stmt.free();
+  return isAdmin;
+}
+
+function isUserAdministrative(headers) {
+  const role = getUserRole(headers);
+  return role === 'administrative';
+}
+
+function getProfessionalIdByUserId(userId) {
+  const stmt = db.prepare('SELECT id FROM clinic_professionals WHERE user_id = ? AND active = 1');
+  stmt.bind([userId]);
+  let professionalId = null;
+  if (stmt.step()) {
+    professionalId = stmt.getAsObject().id;
+  }
+  stmt.free();
+  return professionalId;
+}
+
+app.get('/api/auth/me', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT id, username, is_admin, role, status FROM auth_user WHERE id = ?');
+  stmt.bind([userId]);
+  let user = null;
+  if (stmt.step()) user = stmt.getAsObject();
+  stmt.free();
+  
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  
+  const professionalId = getProfessionalIdByUserId(userId);
+  
+  res.json({
+    userId: user.id,
+    username: user.username,
+    isAdmin: user.is_admin === 1 || user.role === 'admin',
+    role: user.role || 'worker',
+    professionalId
+  });
+});
+
 function getAccessibleUserIds(ownerId, module = null) {
   const ids = [ownerId];
   
@@ -1174,7 +1248,7 @@ app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Faltan credenciales' });
 
-  const stmt = db.prepare('SELECT id, username, password_hash, salt, is_admin, status FROM auth_user WHERE username = ?');
+  const stmt = db.prepare('SELECT id, username, password_hash, salt, is_admin, role, status FROM auth_user WHERE username = ?');
   stmt.bind([username.trim()]);
   let row = null;
   if (stmt.step()) row = stmt.getAsObject();
@@ -1194,7 +1268,16 @@ app.post('/api/auth/login', (req, res) => {
   updateStmt.run([now, row.id]);
   updateStmt.free();
 
-  return res.json({ success: true, isAdmin: !!row.is_admin, username: row.username, userId: row.id });
+  const userRole = row.is_admin === 1 ? 'admin' : (row.role || 'worker');
+  const isAdminUser = row.is_admin === 1 || userRole === 'admin';
+
+  return res.json({ 
+    success: true, 
+    isAdmin: isAdminUser,
+    role: userRole,
+    username: row.username, 
+    userId: row.id 
+  });
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -1355,15 +1438,11 @@ app.get('/api/auth/admin/users', (req, res) => {
   
   if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
 
-  const stmt = db.prepare('SELECT id, username, is_admin, status, created_at, last_login, last_logout FROM auth_user WHERE username = ?');
-  stmt.bind([username]);
-  let user = null;
-  if (stmt.step()) user = stmt.getAsObject();
-  stmt.free();
+  if (!isUserAdmin(req.headers)) {
+    return res.status(403).json({ error: 'Solo administradores' });
+  }
 
-  if (!user || !user.is_admin) return res.status(403).json({ error: 'Solo administradores' });
-
-  const usersStmt = db.prepare('SELECT id, username, is_admin, status, created_at, last_login, last_logout FROM auth_user ORDER BY created_at DESC');
+  const usersStmt = db.prepare('SELECT id, username, is_admin, role, status, created_at, last_login, last_logout FROM auth_user ORDER BY created_at DESC');
   const users = [];
   while (usersStmt.step()) {
     users.push(usersStmt.getAsObject());
@@ -1423,23 +1502,24 @@ app.get('/api/users', (req, res) => {
 
 app.post('/api/auth/admin/user/create', (req, res) => {
   const { username, password } = req.headers || {};
-  const { username: newUsername, password: newPassword } = req.body;
+  const { username: newUsername, password: newPassword, role = 'worker' } = req.body;
 
   if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
 
-  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
-  stmt.bind([username]);
-  let admin = null;
-  if (stmt.step()) admin = stmt.getAsObject();
-  stmt.free();
-
-  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  if (!isUserAdmin(req.headers)) {
+    return res.status(403).json({ error: 'Solo administradores' });
+  }
 
   if (!newUsername || newUsername.length < 3) {
     return res.status(400).json({ error: 'El nombre de usuario debe tener al menos 3 caracteres' });
   }
   if (!newPassword || newPassword.length < 4) {
     return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres' });
+  }
+
+  const validRoles = ['admin', 'administrative', 'worker'];
+  if (!validRoles.includes(role)) {
+    return res.status(400).json({ error: 'Rol inválido' });
   }
 
   const checkStmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
@@ -1453,8 +1533,9 @@ app.post('/api/auth/admin/user/create', (req, res) => {
   try {
     const salt = Math.random().toString(36).substring(2);
     const hash = hashPassword(newPassword, salt);
-    const insertStmt = db.prepare('INSERT INTO auth_user (username, password_hash, salt, is_admin, status) VALUES (?, ?, ?, 0, "approved")');
-    insertStmt.run([newUsername, hash, salt]);
+    const isAdminUser = role === 'admin' ? 1 : 0;
+    const insertStmt = db.prepare('INSERT INTO auth_user (username, password_hash, salt, is_admin, role, status) VALUES (?, ?, ?, ?, ?, "approved")');
+    insertStmt.run([newUsername, hash, salt, isAdminUser, role]);
     insertStmt.free();
     
     const lastId = db.exec('SELECT last_insert_rowid()')[0].values[0][0];
@@ -1464,7 +1545,7 @@ app.post('/api/auth/admin/user/create', (req, res) => {
     profileStmt.free();
     
     saveDb();
-    return res.json({ success: true, userId: lastId });
+    return res.json({ success: true, userId: lastId, role });
   } catch (error) {
     console.error('Error creating user:', error);
     return res.status(500).json({ error: 'Error creando usuario' });
@@ -2094,8 +2175,8 @@ app.delete('/api/motivational-quotes/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const admin = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?').get(userId);
-  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  const user = db.prepare('SELECT is_admin, role FROM auth_user WHERE id = ?').get(userId);
+  if (!user || (!user.is_admin && user.role !== 'admin')) return res.status(403).json({ error: 'Solo administradores' });
   
   const { id } = req.params;
   db.run('DELETE FROM motivational_quotes WHERE id = ?', [id]);
@@ -3329,6 +3410,26 @@ app.post('/api/import', (req, res) => {
   }
 });
 
+function createManualBackup() {
+  try {
+    const backupDir = path.join(process.cwd(), 'backups');
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupFile = path.join(backupDir, `clinic_app_${timestamp}.db`);
+    
+    fs.copyFileSync(DB_FILE, backupFile);
+    console.log(`[Manual Backup] Created: ${backupFile}`);
+    
+    return backupFile;
+  } catch (err) {
+    console.error('[Manual Backup] Error:', err);
+    return null;
+  }
+}
+
 app.get('/api/export/db', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -3339,6 +3440,8 @@ app.get('/api/export/db', (req, res) => {
   }
   
   try {
+    createManualBackup();
+    
     const data = db.export();
     const buffer = Buffer.from(data);
     
@@ -3350,6 +3453,45 @@ app.get('/api/export/db', (req, res) => {
   } catch (error) {
     console.error('Error exporting database:', error);
     res.status(500).json({ error: 'Error exportando la base de datos' });
+  }
+});
+
+app.get('/api/export/json', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const isAdmin = checkAdmin(req.headers);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Solo administradores pueden exportar datos' });
+  }
+  
+  try {
+    createManualBackup();
+    
+    const exportData = {};
+    
+    for (const table of ALL_TABLES) {
+      try {
+        const stmt = db.prepare(`SELECT * FROM ${table}`);
+        const rows = [];
+        while (stmt.step()) {
+          rows.push(stmt.getAsObject());
+        }
+        stmt.free();
+        if (rows.length > 0) {
+          exportData[table] = rows;
+        }
+      } catch (e) {}
+    }
+    
+    const filename = `clinic_app_${new Date().toISOString().split('T')[0]}.json`;
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(JSON.stringify(exportData, null, 2));
+  } catch (error) {
+    console.error('Error exporting JSON:', error);
+    res.status(500).json({ error: 'Error exportando datos' });
   }
 });
 
@@ -5406,555 +5548,6 @@ app.post('/api/import/pdf', upload.single('file'), async (req, res) => {
     res.status(500).json({ error: 'Error procesando el PDF' });
   }
 });
-
-const conversationHistory = [];
-
-app.post('/api/chat', async (req, res) => {
-  const { message, context } = req.body;
-  const userId = getCurrentUserId(req.headers);
-  
-  if (!userId) {
-    return res.status(401).json({ error: 'No autorizado' });
-  }
-
-  conversationHistory.push({ role: 'user', content: message });
-
-  let response = '';
-
-  if (context === 'family_accounting') {
-    const now = new Date();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = String(now.getFullYear());
-    const accessibleIds = getAccessibleUserIds(userId, 'share_accounting');
-    const placeholders = accessibleIds.map(() => '?').join(',');
-    
-    const stmt = db.prepare(`
-      SELECT 
-        SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
-        SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
-      FROM transactions
-      WHERE date LIKE ? AND owner_id IN (${placeholders})
-    `);
-    stmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`, ...accessibleIds]);
-    stmt.step();
-    const summary = stmt.getAsObject();
-    stmt.free();
-
-    const transactionsStmt = db.prepare(`
-      SELECT t.id, t.type, t.amount, t.description, t.concept, t.date, u.name as owner_name
-      FROM transactions t
-      LEFT JOIN user_profile u ON t.owner_id = u.owner_id
-      WHERE t.owner_id IN (${placeholders})
-      ORDER BY t.date DESC LIMIT 100
-    `);
-    transactionsStmt.bind([...accessibleIds]);
-    const transactions = [];
-    while (transactionsStmt.step()) transactions.push(transactionsStmt.getAsObject());
-    transactionsStmt.free();
-
-    const allTimeStmt = db.prepare(`
-      SELECT 
-        SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
-        SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
-      FROM transactions
-      WHERE owner_id IN (${placeholders})
-    `);
-    allTimeStmt.step();
-    const allTimeSummary = allTimeStmt.getAsObject();
-    allTimeStmt.free();
-
-    const byConceptStmt = db.prepare(`
-      SELECT concept, SUM(amount) as total
-      FROM transactions
-      WHERE type = 'expense' AND owner_id IN (${placeholders}) AND date LIKE ?
-      GROUP BY concept
-      ORDER BY total DESC
-      LIMIT 10
-    `);
-    byConceptStmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`]);
-    const byConcept = [];
-    while (byConceptStmt.step()) byConcept.push(byConceptStmt.getAsObject());
-    byConceptStmt.free();
-
-    const notesStmt = db.prepare(`SELECT id, title, content, category, updated_at FROM family_notes WHERE owner_id IN (${placeholders}) ORDER BY updated_at DESC LIMIT 50`);
-    notesStmt.bind([...accessibleIds]);
-    const notes = [];
-    while (notesStmt.step()) notes.push(notesStmt.getAsObject());
-    notesStmt.free();
-
-    const tasksStmt = db.prepare(`SELECT id, title, completed, priority FROM family_tasks WHERE owner_id IN (${placeholders}) AND completed = 0 ORDER BY priority DESC LIMIT 20`);
-    tasksStmt.bind([...accessibleIds]);
-    const tasks = [];
-    while (tasksStmt.step()) tasks.push(tasksStmt.getAsObject());
-    tasksStmt.free();
-
-    const shoppingListsStmt = db.prepare(`SELECT id, name, color FROM shopping_lists WHERE owner_id IN (${placeholders})`);
-    shoppingListsStmt.bind([...accessibleIds]);
-    const shoppingLists = [];
-    while (shoppingListsStmt.step()) shoppingLists.push(shoppingListsStmt.getAsObject());
-    shoppingListsStmt.free();
-
-    let shoppingItems = [];
-    if (shoppingLists.length > 0) {
-      const listPlaceholders = shoppingLists.map(() => '?').join(',');
-      const shoppingItemsStmt = db.prepare(`
-        SELECT t.id, t.title, t.completed, sl.name as list_name
-        FROM family_tasks t
-        JOIN shopping_lists sl ON t.shopping_list_id = sl.id
-        WHERE t.shopping_list_id IN (${listPlaceholders})
-        ORDER BY t.completed ASC, t.title
-        LIMIT 50
-      `);
-      shoppingItemsStmt.bind(shoppingLists.map(l => l.id));
-      while (shoppingItemsStmt.step()) shoppingItems.push(shoppingItemsStmt.getAsObject());
-      shoppingItemsStmt.free();
-    }
-
-    const chatData = {
-      summary,
-      allTimeSummary,
-      byConcept,
-      notes,
-      tasks,
-      shoppingLists,
-      shoppingItems,
-      transactions
-    };
-
-    response = generateFamilyResponse(message, chatData);
-  } else {
-    response = 'Soy el asistente de Family Agent. Estoy configurado para ayudarte con la gestión de asuntos familiares.';
-  }
-
-  conversationHistory.push({ role: 'assistant', content: response });
-
-  if (conversationHistory.length > 20) {
-    conversationHistory.splice(0, 2);
-  }
-
-  res.json({ response });
-});
-
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// LLM Settings endpoints
-app.get('/api/llm/settings', (req, res) => {
-  const stmt = db.prepare('SELECT id, provider, model, updated_at FROM llm_settings WHERE id = 1');
-  stmt.step();
-  const settings = stmt.getAsObject();
-  stmt.free();
-  res.json({
-    configured: true,
-    provider: settings.provider || 'groq',
-    model: settings.model || 'llama-3.3-70b-versatile',
-    updated_at: settings.updated_at
-  });
-});
-
-app.put('/api/llm/settings', (req, res) => {
-  const { api_key, model } = req.body || {};
-  
-  const stmt = db.prepare(`
-    UPDATE llm_settings 
-    SET api_key = ?, model = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = 1
-  `);
-  
-  try {
-    stmt.run([api_key || null, model || 'llama-3.3-70b-versatile']);
-    stmt.free();
-    saveDb();
-    
-    const updatedStmt = db.prepare('SELECT id, provider, model, updated_at FROM llm_settings WHERE id = 1');
-    updatedStmt.step();
-    const settings = updatedStmt.getAsObject();
-    updatedStmt.free();
-    
-    res.json({
-      configured: true,
-      provider: settings.provider,
-      model: settings.model,
-      updated_at: settings.updated_at
-    });
-  } catch (error) {
-    console.error('Error updating LLM settings:', error);
-    res.status(500).json({ error: 'Error actualizando configuración LLM' });
-  }
-});
-
-app.post('/api/llm/test', async (req, res) => {
-  const { api_key, model } = req.body || {};
-  
-  if (!api_key) {
-    return res.status(400).json({ error: 'Se requiere API key' });
-  }
-  
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${api_key}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: model || 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: 'Hola, responde solo "OK" para verificar la conexión.' }],
-        max_tokens: 20
-      })
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      return res.status(401).json({ error: error.error?.message || 'Error de autenticación' });
-    }
-    
-    res.json({ success: true, message: 'Conexión exitosa' });
-  } catch (error) {
-    console.error('Groq test error:', error);
-    res.status(500).json({ error: 'Error conectando con Groq' });
-  }
-});
-
-// Advanced chat with Groq
-const llmConversationHistory = new Map();
-
-app.post('/api/chat/llm', async (req, res) => {
-  const { message, session_id = 'default' } = req.body;
-  const userId = getCurrentUserId(req.headers);
-
-  if (!userId) {
-    return res.status(401).json({ error: 'No autorizado' });
-  }
-
-  if (!message) {
-    return res.status(400).json({ error: 'Mensaje requerido' });
-  }
-
-  // Get LLM settings
-  const settingsStmt = db.prepare('SELECT model FROM llm_settings WHERE id = 1');
-  settingsStmt.step();
-  const settings = settingsStmt.getAsObject();
-  settingsStmt.free();
-
-  if (!GROQ_API_KEY) {
-    return res.status(500).json({ error: 'GROQ_API_KEY no configurada. Configúrala en las variables de entorno.' });
-  }
-
-  const apiKey = GROQ_API_KEY;
-
-  // Get family context
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const year = String(now.getFullYear());
-  const accessibleIds = getAccessibleUserIds(userId, 'share_accounting');
-  const placeholders = accessibleIds.map(() => '?').join(',');
-
-  // Get monthly summary
-  const summaryStmt = db.prepare(`
-    SELECT 
-      SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
-      SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense,
-      COUNT(*) as transaction_count
-    FROM transactions
-    WHERE date LIKE ? AND owner_id IN (${placeholders})
-  `);
-  summaryStmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`, ...accessibleIds]);
-  summaryStmt.step();
-  const monthlySummary = summaryStmt.getAsObject();
-  summaryStmt.free();
-
-  // Get expenses by concept
-  const conceptStmt = db.prepare(`
-    SELECT concept, SUM(amount) as total
-    FROM transactions
-    WHERE type = 'expense'
-      AND date LIKE ?
-      AND owner_id IN (${placeholders})
-    GROUP BY concept
-    ORDER BY total DESC
-  `);
-  conceptStmt.bind([`${String(year)}-${String(month).padStart(2, '0')}-%`, ...accessibleIds]);
-  const expensesByConcept = [];
-  while (conceptStmt.step()) {
-    expensesByConcept.push(conceptStmt.getAsObject());
-  }
-  conceptStmt.free();
-
-  // Get family profile for this user
-  const profileStmt = db.prepare('SELECT name, family_name FROM user_profile WHERE owner_id = ?');
-  profileStmt.bind([userId]);
-  profileStmt.step();
-  const profile = profileStmt.getAsObject();
-  profileStmt.free();
-
-  // Get budget info for this user
-  const budgetStmt = db.prepare(`
-    SELECT concept, amount
-    FROM budgets
-    WHERE month = ? AND year = ? AND owner_id IN (${placeholders})
-  `);
-  budgetStmt.bind([parseInt(month), parseInt(year), ...accessibleIds]);
-  const budgets = [];
-  while (budgetStmt.step()) {
-    budgets.push(budgetStmt.getAsObject());
-  }
-  budgetStmt.free();
-
-  // Build family context
-  const familyContext = `
-FAMILIA: ${profile.family_name || 'Mi Familia'}
-MIEMBRO: ${profile.name || 'Usuario'}
-PERIODO: ${month}/${year}
-
-RESUMEN DEL MES:
-- Ingresos totales: ${monthlySummary.income || 0}€
-- Gastos totales: ${monthlySummary.expense || 0}€
-- Balance: ${((monthlySummary.income || 0) - (monthlySummary.expense || 0)).toFixed(2)}€
-- Transacciones: ${monthlySummary.transaction_count || 0}
-
-GASTOS POR CONCEPTO:
-${expensesByConcept.map(e => `- ${e.concept}: ${e.total}€`).join('\n') || 'Sin gastos registrados'}
-
-PRESUPUESTOS ESTABLECIDOS:
-${budgets.map(b => `- ${b.concept}: ${b.amount}€`).join('\n') || 'Sin presupuestos establecidos'}
-`.trim();
-
-  // System prompt
-  const systemPrompt = `Eres un asistente financiero familiar llamado "Asistente Family Agent". 
-Tu rol es ayudar a gestionar las finanzas de una familia de forma clara y amigable.
-
-REGLAS:
-1. Responde SIEMPRE en español
-2. Usa emojis cuando sea apropiado para hacer la conversación más amigable
-3. Sé conciso pero informativo
-4. Si detectas gastos elevados o anomalías, sugiere formas de ahorrar
-5. Si no tienes información suficiente, indícalo claramente
-6. No inventes datos - usa solo la información proporcionada
-7. Puedes dar consejos generales de finanzas personales
-
-CONtexto FAMILIAR:
-${familyContext}`;
-
-  // Get or create conversation history for this session
-  if (!llmConversationHistory.has(session_id)) {
-    llmConversationHistory.set(session_id, []);
-  }
-  const history = llmConversationHistory.get(session_id);
-
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: settings.model || 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...history,
-          { role: 'user', content: message }
-        ],
-        max_tokens: 1000,
-        temperature: 0.7
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Groq API error:', error);
-      return res.status(401).json({ error: error.error?.message || 'Error con la API de Groq' });
-    }
-
-    const data = await response.json();
-    const llmResponse = data.choices[0].message.content;
-
-    // Add to conversation history
-    history.push({ role: 'user', content: message });
-    history.push({ role: 'assistant', content: llmResponse });
-
-    // Keep history manageable (last 10 exchanges)
-    if (history.length > 20) {
-      history.splice(0, 4);
-    }
-
-    res.json({ response: llmResponse, session_id });
-  } catch (error) {
-    console.error('Groq error:', error);
-    res.status(500).json({ error: 'Error conectando con el servicio de IA' });
-  }
-});
-
-// Clear conversation history
-app.delete('/api/chat/llm/history', (req, res) => {
-  const { session_id = 'default' } = req.query;
-  llmConversationHistory.delete(session_id);
-  res.json({ success: true });
-});
-
-function generateFamilyResponse(message, chatData) {
-  const msg = message.toLowerCase();
-  const { summary = {}, allTimeSummary = {}, byConcept = [], notes = [], tasks = [], shoppingItems = [], transactions = [] } = chatData;
-  
-  const income = summary.income || 0;
-  const expense = summary.expense || 0;
-  const balance = income - expense;
-  const totalIncome = allTimeSummary.income || 0;
-  const totalExpense = allTimeSummary.expense || 0;
-  const totalBalance = totalIncome - totalExpense;
-
-  const searchInNotes = (query) => {
-    const q = query.toLowerCase();
-    return notes.filter(n => 
-      n.title.toLowerCase().includes(q) || 
-      (n.content && n.content.toLowerCase().includes(q))
-    );
-  };
-
-  if (msg.includes('hola') || msg.includes('buenas') || msg.includes('hello') || msg.includes('hey')) {
-    let reply = `¡Hola! Soy el asistente IA de Family Agent. Puedo ayudarte a buscar en:\n\n📝 Notas\n🛒 Lista de la compra\n💰 Contabilidad (gastos e ingresos)\n\nEste mes:
-- Ingresos: ${income.toFixed(2)}€
-- Gastos: ${expense.toFixed(2)}€
-- Balance: ${balance.toFixed(2)}€`;
-
-    if (tasks.length > 0) {
-      reply += `\n\n📋 Tienes ${tasks.length} tarea(s) pendiente(s).`;
-    }
-    if (shoppingItems.length > 0) {
-      reply += `\n🛒 Lista de la compra: ${shoppingItems.length} producto(s).`;
-    }
-    reply += '\n\n¿Qué quieres buscar?';
-    return reply;
-  }
-
-  if (msg.includes('nota') || msg.includes('apunte') || msg.includes('recordar') || msg.includes('buscar en nota')) {
-    const noteQuery = msg.replace(/buscar|busca|encontrar|nota|apunte|recordar|en/gi, '').trim();
-    if (noteQuery && notes.length > 0) {
-      const found = searchInNotes(noteQuery);
-      if (found.length > 0) {
-        return `📝 Notas encontradas para "${noteQuery}":\n\n${found.slice(0, 10).map(n => `• ${n.title}${n.content ? ': ' + n.content.substring(0, 80) : ''}`).join('\n')}`;
-      }
-      return `📝 No encontré notas con "${noteQuery}".\n\nTienes ${notes.length} nota(s) en total.`;
-    }
-    if (notes.length > 0) {
-      return `📝 Tienes ${notes.length} nota(s):\n\n${notes.slice(0, 10).map(n => `• ${n.title}`).join('\n')}\n\n🔍 Busca con "buscar nota [término]"`;
-    }
-    return '📝 No tienes notas guardadas todavía.';
-  }
-
-  if (msg.includes('tarea') || msg.includes('pendiente') || msg.includes('hacer')) {
-    if (tasks.length > 0) {
-      return `📋 Tienes ${tasks.length} tarea(s) pendiente(s):\n\n${tasks.slice(0, 5).map((t, i) => `${i + 1}. ${t.title}`).join('\n')}`;
-    }
-    return '✅ ¡No tienes tareas pendientes!';
-  }
-
-  if (msg.includes('compra') || msg.includes('comprar') || msg.includes('lista') || msg.includes('producto')) {
-    const shoppingQuery = msg.replace(/buscar|compra|comprar|lista|producto|en/gi, '').trim();
-    if (shoppingQuery && shoppingItems.length > 0) {
-      const found = shoppingItems.filter(s => s.title.toLowerCase().includes(shoppingQuery.toLowerCase()));
-      if (found.length > 0) {
-        return `🛒 Productos encontrados para "${shoppingQuery}":\n\n${found.slice(0, 10).map((s, i) => `${i + 1}. ${s.title} (${s.list_name || ''})`).join('\n')}`;
-      }
-    }
-    if (shoppingItems.length > 0) {
-      return `🛒 Lista de la compra (${shoppingItems.length} productos):\n\n${shoppingItems.slice(0, 15).map((s, i) => `${i + 1}. ${s.title} [${s.list_name || 'sin lista'}]`).join('\n')}`;
-    }
-    return '🛒 La lista de la compra está vacía.';
-  }
-
-  if (msg.includes('gasto') || msg.includes('gastado') || msg.includes('gastos')) {
-    const gastoQuery = msg.replace(/buscar|gasto|gastado|gastos|por|de|en/gi, '').trim();
-    
-    if (gastoQuery && transactions.length > 0) {
-      const found = transactions.filter(t => t.type === 'expense' && (t.description.toLowerCase().includes(gastoQuery.toLowerCase()) || (t.concept && t.concept.toLowerCase().includes(gastoQuery.toLowerCase()))));
-      if (found.length > 0) {
-        const total = found.reduce((sum, t) => sum + t.amount, 0);
-        return `💰 Gastos encontrados para "${gastoQuery}" (${found.length}):\n\n${found.slice(0, 10).map(t => `• ${t.description}: ${t.amount.toFixed(2)}€ (${t.date})`).join('\n')}\n\nTotal: ${total.toFixed(2)}€`;
-      }
-    }
-
-    if (byConcept.length > 0) {
-      return `💰 Gastos este mes por concepto:\n\n${byConcept.map((c, i) => `${i + 1}. ${c.concept || 'Sin concepto'}: ${c.total.toFixed(2)}€`).join('\n')}\n\nTotal: ${expense.toFixed(2)}€`;
-    }
-    return `💰 Este mes habéis gastado un total de ${expense.toFixed(2)}€.`;
-  }
-
-  if (msg.includes('ingreso') || msg.includes('ganado') || msg.includes('ingresos')) {
-    const ingresoQuery = msg.replace(/buscar|ingreso|ingresos|ganado|de/gi, '').trim();
-    
-    if (ingresoQuery && transactions.length > 0) {
-      const found = transactions.filter(t => t.type === 'income' && (t.description.toLowerCase().includes(ingresoQuery.toLowerCase()) || (t.concept && t.concept.toLowerCase().includes(ingresoQuery.toLowerCase()))));
-      if (found.length > 0) {
-        const total = found.reduce((sum, t) => sum + t.amount, 0);
-        return `💵 Ingresos encontrados para "${ingresoQuery}" (${found.length}):\n\n${found.slice(0, 10).map(t => `• ${t.description}: ${t.amount.toFixed(2)}€ (${t.date})`).join('\n')}\n\nTotal: ${total.toFixed(2)}€`;
-      }
-    }
-    return `💵 Los ingresos de este mes suman ${income.toFixed(2)}€.\n\nTotal acumulado: ${totalIncome.toFixed(2)}€`;
-  }
-
-  if (msg.includes('balance') || msg.includes('queda') || msg.includes('saldo') || msg.includes('resumen')) {
-    return `📊 Resumen financiero:\n\nEste mes:
-- Ingresos: ${income.toFixed(2)}€
-- Gastos: ${expense.toFixed(2)}€
-- Balance: ${balance.toFixed(2)}€
-
-Total acumulado:
-- Ingresos: ${totalIncome.toFixed(2)}€
-- Gastos: ${totalExpense.toFixed(2)}€`;
-  }
-
-  if (msg.includes('transaccion') || msg.includes('movimiento')) {
-    const transQuery = msg.replace(/buscar|transaccion|transacciones|movimiento|movimientos|de|por/gi, '').trim();
-    if (transQuery && transactions.length > 0) {
-      const found = transactions.filter(t => t.description.toLowerCase().includes(transQuery.toLowerCase()) || (t.concept && t.concept.toLowerCase().includes(transQuery.toLowerCase())));
-      if (found.length > 0) {
-        return `📋 Transacciones encontradas para "${transQuery}" (${found.length}):\n\n${found.slice(0, 10).map(t => `${t.type === 'income' ? '💵' : '💰'} ${t.description}: ${t.amount.toFixed(2)}€ (${t.concept || 'sin concepto'}) - ${t.date}`).join('\n')}`;
-      }
-    }
-    if (transactions.length > 0) {
-      return `📋 Últimas transacciones (${transactions.length}):\n\n${transactions.slice(0, 10).map(t => `${t.type === 'income' ? '💵' : '💰'} ${t.description}: ${t.amount.toFixed(2)}€ - ${t.date}`).join('\n')}`;
-    }
-    return '📋 No hay transacciones registradas.';
-  }
-
-  if (msg.includes('ayuda') || msg.includes('qué puedes') || msg.includes('que puedes')) {
-    return `🤖 Puedo ayudarte con:
-
-📝 NOTAS:
-- "buscar nota [término]"
-- "mis notas"
-- "últimas notas"
-
-🛒 LISTA DE LA COMPRA:
-- "qué hay en la lista"
-- "buscar producto [nombre]"
-- "lista de compra"
-
-💰 CONTABILIDAD:
-- "gastos del mes"
-- "ingresos"
-- "balance"
-- "gastos por concepto"
-- "buscar gasto [término]"
-- "últimas transacciones"
-- "transacciones de [concepto]"
-
-📋 TAREAS:
-- "tareas pendientes"
-- "qué tareas tengo"
-
-Ejemplos: "buscar nota reunion", "gastos de comida", "últimos movimientos"
-`;
-  }
-
-  return `📊 Resumen rápido:\n\nEste mes:
-- Ingresos: ${income.toFixed(2)}€
-- Gastos: ${expense.toFixed(2)}€
-- Balance: ${balance.toFixed(2)}€\n\n📋 ${tasks.length} tareas | 🛒 ${shoppingItems.length} productos | 📝 ${notes.length} notas\n\n💡 Prueba: "ayuda" para ver todo lo que puedo buscar`;
-}
 
 async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], members = [], birthdays = [], startDateParam = null, endDateParam = null) {
   if (!settings.email_enabled || !settings.email_to || !settings.smtp_user || !settings.smtp_password) {
@@ -8394,7 +7987,11 @@ app.get('/api/clinic/appointments', async (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
+  const userRole = getUserRole(req.headers);
   const { from, to } = req.query;
+  
+  const userProfessionalId = getProfessionalIdByUserId(userId);
+  const isAdminOrAdministrative = userRole === 'admin' || userRole === 'administrative';
   
   try {
     let query = `
@@ -8405,9 +8002,20 @@ app.get('/api/clinic/appointments', async (req, res) => {
     `;
     const params = [];
     
+    const conditions = [];
+    
     if (from && to) {
-      query += ' WHERE ca.appointment_date BETWEEN ? AND ?';
+      conditions.push('ca.appointment_date BETWEEN ? AND ?');
       params.push(from, to);
+    }
+    
+    if (!isAdminOrAdministrative && userProfessionalId) {
+      conditions.push('ca.professional_id = ?');
+      params.push(userProfessionalId);
+    }
+    
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
     
     query += ' ORDER BY ca.appointment_date, ca.appointment_time';
@@ -8436,9 +8044,17 @@ app.post('/api/clinic/appointments', async (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
+  const userRole = getUserRole(req.headers);
+  const userProfessionalId = getProfessionalIdByUserId(userId);
+  
   const { client_id, service_id, professional_id, appointment_date, appointment_time, duration_minutes, price, total_price, notes } = req.body;
   if (!client_id || !service_id || !appointment_date || !appointment_time) {
     return res.status(400).json({ error: 'Campos obligatorios faltantes' });
+  }
+  
+  let finalProfessionalId = professional_id;
+  if (userRole === 'worker' && userProfessionalId && !professional_id) {
+    finalProfessionalId = userProfessionalId;
   }
   
   const id = crypto.randomUUID();
@@ -8448,7 +8064,7 @@ app.post('/api/clinic/appointments', async (req, res) => {
   `);
   
   try {
-    stmt.run([id, SHARED_OWNER_ID, client_id, service_id, professional_id || null, appointment_date, appointment_time, duration_minutes || 60, 'scheduled', price || null, total_price || price || null, notes || null]);
+    stmt.run([id, SHARED_OWNER_ID, client_id, service_id, finalProfessionalId || null, appointment_date, appointment_time, duration_minutes || 60, 'scheduled', price || null, total_price || price || null, notes || null]);
     stmt.free();
     saveDb();
     res.json({ id, success: true });
@@ -8716,11 +8332,21 @@ app.get('/api/clinic/professionals', async (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
+  const userRole = getUserRole(req.headers);
+  const isAdminOrAdministrative = userRole === 'admin' || userRole === 'administrative';
+  
   try {
-    const stmt = db.prepare('SELECT * FROM clinic_professionals WHERE active = 1 ORDER BY name');
-    const professionals = [];
-    while (stmt.step()) professionals.push(stmt.getAsObject());
-    stmt.free();
+    let professionals = [];
+    if (isAdminOrAdministrative) {
+      const stmt = db.prepare('SELECT * FROM clinic_professionals WHERE active = 1 ORDER BY name');
+      while (stmt.step()) professionals.push(stmt.getAsObject());
+      stmt.free();
+    } else {
+      const stmt = db.prepare('SELECT * FROM clinic_professionals WHERE user_id = ? AND active = 1');
+      stmt.bind([userId]);
+      while (stmt.step()) professionals.push(stmt.getAsObject());
+      stmt.free();
+    }
     res.json(professionals);
   } catch (error) {
     console.error('Error fetching professionals:', error);
@@ -8728,21 +8354,43 @@ app.get('/api/clinic/professionals', async (req, res) => {
   }
 });
 
+app.get('/api/clinic/professionals/my-profile', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const stmt = db.prepare('SELECT * FROM clinic_professionals WHERE user_id = ? AND active = 1');
+    stmt.bind([userId]);
+    let professional = null;
+    if (stmt.step()) professional = stmt.getAsObject();
+    stmt.free();
+    res.json(professional);
+  } catch (error) {
+    console.error('Error fetching professional profile:', error);
+    res.status(500).json({ error: 'Error obteniendo perfil profesional' });
+  }
+});
+
 app.post('/api/clinic/professionals', async (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { name, email, phone, specialties, bio, color } = req.body;
+  const userRole = getUserRole(req.headers);
+  if (userRole !== 'admin' && userRole !== 'administrative') {
+    return res.status(403).json({ error: 'Solo administradores y personal administrativo pueden crear profesionales' });
+  }
+  
+  const { name, email, phone, specialties, bio, color, dni, collegiate_number, user_id } = req.body;
   if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
   
   const id = crypto.randomUUID();
   const stmt = db.prepare(`
-    INSERT INTO clinic_professionals (id, owner_id, name, email, phone, specialties, bio, color)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO clinic_professionals (id, owner_id, user_id, name, email, phone, specialties, bio, color, dni, collegiate_number)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   
   try {
-    stmt.run([id, SHARED_OWNER_ID, name, email || null, phone || null, specialties || null, bio || null, color || '#4f46e5']);
+    stmt.run([id, SHARED_OWNER_ID, user_id || null, name, email || null, phone || null, specialties || null, bio || null, color || '#4f46e5', dni || null, collegiate_number || null]);
     stmt.free();
     saveDb();
     res.json({ id, success: true });
@@ -8752,9 +8400,42 @@ app.post('/api/clinic/professionals', async (req, res) => {
   }
 });
 
+app.put('/api/clinic/professionals/:id', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const userRole = getUserRole(req.headers);
+  if (userRole !== 'admin' && userRole !== 'administrative') {
+    return res.status(403).json({ error: 'Solo administradores y personal administrativo pueden modificar profesionales' });
+  }
+  
+  const { id } = req.params;
+  const { name, email, phone, specialties, bio, color, dni, collegiate_number, user_id } = req.body;
+  
+  try {
+    const stmt = db.prepare(`
+      UPDATE clinic_professionals 
+      SET name = ?, email = ?, phone = ?, specialties = ?, bio = ?, color = ?, dni = ?, collegiate_number = ?, user_id = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    stmt.run([name, email || null, phone || null, specialties || null, bio || null, color, dni || null, collegiate_number || null, user_id || null, id]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating professional:', error);
+    res.status(500).json({ error: 'Error al actualizar profesional' });
+  }
+});
+
 app.delete('/api/clinic/professionals/:id', async (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const userRole = getUserRole(req.headers);
+  if (userRole !== 'admin' && userRole !== 'administrative') {
+    return res.status(403).json({ error: 'Solo administradores y personal administrativo pueden eliminar profesionales' });
+  }
   
   const { id } = req.params;
   try {
@@ -8956,6 +8637,68 @@ app.get('/api/clinic/consents/:id/audit', async (req, res) => {
   } catch (error) {
     console.error('Error fetching audit log:', error);
     res.status(500).json({ error: 'Error obteniendo auditoría' });
+  }
+});
+
+// ============ CLINIC DAILY DASHBOARD ============
+app.get('/api/clinic/dashboard/today', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const userRole = getUserRole(req.headers);
+  if (userRole === 'worker') {
+    return res.status(403).json({ error: 'Sin acceso' });
+  }
+  
+  const today = new Date().toISOString().split('T')[0];
+  
+  try {
+    const completedStmt = db.prepare(`
+      SELECT COALESCE(SUM(total_price), 0) as total_revenue, COUNT(*) as total_appointments
+      FROM clinic_appointments
+      WHERE status = 'completed' AND DATE(appointment_date) = ?
+    `);
+    completedStmt.bind([today]);
+    completedStmt.step();
+    const completed = completedStmt.getAsObject();
+    completedStmt.free();
+    
+    const scheduledStmt = db.prepare(`
+      SELECT COUNT(*) as scheduled_appointments
+      FROM clinic_appointments
+      WHERE status = 'scheduled' AND DATE(appointment_date) = ?
+    `);
+    scheduledStmt.bind([today]);
+    scheduledStmt.step();
+    const scheduled = scheduledStmt.getAsObject();
+    scheduledStmt.free();
+    
+    const professionalStmt = db.prepare(`
+      SELECT p.id, p.name, p.color,
+        COUNT(a.id) as appointments,
+        COALESCE(SUM(a.total_price), 0) as revenue
+      FROM clinic_professionals p
+      LEFT JOIN clinic_appointments a ON p.id = a.professional_id 
+        AND DATE(a.appointment_date) = ? AND a.status = 'completed'
+      WHERE p.active = 1
+      GROUP BY p.id, p.name, p.color
+      ORDER BY revenue DESC
+    `);
+    professionalStmt.bind([today]);
+    const byProfessional = [];
+    while (professionalStmt.step()) byProfessional.push(professionalStmt.getAsObject());
+    professionalStmt.free();
+    
+    res.json({
+      date: today,
+      revenue: completed.total_revenue || 0,
+      appointments_completed: completed.total_appointments || 0,
+      appointments_scheduled: scheduled.scheduled_appointments || 0,
+      by_professional: byProfessional
+    });
+  } catch (error) {
+    console.error('Error fetching daily dashboard:', error);
+    res.status(500).json({ error: 'Error obteniendo dashboard' });
   }
 });
 

@@ -3,12 +3,14 @@ import {
   Plus, Trash2, Edit, Calendar, Users, Briefcase, DollarSign,
   ChevronLeft, ChevronRight, X, Check, Phone, Mail, MapPin,
   Clock, Stethoscope, AlertCircle, Settings, Send, Package,
-  BarChart3, TrendingUp, ShoppingCart, UserCog, List, Receipt
+  BarChart3, TrendingUp, ShoppingCart, UserCog, List, Receipt, Wallet
 } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import { formatDateEs } from '../utils/format';
 import { DateInput, TimeInput } from '../utils/DateTimeInput';
-import ClinicNotificationSettings from '../components/ClinicNotificationSettings';
+import { useAuth } from '../components/Auth';
+import { UserRole } from '../types';
+import { Accounting } from './Accounting';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -46,6 +48,31 @@ interface Service {
   pre_instructions?: string;
   post_instructions?: string;
   active: number;
+}
+
+interface ServicePackage {
+  id: string;
+  owner_id: number;
+  name: string;
+  description: string;
+  service_id: string;
+  total_sessions: number;
+  price: number;
+  session_price?: number;
+  active: number;
+  created_at: string;
+}
+
+interface ClientPackageUsage {
+  id: string;
+  owner_id: number;
+  client_id: string;
+  package_id: string;
+  sessions_consumed: number;
+  sessions_remaining: number;
+  purchase_date: string;
+  expiry_date?: string;
+  status: string;
 }
 
 interface Appointment {
@@ -133,15 +160,25 @@ interface Invoice {
   created_at: string;
 }
 
-type View = 'appointments' | 'calendar' | 'clients' | 'services' | 'professionals' | 'products' | 'invoices' | 'reports';
+type View = 'appointments' | 'calendar' | 'clients' | 'services' | 'professionals' | 'products' | 'invoices' | 'reports' | 'packages';
 
 export function ClinicManager() {
-  const [view, setView] = useState<View>('appointments');
+  const { role } = useAuth();
+  const userRole = role?.trim().toLowerCase() || 'worker';
+  const isWorker = userRole === 'worker';
+  const isAdminOrAdministrative = userRole === 'admin' || userRole === 'administrative';
+  
+  const [view, setView] = useState<View>(() => {
+    const stored = localStorage.getItem('clinic_lastView');
+    return (stored as View) || (isAdminOrAdministrative ? 'dashboard' : 'appointments');
+  });
   const [loading, setLoading] = useState(false);
   const [hiddenCategories, setHiddenCategories] = useState<string[]>(() => {
     const saved = localStorage.getItem('hiddenCategories');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState<string>('');
 
   // Data states
   const [clients, setClients] = useState<Client[]>([]);
@@ -153,6 +190,10 @@ export function ClinicManager() {
   const [report, setReport] = useState<RevenueReport | null>(null);
   const [stats, setStats] = useState<any>(null);
 
+  // Package states
+  const [packages, setPackages] = useState<any[]>([]);
+  const [packageUsage, setPackageUsage] = useState<any[]>([]);
+
   // Modal states
   const [showClientModal, setShowClientModal] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
@@ -160,6 +201,8 @@ export function ClinicManager() {
   const [showProfessionalModal, setShowProfessionalModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showPackageModal, setShowPackageModal] = useState(false);
+  const [showUsageModal, setShowUsageModal] = useState(false);
 
   // Edit states
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -205,13 +248,31 @@ export function ClinicManager() {
 
   // Initialize date range
   useEffect(() => {
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    setDateRange({
-      start: firstDay.toISOString().split('T')[0],
-      end: today.toISOString().split('T')[0],
-    });
-  }, []);
+    const today = new Date().toISOString().split('T')[0];
+    if (role === 'administrative') {
+      setDateRange({ start: today, end: today });
+    } else {
+      const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      setDateRange({
+        start: firstDay.toISOString().split('T')[0],
+        end: today,
+      });
+    }
+  }, [role]);
+
+  // Auto-select professional for workers
+  useEffect(() => {
+    if (isWorker && professionals.length > 0 && !selectedProfessionalId) {
+      setSelectedProfessionalId(professionals[0].id);
+    }
+  }, [professionals, isWorker]);
+
+  // Save view to localStorage
+  useEffect(() => {
+    localStorage.setItem('clinic_lastView', view);
+  }, [view]);
+
+  const [dailyDashboard, setDailyDashboard] = useState<any>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -236,6 +297,11 @@ export function ClinicManager() {
       if (Array.isArray(profData)) setProfessionals(profData);
       
       // Load specific data depending on active view
+      if (view === 'dashboard') {
+        const res = await fetch(`${API_URL}/api/clinic/dashboard/today`, { headers });
+        setDailyDashboard(await res.json());
+      }
+      
       if (view === 'appointments' || view === 'calendar') {
         const [aptRes, statsRes] = await Promise.all([
           fetch(`${API_URL}/api/clinic/appointments`, { headers }),
@@ -254,6 +320,15 @@ export function ClinicManager() {
         const res = await fetch(`${API_URL}/api/clinic/invoices`, { headers });
         const data = await res.json();
         setInvoices(data.map((inv: any) => ({ ...inv, items: typeof inv.items === 'string' ? JSON.parse(inv.items) : inv.items || [] })));
+      }
+
+      if (view === 'packages') {
+        const [pkgRes, usageRes] = await Promise.all([
+          fetch(`${API_URL}/api/clinic/packages`, { headers }),
+          fetch(`${API_URL}/api/clinic/packages/usage/all`, { headers })
+        ]);
+        setPackages(await pkgRes.json());
+        setPackageUsage(await usageRes.json());
       }
       
       if (view === 'reports') {
@@ -441,12 +516,16 @@ export function ClinicManager() {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
-    return appointments.filter(a => a.appointment_date === dateStr);
+    return appointments.filter(a => 
+      a.appointment_date === dateStr && 
+      (!isAdminOrAdministrative || !selectedProfessionalId || a.professional_id === selectedProfessionalId)
+    );
   };
 
-  type View = 'appointments' | 'calendar' | 'clients' | 'services' | 'professionals' | 'products' | 'invoices' | 'reports' | 'notifications';
+  type View = 'dashboard' | 'appointments' | 'calendar' | 'clients' | 'services' | 'professionals' | 'products' | 'invoices' | 'reports' | 'accounting';
 
-  const navItems: { key: View; label: string; icon: any }[] = [
+  const allNavItems: { key: View; label: string; icon: any }[] = [
+    { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
     { key: 'appointments', label: 'Citas', icon: Calendar },
     { key: 'calendar', label: 'Calendario', icon: Calendar },
     { key: 'clients', label: 'Clientes', icon: Users },
@@ -455,8 +534,13 @@ export function ClinicManager() {
     { key: 'products', label: 'Productos', icon: Package },
     { key: 'invoices', label: 'Facturas', icon: Receipt },
     { key: 'reports', label: 'Reportes', icon: BarChart3 },
-    { key: 'notifications', label: 'Notificaciones', icon: Settings },
+    { key: 'packages', label: 'Bonos', icon: Package },
+    { key: 'accounting', label: 'Contabilidad', icon: Wallet },
   ];
+
+  const navItems = isAdminOrAdministrative 
+    ? allNavItems 
+    : allNavItems.filter(item => ['appointments', 'calendar'].includes(item.key));
 
   if (loading) return <div className="flex flex-col items-center justify-center min-h-screen gap-4"><div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div><p className="text-slate-400 font-medium text-sm animate-pulse">Cargando clínica...</p></div>;
 
@@ -509,17 +593,81 @@ export function ClinicManager() {
 
         
 
+        {/* DASHBOARD */}
+        {view === 'dashboard' && isAdminOrAdministrative && (
+          <div>
+            <h2 className="text-xl font-extrabold text-slate-800 tracking-tight mb-5">Dashboard - Hoy</h2>
+            
+            {!dailyDashboard ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl p-5 text-white shadow-lg">
+                    <p className="text-emerald-100 text-sm font-medium mb-1">Ingresos del día</p>
+                    <p className="text-3xl font-bold">€{dailyDashboard.revenue?.toFixed(2) || '0.00'}</p>
+                  </div>
+                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-5 text-white shadow-lg">
+                    <p className="text-blue-100 text-sm font-medium mb-1">Citas completadas</p>
+                    <p className="text-3xl font-bold">{dailyDashboard.appointments_completed || 0}</p>
+                  </div>
+                  <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-5 text-white shadow-lg">
+                    <p className="text-purple-100 text-sm font-medium mb-1">Citas programadas</p>
+                    <p className="text-3xl font-bold">{dailyDashboard.appointments_scheduled || 0}</p>
+                  </div>
+                </div>
+
+                {dailyDashboard.by_professional && dailyDashboard.by_professional.length > 0 && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <h3 className="font-bold text-slate-800 mb-4">Ingresos por profesional</h3>
+                    <div className="space-y-3">
+                      {dailyDashboard.by_professional.map((prof: any) => (
+                        <div key={prof.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: prof.color || '#888' }}></div>
+                            <span className="font-medium text-slate-700">{prof.name}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-slate-800">€{prof.revenue?.toFixed(2) || '0.00'}</span>
+                            <span className="text-xs text-slate-500 ml-2">({prof.appointments || 0} citas)</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {/* APPOINTMENTS LIST */}
         {view === 'appointments' && (
           <div>
-            <div className="flex justify-between items-center mb-5">
+<div className="flex flex-col md:flex-row justify-between items-center mb-5 gap-3">
               <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Citas</h2>
-              <button onClick={() => { setEditingAppointment(null); setAppointmentForm({}); setShowAppointmentModal(true); }}
+              {isAdminOrAdministrative && (
+                <select 
+                  value={selectedProfessionalId} 
+                  onChange={(e) => setSelectedProfessionalId(e.target.value)}
+                  className="border rounded-lg px-3 py-2 text-sm bg-white"
+                >
+                  <option value="">Todos los profesionales</option>
+                  {professionals.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              )}
+              {isAdminOrAdministrative && (
+                <button onClick={() => { setEditingAppointment(null); setAppointmentForm({}); setShowAppointmentModal(true); }}
                 className="bg-gradient-to-r from-violet-600 to-purple-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:shadow-lg hover:shadow-purple-200/50 transition-all font-semibold text-sm active:scale-[0.97]">
                 <Plus className="w-4 h-4" /> Nueva Cita
-              </button>
-            </div>
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+                </button>
+              )}
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
@@ -533,14 +681,15 @@ export function ClinicManager() {
                   </tr>
                 </thead>
                 <tbody>
-                  {appointments.map(apt => (
+                  {appointments.filter(apt => !isAdminOrAdministrative || !selectedProfessionalId || apt.professional_id === selectedProfessionalId).map(apt => (
                     <tr key={apt.id} className="border-b border-slate-50 hover:bg-violet-50/30 transition-colors">
                       <td className="py-3.5 px-5">{formatDateEs(apt.appointment_date)}</td>
                       <td className="py-3.5 px-5">{apt.appointment_time}</td>
                       <td className="py-3.5 px-5"><div><p className="font-medium">{apt.client_name}</p><p className="text-xs text-slate-500">{apt.client_phone}</p></div></td>
                       <td className="py-3.5 px-5">{apt.service_name}</td>
-                      <td className="py-3.5 px-5">
-                        <select value={apt.status} onChange={(e) => handleStatusChange(apt.id, e.target.value)}
+<td className="py-3.5 px-5">
+                          {isAdminOrAdministrative ? (
+                          <select value={apt.status} onChange={(e) => handleStatusChange(apt.id, e.target.value)}
                           className={`px-2 py-1 rounded text-xs border-0 cursor-pointer ${
                             apt.status === 'completed' ? 'bg-green-100 text-green-700' :
                             apt.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
@@ -548,13 +697,25 @@ export function ClinicManager() {
                           <option value="scheduled">Programada</option>
                           <option value="completed">Completada</option>
                           <option value="cancelled">Cancelada</option>
-                        </select>
-                      </td>
+                          </select>
+                          ) : (
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            apt.status === 'completed' ? 'bg-green-100 text-green-700' :
+                            apt.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                          }`}>
+                          {apt.status === 'scheduled' ? 'Programada' : apt.status === 'completed' ? 'Completada' : 'Cancelada'}
+                          </span>
+                          )}
+                        </td>
                       <td className="py-3.5 px-5">€{apt.price?.toFixed(2) || '-'}</td>
-                      <td className="py-3.5 px-5 flex gap-2">
-                        <button onClick={() => openEditAppointment(apt)} className="text-blue-600 hover:text-blue-700"><Edit className="w-4 h-4" /></button>
-                        <button onClick={() => handleDeleteAppointment(apt.id)} className="text-red-600 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
-                      </td>
+                        <td className="py-3.5 px-5 flex gap-2">
+                          {isAdminOrAdministrative && (
+                          <>
+                          <button onClick={() => openEditAppointment(apt)} className="text-blue-600 hover:text-blue-700"><Edit className="w-4 h-4" /></button>
+                          <button onClick={() => handleDeleteAppointment(apt.id)} className="text-red-600 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
+                          </>
+                          )}
+                        </td>
                     </tr>
                   ))}
                 </tbody>
@@ -583,6 +744,18 @@ export function ClinicManager() {
                 <button onClick={() => setCalendarMode('week')} className={`px-4 py-1.5 text-sm rounded-md transition-colors ${calendarMode==='week' ? 'bg-white shadow text-purple-600 font-bold' : 'text-slate-600 hover:text-slate-900'}`}>Semana</button>
                 <button onClick={() => setCalendarMode('month')} className={`px-4 py-1.5 text-sm rounded-md transition-colors ${calendarMode==='month' ? 'bg-white shadow text-purple-600 font-bold' : 'text-slate-600 hover:text-slate-900'}`}>Mes</button>
               </div>
+              {isAdminOrAdministrative && (
+                <select 
+                  value={selectedProfessionalId} 
+                  onChange={(e) => setSelectedProfessionalId(e.target.value)}
+                  className="border rounded-lg px-3 py-1.5 text-sm bg-white ml-2"
+                >
+                  <option value="">Todos</option>
+                  {professionals.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {calendarMode === 'month' && (
@@ -928,13 +1101,6 @@ export function ClinicManager() {
           </div>
         )}
 
-        {/* NOTIFICATIONS */}
-        {view === 'notifications' && (
-          <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-            <ClinicNotificationSettings />
-          </div>
-        )}
-
         {/* REPORTS */}
         {view === 'reports' && (
           <div>
@@ -949,17 +1115,24 @@ export function ClinicManager() {
               <div>
                 <div className="mb-6 bg-white rounded-lg shadow-md p-4">
                   <h3 className="font-extrabold text-slate-800 mb-3">Filtrar por Período</h3>
-                  <div className="flex gap-4 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm text-slate-600">Desde:</label>
-                      <input type="date" lang="es" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} className="border rounded px-2 py-1 text-sm" />
+                  {role === 'admin' ? (
+                    <div className="flex gap-4 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-slate-600">Desde:</label>
+                        <input type="date" lang="es" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} className="border rounded px-2 py-1 text-sm" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-slate-600">Hasta:</label>
+                        <input type="date" lang="es" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} className="border rounded px-2 py-1 text-sm" />
+                      </div>
+                      <button onClick={loadData} className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700">Actualizar</button>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm text-slate-600">Hasta:</label>
-                      <input type="date" lang="es" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} className="border rounded px-2 py-1 text-sm" />
+                  ) : (
+                    <div className="text-sm text-slate-600">
+                      <span className="font-medium">Mostrando reporte del día: </span>
+                      <span className="font-bold">{dateRange.start}</span>
                     </div>
-                    <button onClick={loadData} className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700">Actualizar</button>
-                  </div>
+                  )}
                 </div>
 
                 <h2 className="text-xl font-extrabold text-slate-800 tracking-tight mb-5">Reportes de Ingresos</h2>
@@ -1075,6 +1248,96 @@ export function ClinicManager() {
               </div>
             )}
           </div>
+        )}
+
+        {/* PACKAGES */}
+        {view === 'packages' && (
+          <div>
+            <div className="flex justify-between items-center mb-5">
+              <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Bonos y Suscripciones</h2>
+              <button onClick={() => { setShowPackageModal(true); }}
+                className="bg-gradient-to-r from-violet-600 to-purple-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:shadow-lg hover:shadow-purple-200/50 transition-all font-semibold text-sm active:scale-[0.97]">
+                <Plus className="w-4 h-4" /> Nuevo Bono
+              </button>
+            </div>
+            
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden mb-6">
+              <div className="p-4 border-b border-slate-100">
+                <h3 className="font-bold text-slate-700">Bonos disponibles</h3>
+              </div>
+              {packages.length === 0 ? (
+                <div className="p-8 text-center text-slate-400">No hay bonos disponibles</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                  {packages.map(pkg => (
+                    <div key={pkg.id} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-bold text-slate-800">{pkg.name}</h4>
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${pkg.active ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {pkg.active ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-500 mb-3">{pkg.description}</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-bold text-purple-600">€{pkg.price?.toFixed(2)}</span>
+                        <span className="text-sm text-slate-400">{pkg.total_sessions} sesiones</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+              <div className="p-4 border-b border-slate-100">
+                <h3 className="font-bold text-slate-700">Uso de bonos por cliente</h3>
+              </div>
+              {packageUsage.length === 0 ? (
+                <div className="p-8 text-center text-slate-400">No hay uso de bonos registrado</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="text-left py-3 px-4 font-semibold text-slate-600">Cliente</th>
+                        <th className="text-left py-3 px-4 font-semibold text-slate-600">Bono</th>
+                        <th className="text-center py-3 px-4 font-semibold text-slate-600">Sesiones</th>
+                        <th className="text-center py-3 px-4 font-semibold text-slate-600">Restantes</th>
+                        <th className="text-left py-3 px-4 font-semibold text-slate-600">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {packageUsage.map(usage => {
+                        const client = clients.find(c => c.id === usage.client_id);
+                        const pkg = packages.find(p => p.id === usage.package_id);
+                        return (
+                          <tr key={usage.id} className="border-b border-slate-100 hover:bg-violet-50/30">
+                            <td className="py-3 px-4 font-medium">{client?.name || '-'}</td>
+                            <td className="py-3 px-4">{pkg?.name || '-'}</td>
+                            <td className="py-3 px-4 text-center">{usage.sessions_consumed}</td>
+                            <td className="py-3 px-4 text-center font-bold text-purple-600">{usage.sessions_remaining}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                usage.status === 'active' ? 'bg-green-50 text-green-600' :
+                                usage.status === 'expired' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {usage.status === 'active' ? 'Activo' : usage.status === 'expired' ? 'Expirado' : 'Completado'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ACCOUNTING */}
+        {view === 'accounting' && (
+          <Accounting />
         )}
       </div>
 

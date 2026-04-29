@@ -217,3 +217,5 @@ export interface ExtraSchool {
   material_needed?: string;
   notes?: string;
 }
+
+export type UserRole = 'admin' | 'administrative' | 'worker';

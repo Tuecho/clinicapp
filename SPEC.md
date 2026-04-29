@@ -1,125 +1,110 @@
 # Clínica - Specification
 
 ## Project Overview
-- **Project Name**: Clínica - Gestor de Citas
-- **Type**: Full-stack Web Application (React + Node.js API)
-- **Core Functionality**: Aesthetic clinic management system with clients, services, appointments, professionals, products, budgets, and invoicing
-- **Target Users**: Clinic professionals and administrators
+- **Name**: Clínica - Gestor de Citas
+- **Type**: Web App gestión de clínica de estética
+- **Core**: Citas, clientes, servicios, profesionales
 
-## Tech Stack
-- **Frontend**: React 18 + Vite + TypeScript + TailwindCSS
-- **State**: Zustand
-- **Backend**: Node.js + Express + sql.js (SQLite)
+## Stack
+- **Frontend**: React + Vite + TypeScript + TailwindCSS
+- **Estado**: Zustand
+- **Backend**: Node.js + Express + sql.js
 - **Cache**: Redis 7
-- **Docker**: docker-compose with frontend, backend and redis services
+- **Docker**: Docker Compose
 
-## UI/UX Specification
+## Sistema de Roles
 
-### Layout Structure
-- **Sidebar**: Fixed left sidebar with navigation
-- **Main Content**: Flexible content area
+La aplicación implementa un sistema de **3 roles** con permisos diferenciados:
 
-### Pages
-1. **Dashboard** - Overview with summary cards and quick actions
-2. **Clients** - Client management with CRM
-3. **Services** - Service catalog with prices and duration
-4. **Appointments** - Appointment scheduler with calendar view
-5. **Professionals** - Staff management with schedules
-6. **Products** - Inventory management with stock control
-7. **Budgets** - Budget generation
-8. **Invoicing** - Invoice and payment management
-9. **Accounting** - Transactions (income/expenses)
-10. **Calendar** - Full calendar view
-11. **Reminders** - Automatic email reminders
-12. **Settings** - App and notification settings
-13. **GDPR** - Privacy and consent management
+| Rol | Módulos visibles | Permisos |
+|-----|------------------|----------|
+| **Admin** | Dashboard, Contabilidad, Mi Clínica, Bonos, Admin | Total: gestión usuarios, configuración, todos los datos |
+| **Administrative** | Contabilidad, Mi Clínica, Bonos | Gestión clínica: citas, clientes, servicios, productos, profesionales |
+| **Worker** | Solo Mi Clínica | Solo ve sus propias citas y calendario |
 
-### Visual Design
-- **Primary Color**: #4F46E5 (indigo)
-- **Secondary Color**: #10B981 (emerald)
-- **Danger Color**: #EF4444 (red)
-- **Background**: #F9FAFB (light gray)
-- **Cards**: White with subtle shadow
-- **Typography**: System font stack
-- **Border Radius**: 8px for cards, 6px for buttons
+### Vinculación Usuario - Profesional
+- Cada usuario worker se vincula a un profesional (`user_id` en `clinic_professionals`)
+- Las citas se filtran automáticamente según el profesional asignado
+- El worker solo ve sus propias citas, el administrative/admin ven todas
 
-### Components
-- Sidebar with navigation items
-- Summary cards
-- Data tables with filters
-- Modals for add/edit
-- Calendar components
-- Client cards
-- Service cards
-- Product inventory table
-- Invoice generator
-- Export functionality (DB, JSON, Excel)
+## UI/UX
 
-## Functionality Specification
+### Layout
+- Sidebar fixa izquierda
+- Área de contenido
 
-### Client Management (CRM)
-- Client database with personal info (encrypted)
-- Package management and usage tracking
-- Appointment history
-- Import/Export functionality
+### Páginas
+1. Dashboard - Resumen
+2. ClinicManager - Clientes y servicios
+3. AppointmentScheduler - Citas
+4. Professionals - Personal
+5. ClinicPackages - Paquetes
+6. Budgets - Presupuestos
+7. Accounting - Transacciones
+8. ReportsAnalytics - Informes
+9. Agenda - Calendario
+10. Tasks - Tareas
+11. Notes - Notas
+12. AdminPage - Gestión de usuarios y configuración
 
-### Service Catalog
-- Services with prices and duration
-- Categories management
+## Módulos
 
-### Appointment System
-- Time slot scheduling
-- Calendar view with day/week/month
-- Professional assignment
-- States: scheduled, completed, cancelled
-- Automatic email reminders
+### Clínica (principal)
+- Clientes CRM (encriptados)
+- Servicios catálogo
+- Citas programación
+- Profesionales horarios
+- Productos inventario
+- Presupuestos/facturación
+- Paquetes
+- Consentimientos RGPD
 
-### Professional Management
-- Staff schedules and availability
-- Blocked hours management
+### Reutilizados
+- Agenda eventos
+- Tareas
+- Notas
+- Listas compra
+- Accounting
 
-### Product Inventory
-- Product catalog with stock control
-- Stock movements tracking
+## Tablas Clínica (22)
 
-### Budgets & Invoicing
-- Budget generation
-- Invoice creation
-- Payment tracking
+- clinic_clients, clinic_services, clinic_appointments
+- clinic_appointment_reminders, clinic_visits
+- clinic_professionals, clinic_specialties
+- clinic_professional_schedules, clinic_professional_availability
+- clinic_products, clinic_product_movements
+- clinic_budgets, clinic_invoices
+- clinic_consents, clinic_consent_audit, clinic_gdpr_data
+- clinic_packages, clinic_package_usage
+- clinic_blocked_hours
+- clinic_notification_settings, clinic_communication_log
 
-### Accounting
-- Income and expense tracking
-- Categories: Gasolina, Comida, Alquiler, Servicios, Ocio, Otros
+## API Endpoints
 
-### Data Management
-- SQLite database (sql.js)
-- Redis caching for performance
-- Import/Export (DB, JSON)
-- Database backup
+### Autenticación y Usuarios
+- `/api/auth/login` - Login (devuelve role)
+- `/api/auth/register` - Registro
+- `/api/auth/me` - Info usuario actual (incluye role y professionalId)
+- `/api/auth/admin/users` - Listar usuarios (con role)
+- `/api/auth/admin/user/create` - Crear usuario con rol
 
-### GDPR & Privacy
-- AES-256-GCM encryption for sensitive data
-- Consent management with audit trail
-- SHA-256 hash for integrity
+### Clínica
+- `/api/clinic/*` - Todos los endpoints de clínica
+- `/api/clinic/appointments` - Citas (filtradas por rol)
+- `/api/clinic/professionals` - Profesionales (filtrados por rol)
 
-## Acceptance Criteria
-1. React app runs in Docker container on port 5174
-2. API runs in Docker container on port 3001
-3. Redis service runs on port 6379
-4. Sidebar navigation works between all pages
-5. Client CRUD operations work
-6. Service management works
-7. Appointment scheduling works
-8. Professional schedules can be configured
-9. Product inventory tracking works
-10. Budget and invoice generation works
-11. Data persists in SQLite
-12. Redis caching works correctly
-13. GDPR encryption works for sensitive data
+### Otros
+- /api/events, /api/tasks, /api/notes
+- /api/transactions, /api/budgets
+- /api/shopping-lists
+- /api/chat/llm
 
-## Docker Setup
-- Frontend: Vite dev server (development mode)
-- Backend: Node.js Express API
-- Redis: Redis 7 Alpine for caching
-- Network: clinic-network (internal)
-- Ports: 5174 (frontend), 3001 (API), 6379 (Redis)
+## Criterios
+1. Frontend 5174, API 3001, Redis 6379
+2. CRUD clientes, servicios, citas
+3. Profesionales disponibilidad
+4. Productos inventario
+5. Presupuestos/facturas
+6. RGPD encriptación
+7. Módulos reutilizados
+8. Sistema de 3 roles implementado

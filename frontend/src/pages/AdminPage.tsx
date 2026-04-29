@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon, Database, Download, Upload, Mail, Home, Wallet, Target, Calendar, ShoppingCart, ListChecks, StickyNote, Cake, Bot, Wrench, Zap, DollarSign, BookOpen, Info, FileText, ShieldCheck, Save, GripVertical, Package, Plus } from 'lucide-react';
+import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon, Database, Download, Upload, Home, Wallet, DollarSign, Briefcase, Plus, Save, GripVertical } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
-import { useCompany } from '../i18n/CompanyContext';
+import { UserRole } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -9,21 +9,11 @@ interface User {
   id: number;
   username: string;
   is_admin: number;
+  role: UserRole;
   status: string;
   created_at: string;
   last_login?: string;
   last_logout?: string;
-}
-
-interface Suggestion {
-  id: number;
-  user_id: number;
-  username: string;
-  type: string;
-  subject: string;
-  content: string;
-  status: string;
-  created_at: string;
 }
 
 interface Stats {
@@ -37,10 +27,9 @@ interface Stats {
 }
 
 export function AdminPage() {
-  const { companyName, setCompanyName: setGlobalCompanyName } = useCompany();
+  const [companyName, setCompanyName] = useState('Mi Clínica');
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, active: 0, blocked: 0, pending: 0, admins: 0, totalTransactions: 0, totalBudgets: 0 });
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState<User | null>(null);
@@ -50,8 +39,9 @@ export function AdminPage() {
   const [newUsername, setNewUsername] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserError, setNewUserError] = useState('');
+  const [newUserRole, setNewUserRole] = useState<UserRole>('worker');
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login' | 'database' | 'smtp' | 'sms' | 'modules' | 'quotes' | 'logs'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'login' | 'database' | 'whatsapp' | 'modules' | 'quotes'>('users');
   
   // Password related states
   const [confirmUserPassword, setConfirmUserPassword] = useState('');
@@ -70,61 +60,30 @@ export function AdminPage() {
   const [downloadingDb, setDownloadingDb] = useState(false);
   const [uploadingDb, setUploadingDb] = useState(false);
   const [dbMessage, setDbMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [deleteSuggestionId, setDeleteSuggestionId] = useState<number | null>(null);
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [savingModules, setSavingModules] = useState(false);
 
-  // SMTP Settings
-  const [smtpHost, setSmtpHost] = useState('');
-  const [smtpPort, setSmtpPort] = useState(587);
-  const [smtpUser, setSmtpUser] = useState('');
-  const [smtpPassword, setSmtpPassword] = useState('');
-  const [smtpFromEmail, setSmtpFromEmail] = useState('');
-  const [smtpEnabled, setSmtpEnabled] = useState(false);
-  const [savingSmtp, setSavingSmtp] = useState(false);
-  const [smtpMessage, setSmtpMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  // SMS Settings (Twilio)
-  const [smsProvider, setSmsProvider] = useState('twilio');
-  const [twilioAccountSid, setTwilioAccountSid] = useState('');
-  const [twilioAuthToken, setTwilioAuthToken] = useState('');
-  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState('');
-  const [savingSms, setSavingSms] = useState(false);
-  const [smsMessage, setSmsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  // WhatsApp Settings (Business API)
+  const [whatsappPhoneId, setWhatsappPhoneId] = useState('');
+  const [whatsappToken, setWhatsappToken] = useState('');
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [savingWhatsapp, setSavingWhatsapp] = useState(false);
+  const [whatsappMessage, setWhatsappMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [quotes, setQuotes] = useState<{id: number; quote: string; active: number}[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(false);
 
-  const [logs, setLogs] = useState<any[]>([]);
-  const [errorLogs, setErrorLogs] = useState<any[]>([]);
-  const [loadingLogs, setLoadingLogs] = useState(false);
-  const [logType, setLogType] = useState<'app' | 'error'>('app');
-
-  const fetchLogs = async () => {
-    setLoadingLogs(true);
-    try {
-      const headers = getAuthHeaders();
-      const response = await fetch(`${API_URL}/api/logs?type=${logType}&lines=200`, { headers });
-      const data = await response.json();
-      if (logType === 'error') {
-        setErrorLogs(Array.isArray(data) ? data : []);
-      } else {
-        setLogs(Array.isArray(data) ? data : []);
-      }
-    } catch (error) {
-      console.error('Error fetching logs:', error);
-    }
-    setLoadingLogs(false);
-  };
+  
   const [newQuote, setNewQuote] = useState('');
   const [addingQuote, setAddingQuote] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
   const [editingQuoteText, setEditingQuoteText] = useState('');
   const [quoteMessage, setQuoteMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
-  useEffect(() => {
+  const [deleteSuggestionId, setDeleteSuggestionId] = useState<number | null>(null);
+
+useEffect(() => {
     fetchData();
-    fetchSuggestions();
   }, []);
 
   useEffect(() => {
@@ -135,8 +94,6 @@ export function AdminPage() {
       fetchEnabledModules();
     } else if (activeTab === 'quotes') {
       fetchQuotes();
-    } else if (activeTab === 'logs') {
-      fetchLogs();
     }
   }, [activeTab]);
 
@@ -221,11 +178,15 @@ export function AdminPage() {
         method: 'DELETE',
         headers
       });
+      const data = await response.json();
       if (response.ok) {
         fetchQuotes();
+      } else {
+        alert(data.error || 'Error al eliminar la frase');
       }
     } catch (error) {
       console.error('Error deleting quote:', error);
+      alert('Error al eliminar la frase');
     }
   };
 
@@ -248,17 +209,6 @@ export function AdminPage() {
     setLoading(false);
   };
 
-  const fetchSuggestions = async () => {
-    try {
-      const headers = getAuthHeaders();
-      const response = await fetch(`${API_URL}/api/suggestions`, { headers });
-      const data = await response.json();
-      setSuggestions(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error fetching suggestions:', error);
-    }
-  };
-
   const fetchLoginSettings = async () => {
     try {
       const headers = getAuthHeaders();
@@ -278,7 +228,7 @@ export function AdminPage() {
       const data = await response.json();
       const name = data.companyName || 'Clínica Valencia';
       setLocalCompanyName(name);
-      setGlobalCompanyName(name);
+      setCompanyName(name);
     } catch (error) {
       console.error('Error fetching company name:', error);
       setLocalCompanyName(companyName);
@@ -298,7 +248,7 @@ export function AdminPage() {
       if (data.success) {
         alert('Nombre de empresa guardado');
         localStorage.setItem('companyName', localCompanyName);
-        setGlobalCompanyName(localCompanyName);
+        setCompanyName(localCompanyName);
         window.dispatchEvent(new Event('company_name_updated'));
       } else {
         alert(data.error || 'Error al guardar');
@@ -357,22 +307,7 @@ export function AdminPage() {
   const defaultModulesList = [
     { key: 'dashboard', label: 'Dashboard', icon: Home },
     { key: 'accounting', label: 'Contabilidad', icon: Wallet },
-    { key: 'budgets', label: 'Presupuestos', icon: Target },
-    { key: 'agenda', label: 'Agenda', icon: Calendar },
-    { key: 'shopping', label: 'Lista de Compra', icon: ShoppingCart },
-    { key: 'tasks', label: 'Tareas', icon: ListChecks },
-    { key: 'notes', label: 'Notas', icon: StickyNote },
-    { key: 'birthdays', label: 'Cumpleaños', icon: Cake },
-    { key: 'chatbot', label: 'Chat IA', icon: Bot },
-    { key: 'home_maintenance', label: 'Mantenimiento', icon: Wrench },
-    { key: 'utility_bills', label: 'Facturas', icon: Zap },
-    
     { key: 'clinic', label: 'Mi Clínica', icon: Shield },
-    { key: 'clinic_packages', label: 'Bonos y Suscripciones', icon: Package },
-    { key: 'howitworks', label: 'Cómo Funciona', icon: BookOpen },
-    { key: 'about', label: 'Acerca de', icon: Info },
-    { key: 'terms', label: 'Términos', icon: FileText },
-    { key: 'privacy', label: 'Privacidad', icon: ShieldCheck },
   ];
 
   const toggleModule = async (moduleKey: string) => {
@@ -389,10 +324,8 @@ export function AdminPage() {
   useEffect(() => {
     if (activeTab === 'login') {
       fetchLoginSettings();
-    } else if (activeTab === 'smtp') {
-      fetchSmtpSettings();
-    } else if (activeTab === 'sms') {
-      fetchSmsSettings();
+    } else if (activeTab === 'whatsapp') {
+      fetchWhatsAppSettings();
     }
   }, [activeTab]);
 
@@ -417,7 +350,7 @@ export function AdminPage() {
           body: JSON.stringify({ companyName: localCompanyName })
         });
         const newName = localCompanyName;
-        setGlobalCompanyName(newName);
+        setCompanyName(newName);
         localStorage.setItem('companyName', newName);
         window.dispatchEvent(new Event('company_name_updated'));
         alert('Configuración guardada');
@@ -433,104 +366,53 @@ export function AdminPage() {
     setSavingLogin(false);
   };
 
-  const fetchSmtpSettings = async () => {
+  const fetchWhatsAppSettings = async () => {
     try {
       const headers = getAuthHeaders();
-      const response = await fetch(`${API_URL}/api/settings/smtp`, { headers });
+      const response = await fetch(`${API_URL}/api/settings/whatsapp`, { headers });
       const data = await response.json();
-      setSmtpHost(data.smtp_host || '');
-      setSmtpPort(data.smtp_port || 587);
-      setSmtpUser(data.smtp_user || '');
-      setSmtpPassword(data.smtp_password || '');
-      setSmtpFromEmail(data.smtp_from_email || '');
-      setSmtpEnabled(data.smtp_enabled === true);
+      setWhatsappPhoneId(data.whatsapp_phone_id || '');
+      setWhatsappToken(data.whatsapp_token || '');
+      setWhatsappEnabled(data.whatsapp_enabled === true);
     } catch (error) {
-      console.error('Error fetching SMTP settings:', error);
+      console.error('Error fetching WhatsApp settings:', error);
     }
   };
 
-  const saveSmtpSettings = async () => {
-    setSavingSmtp(true);
-    setSmtpMessage(null);
+  const saveWhatsAppSettings = async () => {
+    setSavingWhatsapp(true);
+    setWhatsappMessage(null);
 
-    if (!smtpHost.trim() || !smtpUser.trim() || !smtpFromEmail.trim()) {
-      setSmtpMessage({ type: 'error', text: 'Por favor completa los campos obligatorios' });
-      setSavingSmtp(false);
+    if (!whatsappPhoneId.trim() || !whatsappToken.trim()) {
+      setWhatsappMessage({ type: 'error', text: 'Por favor completa los campos obligatorios' });
+      setSavingWhatsapp(false);
       return;
     }
 
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      const response = await fetch(`${API_URL}/api/settings/smtp`, {
+      const response = await fetch(`${API_URL}/api/settings/whatsapp`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({
-          smtp_host: smtpHost,
-          smtp_port: smtpPort,
-          smtp_user: smtpUser,
-          smtp_password: smtpPassword,
-          smtp_from_email: smtpFromEmail,
-          smtp_enabled: smtpEnabled
+          whatsapp_phone_id: whatsappPhoneId,
+          whatsapp_token: whatsappToken,
+          whatsapp_enabled: whatsappEnabled
         })
       });
 
       const data = await response.json();
       if (response.ok) {
-        setSmtpMessage({ type: 'success', text: data.message || 'Configuración SMTP guardada correctamente' });
+        setWhatsappMessage({ type: 'success', text: data.message || 'Configuración de WhatsApp guardada correctamente' });
       } else {
-        setSmtpMessage({ type: 'error', text: data.error || 'Error guardando configuración SMTP' });
+        setWhatsappMessage({ type: 'error', text: data.error || 'Error guardando configuración de WhatsApp' });
       }
     } catch (error) {
-      console.error('Error saving SMTP settings:', error);
-      setSmtpMessage({ type: 'error', text: 'Error guardando configuración SMTP' });
+      console.error('Error saving WhatsApp settings:', error);
+      setWhatsappMessage({ type: 'error', text: 'Error guardando configuración de WhatsApp' });
     }
 
-    setSavingSmtp(false);
-  };
-
-  const fetchSmsSettings = async () => {
-    try {
-      const headers = getAuthHeaders();
-      const response = await fetch(`${API_URL}/api/clinic/notification-settings`, { headers });
-      const data = await response.json();
-      setSmsProvider(data.sms_provider || 'twilio');
-      setTwilioAccountSid(data.twilio_account_sid || '');
-      setTwilioAuthToken(data.twilio_auth_token || '');
-      setTwilioPhoneNumber(data.twilio_phone_number || '');
-    } catch (error) {
-      console.error('Error fetching SMS settings:', error);
-    }
-  };
-
-  const saveSmsSettings = async () => {
-    setSavingSms(true);
-    setSmsMessage(null);
-
-    try {
-      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      const response = await fetch(`${API_URL}/api/clinic/notification-settings`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({
-          sms_provider: smsProvider,
-          twilio_account_sid: twilioAccountSid,
-          twilio_auth_token: twilioAuthToken,
-          twilio_phone_number: twilioPhoneNumber
-        })
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setSmsMessage({ type: 'success', text: 'Configuración SMS guardada correctamente' });
-      } else {
-        setSmsMessage({ type: 'error', text: data.error || 'Error guardando configuración SMS' });
-      }
-    } catch (error) {
-      console.error('Error saving SMS settings:', error);
-      setSmsMessage({ type: 'error', text: 'Error guardando configuración SMS' });
-    }
-
-    setSavingSms(false);
+    setSavingWhatsapp(false);
   };
 
   const downloadDatabase = async () => {
@@ -555,10 +437,40 @@ export function AdminPage() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       
-      setDbMessage({ type: 'success', text: 'Base de datos descargada correctamente' });
+      setDbMessage({ type: 'success', text: 'Base de datos (.db) descargada correctamente' });
     } catch (error) {
       console.error('Error downloading database:', error);
       setDbMessage({ type: 'error', text: 'Error al descargar la base de datos' });
+    }
+    setDownloadingDb(false);
+  };
+
+  const downloadJson = async () => {
+    setDownloadingDb(true);
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/export/json`, { headers });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        setDbMessage({ type: 'error', text: error.error || 'Error al descargar' });
+        return;
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `family_agent_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      setDbMessage({ type: 'success', text: 'Datos (.json) descargados correctamente' });
+    } catch (error) {
+      console.error('Error downloading JSON:', error);
+      setDbMessage({ type: 'error', text: 'Error al descargar los datos' });
     }
     setDownloadingDb(false);
   };
@@ -711,35 +623,6 @@ export function AdminPage() {
     reader.readAsDataURL(file);
   };
 
-  const handleSuggestionAction = async (id: number, action: 'read' | 'delete') => {
-    if (action === 'delete') {
-      setDeleteSuggestionId(id);
-      return;
-    }
-    
-    try {
-      const headers = getAuthHeaders();
-      if (action === 'read') {
-        await fetch(`${API_URL}/api/suggestions/${id}/read`, { method: 'PUT', headers });
-      }
-      fetchSuggestions();
-    } catch (error) {
-      console.error('Error handling suggestion:', error);
-    }
-  };
-
-  const confirmDeleteSuggestion = async () => {
-    if (!deleteSuggestionId) return;
-    try {
-      const headers = getAuthHeaders();
-      await fetch(`${API_URL}/api/suggestions/${deleteSuggestionId}`, { method: 'DELETE', headers });
-      fetchSuggestions();
-    } catch (error) {
-      console.error('Error handling suggestion:', error);
-    }
-    setDeleteSuggestionId(null);
-  };
-
   const handleCreateUser = async () => {
     if (!newUsername.trim()) {
       setNewUserError('El nombre de usuario es obligatorio');
@@ -764,7 +647,7 @@ export function AdminPage() {
       const response = await fetch(`${API_URL}/api/auth/admin/user/create`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ username: newUsername.trim(), password: newUserPassword })
+        body: JSON.stringify({ username: newUsername.trim(), password: newUserPassword, role: newUserRole })
       });
       const data = await response.json();
       if (response.ok) {
@@ -772,6 +655,7 @@ export function AdminPage() {
         setNewUsername('');
         setNewUserPassword('');
         setNewUserError('');
+        setNewUserRole('worker');
         fetchData();
       } else {
         setNewUserError(data.error || 'Error al crear usuario');
@@ -963,23 +847,6 @@ export function AdminPage() {
           <span className="sm:hidden text-xs">Usu</span>
         </button>
         <button
-          onClick={() => setActiveTab('suggestions')}
-          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
-            activeTab === 'suggestions'
-              ? 'text-primary border-b-2 border-primary'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Lightbulb size={16} className="inline" />
-          <span className="hidden sm:inline">Sugerencias</span>
-          <span className="sm:hidden text-xs">Suger</span>
-          {suggestions.filter(s => s.status === 'pending').length > 0 && (
-            <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-2 py-0.5 rounded-full">
-              {suggestions.filter(s => s.status === 'pending').length}
-            </span>
-          )}
-        </button>
-        <button
           onClick={() => setActiveTab('login')}
           className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
             activeTab === 'login'
@@ -1004,28 +871,16 @@ export function AdminPage() {
           <span className="sm:hidden text-xs">BBDD</span>
         </button>
         <button
-          onClick={() => setActiveTab('smtp')}
+          onClick={() => setActiveTab('whatsapp')}
           className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
-            activeTab === 'smtp'
-              ? 'text-primary border-b-2 border-primary'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Mail size={16} className="inline" />
-          <span className="hidden sm:inline">SMTP</span>
-          <span className="sm:hidden text-xs">SMTP</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('sms')}
-          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
-            activeTab === 'sms'
+            activeTab === 'whatsapp'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
           <MessageSquare size={16} className="inline" />
-          <span className="hidden sm:inline">SMS</span>
-          <span className="sm:hidden text-xs">SMS</span>
+          <span className="hidden sm:inline">WhatsApp</span>
+          <span className="sm:hidden text-xs">WA</span>
         </button>
         <button
           onClick={() => setActiveTab('modules')}
@@ -1051,17 +906,7 @@ export function AdminPage() {
           <span className="hidden sm:inline">Frases</span>
           <span className="sm:hidden text-xs">FQ</span>
         </button>
-        <button
-          onClick={() => setActiveTab('logs')}
-          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
-            activeTab === 'logs'
-              ? 'text-primary border-b-2 border-primary'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <FileText size={16} className="inline" />
-          <span className="hidden sm:inline">Logs</span>
-        </button>
+        
       </div>
 
       {activeTab === 'users' && (
@@ -1190,13 +1035,21 @@ export function AdminPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    {user.is_admin ? (
+                    {user.role === 'admin' || user.is_admin ? (
                       <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-700 flex items-center gap-1 w-fit">
                         <Shield size={12} />
                         Admin
                       </span>
+                    ) : user.role === 'administrative' ? (
+                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 flex items-center gap-1 w-fit">
+                        <Briefcase size={12} />
+                        Administrativo
+                      </span>
                     ) : (
-                      <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Usuario</span>
+                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 flex items-center gap-1 w-fit">
+                        <Users size={12} />
+                        Trabajador
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3">{getStatusBadge(user.status)}</td>
@@ -1307,84 +1160,8 @@ export function AdminPage() {
             No hay usuarios registrados
           </div>
         )}
-      </div>
+</div>
       </>
-      )}
-
-      {activeTab === 'suggestions' && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-200 bg-gray-50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-gray-600">
-                <Lightbulb size={18} />
-                <span className="font-medium">Sugerencias de usuarios</span>
-              </div>
-              <button onClick={fetchSuggestions} className="text-sm text-primary hover:underline flex items-center gap-1">
-                <Loader2 size={14} />
-                Actualizar
-              </button>
-            </div>
-          </div>
-
-          {suggestions.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <Lightbulb size={40} className="mx-auto mb-4 text-gray-300" />
-              <p>No hay sugerencias</p>
-              <p className="text-sm mt-1">Las sugerencias de los usuarios aparecerán aquí</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {suggestions.map((suggestion) => (
-                <div key={suggestion.id} className={`p-4 ${suggestion.status === 'pending' ? 'bg-yellow-50/50' : ''}`}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        {suggestion.type === 'bug' ? (
-                          <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">Error</span>
-                        ) : suggestion.type === 'feedback' ? (
-                          <span className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">Feedback</span>
-                        ) : (
-                          <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">Idea</span>
-                        )}
-                        {suggestion.status === 'pending' && (
-                          <span className="px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-700">Pendiente</span>
-                        )}
-                        {suggestion.status === 'read' && (
-                          <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">Leído</span>
-                        )}
-                        <span className="text-xs text-gray-400">
-                          {suggestion.username} • {new Date(suggestion.created_at).toLocaleDateString('es')}
-                        </span>
-                      </div>
-                      {suggestion.subject && (
-                        <h4 className="font-medium text-gray-800 mb-1">{suggestion.subject}</h4>
-                      )}
-                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{suggestion.content}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {suggestion.status === 'pending' && (
-                        <button
-                          onClick={() => handleSuggestionAction(suggestion.id, 'read')}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Marcar como leído"
-                        >
-                          <Eye size={16} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleSuggestionAction(suggestion.id, 'delete')}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       )}
 
       {activeTab === 'login' && (
@@ -1532,23 +1309,41 @@ export function AdminPage() {
                 <p className="text-sm text-gray-600 mb-4">
                   Descarga toda la base de datos en un archivo .db que podrás guardar de forma segura.
                 </p>
-                <button
-                  onClick={downloadDatabase}
-                  disabled={downloadingDb}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-                >
-                  {downloadingDb ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Descargando...
-                    </>
-                  ) : (
-                    <>
-                      <Download size={18} />
-                      Descargar base de datos
-                    </>
-                  )}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={downloadDatabase}
+                    disabled={downloadingDb}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  >
+                    {downloadingDb ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Descargando...
+                      </>
+                    ) : (
+                      <>
+                        <Download size={18} />
+                        .db
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={downloadJson}
+                    disabled={downloadingDb}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {downloadingDb ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                      </>
+                    ) : (
+                      <>
+                        <Download size={18} />
+                        .json
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="border rounded-lg p-6">
@@ -1705,23 +1500,23 @@ export function AdminPage() {
         </div>
       )}
 
-      {activeTab === 'smtp' && (
+      {activeTab === 'whatsapp' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-4 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center gap-2 text-gray-600">
-              <Mail size={18} />
-              <span className="font-medium">Configuración del servidor SMTP</span>
+              <MessageSquare size={18} />
+              <span className="font-medium">Configuración de WhatsApp Business</span>
             </div>
           </div>
           
           <div className="p-6 space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <AlertTriangle size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                <AlertTriangle size={20} className="text-green-500 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-medium text-blue-800 mb-1">Servidor SMTP propio</h4>
-                  <p className="text-sm text-blue-600">
-                    Configura tu servidor SMTP para enviar notificaciones por email. Esto te permite usar tu propio dominio y servidor de email.
+                  <h4 className="font-medium text-green-800 mb-1">WhatsApp Business API</h4>
+                  <p className="text-sm text-green-600">
+                    Configura tu cuenta de WhatsApp Business API para enviar notificaciones a tus clientes. Necesitas una cuenta en Meta Developer y una cuenta de WhatsApp Business.
                   </p>
                 </div>
               </div>
@@ -1731,39 +1526,13 @@ export function AdminPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Servidor SMTP
+                    Phone Number ID
                   </label>
                   <input
                     type="text"
-                    value={smtpHost}
-                    onChange={(e) => setSmtpHost(e.target.value)}
-                    placeholder="smtp.gmail.com"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Puerto
-                  </label>
-                  <input
-                    type="number"
-                    value={smtpPort}
-                    onChange={(e) => setSmtpPort(parseInt(e.target.value) || 587)}
-                    placeholder="587"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email remitente
-                  </label>
-                  <input
-                    type="email"
-                    value={smtpFromEmail}
-                    onChange={(e) => setSmtpFromEmail(e.target.value)}
-                    placeholder="tu@email.com"
+                    value={whatsappPhoneId}
+                    onChange={(e) => setWhatsappPhoneId(e.target.value)}
+                    placeholder="123456789012345"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
                 </div>
@@ -1772,66 +1541,53 @@ export function AdminPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Usuario SMTP
-                  </label>
-                  <input
-                    type="text"
-                    value={smtpUser}
-                    onChange={(e) => setSmtpUser(e.target.value)}
-                    placeholder="tu@email.com"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Contraseña
+                    Token de Acceso
                   </label>
                   <input
                     type="password"
-                    value={smtpPassword}
-                    onChange={(e) => setSmtpPassword(e.target.value)}
-                    placeholder="••••••••"
+                    value={whatsappToken}
+                    onChange={(e) => setWhatsappToken(e.target.value)}
+                    placeholder="Tu Access Token de WhatsApp API"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
                 </div>
 
                 <div className="flex items-center gap-3 pt-6">
                   <button
-                    onClick={() => setSmtpEnabled(!smtpEnabled)}
+                    onClick={() => setWhatsappEnabled(!whatsappEnabled)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      smtpEnabled ? 'bg-primary' : 'bg-gray-200'
+                      whatsappEnabled ? 'bg-green-500' : 'bg-gray-200'
                     }`}
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        smtpEnabled ? 'translate-x-6' : 'translate-x-1'
+                        whatsappEnabled ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
                   </button>
                   <span className="text-sm font-medium text-gray-700">
-                    {smtpEnabled ? 'SMTP activo' : 'SMTP desactivado'}
+                    {whatsappEnabled ? 'WhatsApp activo' : 'WhatsApp desactivado'}
                   </span>
                 </div>
               </div>
             </div>
 
-            {smtpMessage && (
-              <div className={`p-4 rounded-lg ${smtpMessage.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+            {whatsappMessage && (
+              <div className={`p-4 rounded-lg ${whatsappMessage.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
                 <div className="flex items-center gap-2">
-                  {smtpMessage.type === 'success' ? <Check size={18} /> : <AlertTriangle size={18} />}
-                  {smtpMessage.text}
+                  {whatsappMessage.type === 'success' ? <Check size={18} /> : <AlertTriangle size={18} />}
+                  {whatsappMessage.text}
                 </div>
               </div>
             )}
 
             <div className="flex justify-end">
               <button
-                onClick={saveSmtpSettings}
-                disabled={savingSmtp}
-                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                onClick={saveWhatsAppSettings}
+                disabled={savingWhatsapp}
+                className="flex items-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors"
               >
-                {savingSmtp ? (
+                {savingWhatsapp ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
                     Guardando...
@@ -1839,120 +1595,7 @@ export function AdminPage() {
                 ) : (
                   <>
                     <Save size={18} />
-                    Guardar configuración SMTP
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'sms' && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-200 bg-gray-50">
-            <div className="flex items-center gap-2 text-gray-600">
-              <MessageSquare size={18} />
-              <span className="font-medium">Configuración de SMS (Twilio)</span>
-            </div>
-          </div>
-
-          <div className="p-6 space-y-6">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle size={20} className="text-yellow-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-yellow-800 mb-1">Requiere cuenta en Twilio</h4>
-                  <p className="text-sm text-yellow-600">
-                    Para usar SMS, necesitas una cuenta en Twilio. Obtén tus credenciales del dashboard de Twilio.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Proveedor de SMS
-                  </label>
-                  <select
-                    value={smsProvider}
-                    onChange={(e) => setSmsProvider(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  >
-                    <option value="twilio">Twilio</option>
-                    <option value="otros">Otros (próximamente)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Account SID
-                  </label>
-                  <input
-                    type="password"
-                    value={twilioAccountSid}
-                    onChange={(e) => setTwilioAccountSid(e.target.value)}
-                    placeholder="Tu Account SID de Twilio"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Auth Token
-                  </label>
-                  <input
-                    type="password"
-                    value={twilioAuthToken}
-                    onChange={(e) => setTwilioAuthToken(e.target.value)}
-                    placeholder="Tu Auth Token de Twilio"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Número de Teléfono de Twilio
-                  </label>
-                  <input
-                    type="tel"
-                    value={twilioPhoneNumber}
-                    onChange={(e) => setTwilioPhoneNumber(e.target.value)}
-                    placeholder="+1234567890"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {smsMessage && (
-              <div className={`p-4 rounded-lg ${smsMessage.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
-                <div className="flex items-center gap-2">
-                  {smsMessage.type === 'success' ? <Check size={18} /> : <AlertTriangle size={18} />}
-                  {smsMessage.text}
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end">
-              <button
-                onClick={saveSmsSettings}
-                disabled={savingSms}
-                className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-              >
-                {savingSms ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <Save size={18} />
-                    Guardar configuración SMS
+                    Guardar configuración de WhatsApp
                   </>
                 )}
               </button>
@@ -2116,57 +1759,6 @@ export function AdminPage() {
         </div>
       )}
 
-      {activeTab === 'logs' && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-200 bg-gray-50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-gray-600">
-                <FileText size={18} />
-                <span className="font-medium">Logs del Sistema</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  value={logType}
-                  onChange={(e) => { setLogType(e.target.value as 'app' | 'error'); }}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="app">Application</option>
-                  <option value="error">Errors</option>
-                </select>
-                <button
-                  onClick={fetchLogs}
-                  disabled={loadingLogs}
-                  className="px-3 py-1.5 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 flex items-center gap-1"
-                >
-                  {loadingLogs ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
-                  Recargar
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4">
-            {loadingLogs ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="animate-spin text-primary" size={24} />
-              </div>
-            ) : (
-              <div className="bg-gray-900 rounded-lg p-4 max-h-96 overflow-y-auto font-mono text-xs">
-                {(logType === 'error' ? errorLogs : logs).length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>No hay logs disponibles</p>
-                  </div>
-                ) : (
-                  <pre className="text-green-400 whitespace-pre-wrap">
-                    {JSON.stringify(logType === 'error' ? errorLogs : logs, null, 2)}
-                  </pre>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -2300,6 +1892,24 @@ export function AdminPage() {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Rol del usuario</label>
+                <select
+                  value={newUserRole}
+                  onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  <option value="worker">Trabajador</option>
+                  <option value="administrative">Administrativo</option>
+                  <option value="admin">Administrador</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {newUserRole === 'worker' && 'Solo puede ver sus propias citas y datos'}
+                  {newUserRole === 'administrative' && 'Gestiona citas, clientes, servicios y productos'}
+                  {newUserRole === 'admin' && 'Acceso completo al sistema'}
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
                 <div className="relative">
                   <input
@@ -2335,7 +1945,7 @@ export function AdminPage() {
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setConfirmUserPassword(''); setNewUserError(''); setShowUserPass1(false); setShowUserPass2(false); }}
+                onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setConfirmUserPassword(''); setNewUserError(''); setNewUserRole('worker'); setShowUserPass1(false); setShowUserPass2(false); }}
                 className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
               >
                 Cancelar

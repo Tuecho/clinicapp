@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, BookOpen, Bot, Users, Package, Calendar, Settings, Stethoscope, BarChart3, Cake } from 'lucide-react';
+import { Home, Wallet, User, Shield, LogOut, Settings, Stethoscope } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
-import { useCompany } from '../i18n/CompanyContext';
+import { UserRole } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -13,15 +13,23 @@ interface Profile {
 }
 
 interface SidebarProps {
-  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'chatbot' | 'modules' | 'clinic' | 'clinic_packages' | 'reports' | 'birthdays';
-  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'howitworks' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'chatbot' | 'modules' | 'clinic' | 'clinic_packages' | 'reports' | 'birthdays') => void;
+  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'admin' | 'modules' | 'clinic' | 'reports';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'admin' | 'modules' | 'clinic' | 'reports') => void;
+  onLogout?: () => void;
+  isAdmin?: boolean;
+  role?: UserRole;
+  isMobile?: boolean;
+}
+
+interface SidebarProps {
+  activePage: 'dashboard' | 'accounting' | 'profile' | 'admin' | 'modules' | 'clinic';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'profile' | 'admin' | 'modules' | 'clinic') => void;
   onLogout?: () => void;
   isAdmin?: boolean;
   isMobile?: boolean;
 }
 
-export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }: SidebarProps) {
-  const { companyName } = useCompany();
+export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, role, isMobile }: SidebarProps) {
   const [profile, setProfile] = useState<Profile>({ name: '', avatar: null, family_name: 'Mi Familia', enabled_modules: null });
   const [globalModules, setGlobalModules] = useState<string[] | null>(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -85,11 +93,20 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     };
   }, []);
 
-  const defaultModules = ['dashboard', 'agenda', 'accounting', 'shopping', 'notes', 'tasks', 'clinic', 'clinic_packages', 'howitworks', 'about', 'terms', 'privacy'];
+  const defaultModules = ['dashboard', 'accounting', 'clinic'];
 
   const isModuleEnabled = (key: string) => {
+    const userRole = role || 'worker';
     if (key === 'dashboard') return true;
-    if (key === 'terms' || key === 'privacy' || key === 'about' || key === 'howitworks') return true;
+    
+    const roleModules: Record<string, string[]> = {
+      worker: [],
+      administrative: ['accounting', 'clinic'],
+      admin: ['accounting', 'clinic']
+    };
+    
+    if (!roleModules[userRole].includes(key)) return false;
+    
     if (Array.isArray(globalModules)) {
       if (!globalModules.includes(key)) return false;
     }
@@ -98,16 +115,26 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
   };
 
   const getModuleOrder = (): string[] => {
+    const userRole = role || 'worker';
+    
+    const roleModules: Record<string, string[]> = {
+      worker: [],
+      administrative: ['accounting', 'clinic'],
+      admin: ['accounting', 'clinic']
+    };
+    
+    const allowedModules = roleModules[userRole] || roleModules.worker;
+    
     if (Array.isArray(globalModules)) {
       const profileOrder = profile.enabled_modules ? profile.enabled_modules.split(',').filter(Boolean) : [];
-      const enabledGlobalModuleKeys = globalModules.filter(key => key !== 'dashboard');
+      const enabledGlobalModuleKeys = globalModules.filter(key => key !== 'dashboard' && allowedModules.includes(key));
       
       if (profileOrder.length > 0) {
         const ordered: string[] = [];
         const seen = new Set<string>();
         
         for (const key of profileOrder) {
-          if (key === 'dashboard' || enabledGlobalModuleKeys.includes(key)) {
+          if ((key === 'dashboard' || enabledGlobalModuleKeys.includes(key)) && allowedModules.includes(key)) {
             ordered.push(key);
             seen.add(key);
           }
@@ -124,25 +151,14 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
       
       return enabledGlobalModuleKeys;
     }
-    if (!profile.enabled_modules) return defaultModules;
-    return profile.enabled_modules.split(',').filter(Boolean);
+    if (!profile.enabled_modules) return allowedModules;
+    return profile.enabled_modules.split(',').filter(Boolean).filter(key => allowedModules.includes(key));
   };
 
 const moduleMap: Record<string, { page: string; icon: any; label: string }> = {
     dashboard: { page: 'dashboard', icon: Home, label: 'Dashboard' },
     accounting: { page: 'accounting', icon: Wallet, label: 'Contabilidad' },
-    budgets: { page: 'budgets', icon: Target, label: 'Presupuestos' },
-    agenda: { page: 'agenda', icon: Calendar, label: 'Agenda' },
-    shopping: { page: 'shopping', icon: ShoppingCart, label: 'Lista Compra' },
-    tasks: { page: 'tasks', icon: ListChecks, label: 'Tareas' },
-    notes: { page: 'notes', icon: StickyNote, label: 'Notas' },
-    birthdays: { page: 'birthdays', icon: Cake, label: 'Cumpleaños' },
-    contacts: { page: 'contacts', icon: Users, label: 'Contactos' },
-    chatbot: { page: 'chatbot', icon: Bot, label: 'Chat IA' },
     clinic: { page: 'clinic', icon: Stethoscope, label: 'Mi Clínica' },
-    clinic_packages: { page: 'clinic_packages', icon: Package, label: 'Bonos y Suscripciones' },
-    howitworks: { page: 'howitworks', icon: BookOpen, label: 'Cómo funciona' },
-    about: { page: 'about', icon: Info, label: 'Acerca de' },
   };
 
   // Removed premium pages effect as tabs are now always visible
@@ -159,17 +175,17 @@ const moduleMap: Record<string, { page: string; icon: any; label: string }> = {
     >
       <div className={`border-b border-[var(--color-border)] transition-all duration-200 ${isExpanded ? 'p-4' : 'p-3'}`}>
         {isExpanded ? (
-          <h1 className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent truncate">{companyName}</h1>
+          <h1 className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent truncate">{profile.family_name || 'Mi Clínica'}</h1>
         ) : (
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-lg">
-            {companyName?.[0]?.toUpperCase() || 'F'}
+            {profile.family_name?.[0]?.toUpperCase() || 'M'}
           </div>
         )}
       </div>
       
       <nav className={`flex-1 transition-all duration-200 overflow-y-auto ${isExpanded ? 'p-3' : 'p-2'}`}>
         <ul className="space-y-1.5">
-          {isAdmin && (
+          {(isAdmin || role === 'admin') && (
             <li>
               <button
                 onClick={() => onNavigate('admin')}

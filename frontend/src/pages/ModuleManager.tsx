@@ -5,26 +5,11 @@ import { getAuthHeaders } from '../utils/auth';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 const MODULE_LIST = [
-  { key: 'howitworks', label: 'Como funciona', icon: '📖' },
-  { key: 'about', label: 'Acerca de', icon: 'ℹ️' },
-  { key: 'terms', label: 'Terminos', icon: '📄' },
-  { key: 'privacy', label: 'Privacidad', icon: '🔒' },
-  { key: 'agenda', label: 'Agenda', icon: '📅' },
-  { key: 'shopping', label: 'Lista Compra', icon: '🛒' },
-  { key: 'tasks', label: 'Tareas', icon: '✅' },
-  { key: 'notes', label: 'Notas', icon: '📝' },
-  { key: 'birthdays', label: 'Cumpleanos', icon: '🎂' },
-  { key: 'contacts', label: 'Contactos', icon: '👥' },
-  { key: 'chatbot', label: 'Chat IA', icon: '🤖' },
   { key: 'clinic', label: 'Mi Clínica', icon: '🏥' },
-  { key: 'clinic_packages', label: 'Bonos y Suscripciones', icon: '🎁' },
-  { key: 'home_maintenance', label: 'Mantenimiento', icon: '🔧' },
-  { key: 'utility_bills', label: 'Facturas', icon: '⚡' },
   { key: 'accounting', label: 'Contabilidad', icon: '💰' },
-  { key: 'budgets', label: 'Presupuestos', icon: '📊' },
 ].sort((a, b) => a.label.localeCompare(b.label));
 
-const DEFAULT_MODULES = ['dashboard', 'agenda', 'accounting', 'birthdays', 'shopping', 'notes', 'tasks', 'clinic'];
+const DEFAULT_MODULES = ['dashboard', 'accounting', 'clinic'];
 
 export function ModuleManager() {
   const [enabledModules, setEnabledModules] = useState<string[]>(DEFAULT_MODULES);

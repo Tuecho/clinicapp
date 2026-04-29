@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home, ListChecks, Calendar, AlertCircle, Eye, EyeOff, Briefcase, Building2, Award, Cake } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Heart, Home, Calendar, AlertCircle, Eye, EyeOff, Briefcase, Building2, Award } from 'lucide-react';
 import { useStore } from '../store';
-import { useCompany } from '../i18n/CompanyContext';
 import { formatMoneyEs, formatDateEsLower } from '../utils/format';
 import { getAuthHeaders } from '../utils/auth';
 
@@ -371,6 +370,7 @@ function MonthlyChart({ data }: { data: { month: number; year: number; label: st
 
 interface DashboardProps {
   onNavigate?: (page: 'profile') => void;
+  role?: 'admin' | 'administrative' | 'worker';
 }
 
 function MonthlyTrendCards({ data }: { data: { month: number; year: number; label: string; income: number; expense: number; balance: number }[] }) {
@@ -502,8 +502,9 @@ function MonthlyTrendCards({ data }: { data: { month: number; year: number; labe
   );
 }
 
-export function Dashboard({ onNavigate }: DashboardProps) {
-  const { companyName } = useCompany();
+export function Dashboard({ onNavigate, role = 'worker' }: DashboardProps) {
+  const isWorker = role === 'worker';
+  const [companyName] = useState('Mi Clínica');
   const { 
     getTotals, 
     getMonthlyTransactions, 
@@ -747,14 +748,16 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           )}
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
-          <button
-            onClick={() => setShowFinancialData(!showFinancialData)}
-            className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors flex items-center gap-1 text-xs sm:text-sm"
-            title={showFinancialData ? "Ocultar datos económicos" : "Mostrar datos económicos"}
-          >
-            {showFinancialData ? <Eye size={16} /> : <EyeOff size={16} />}
-            <span className="hidden sm:inline">{showFinancialData ? 'Ocultar' : 'Mostrar'}</span>
-          </button>
+          {!isWorker && (
+            <button
+              onClick={() => setShowFinancialData(!showFinancialData)}
+              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors flex items-center gap-1 text-xs sm:text-sm"
+              title={showFinancialData ? "Ocultar datos económicos" : "Mostrar datos económicos"}
+            >
+              {showFinancialData ? <Eye size={16} /> : <EyeOff size={16} />}
+              <span className="hidden sm:inline">{showFinancialData ? 'Ocultar' : 'Mostrar'}</span>
+            </button>
+          )}
           <button
             onClick={() => changeMonth(-1)}
             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
@@ -830,7 +833,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       </div>
       
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
-        {showFinancialData ? (
+        {showFinancialData && !isWorker ? (
           <>
             <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3">
               <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-income/10 flex items-center justify-center flex-shrink-0">
@@ -866,7 +869,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               </div>
             </div>
           </>
-        ) : (
+        ) : isWorker ? null : (
           <div className="col-span-1 sm:col-span-3 bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center justify-center gap-3">
             <EyeOff className="text-gray-400" size={24} />
             <p className="text-gray-500 text-sm">Datos económicos ocultos</p>
@@ -1000,122 +1003,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         })()}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
-            <ListChecks size={20} className="text-orange-500" />
-            Tareas Pendientes
-          </h3>
-          {tasksLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
-            </div>
-          ) : pendingTasks.length === 0 ? (
-            <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">✅</span>
-              <p className="text-gray-500 text-sm">No hay tareas pendientes</p>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {pendingTasks.map((task) => (
-                <div key={task.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
-                  <div className={`w-2 h-2 rounded-full ${task.priority === 'high' || task.priority === 'urgent' ? 'bg-red-500' : task.priority === 'normal' ? 'bg-orange-500' : 'bg-gray-300'}`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{task.title}</p>
-                    {task.due_date && (
-                      <p className={`text-xs flex items-center gap-1 ${new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
-                        <Calendar size={12} />
-                        {formatDateEsLower(new Date(task.due_date), { day: 'numeric', month: 'short' })}
-                      </p>
-                    )}
-                  </div>
-                  {task.assignee_name && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{task.assignee_name}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {pendingTasks.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{pendingTasks.length} tarea{pendingTasks.length !== 1 ? 's' : ''} pendiente{pendingTasks.length !== 1 ? 's' : ''}</p>
-          )}
-        </div>
+      
 
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
-            <Cake size={20} className="text-pink-500" />
-            Próximos Cumpleaños
-          </h3>
-          {birthdaysLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
-            </div>
-          ) : upcomingBirthdays.length === 0 ? (
-            <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">🎂</span>
-              <p className="text-gray-500 text-sm">No hay cumpleaños próximos</p>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {upcomingBirthdays.map((b: any) => {
-                const isToday = b.daysUntil === 0;
-                return (
-                  <div key={b.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
-                    <div className={`w-2 h-2 rounded-full ${isToday ? 'bg-pink-500' : b.daysUntil <= 30 ? 'bg-yellow-500' : 'bg-pink-300'}`}></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{b.name}</p>
-                      <p className="text-xs text-gray-400">
-                        {b.day}/{b.month} • Cumple {b.age} años
-                      </p>
-                    </div>
-                    {isToday && (
-                      <span className="text-xs bg-pink-500 text-white px-2 py-0.5 rounded-full">🎉 Hoy</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {upcomingBirthdays.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{upcomingBirthdays.length} cumpleaños próximo{upcomingBirthdays.length !== 1 ? 's' : ''}</p>
-          )}
-        </div>
-      </div>
-
-      {showFinancialData && (
-        <>
-          <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-            <div className="flex items-center gap-2 mb-4 sm:mb-6">
-              <Target className="text-primary sm:w-6 sm:h-6" size={20} />
-              <h3 className="text-base sm:text-lg font-semibold">Presupuestos del Mes</h3>
-            </div>
-            
-            {currentMonthBudgets.length === 0 ? (
-              <div className="text-center py-8 sm:py-12">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">🎯</span>
-                </div>
-                <p className="text-gray-500 mb-2 text-sm font-medium">No hay presupuestos establecidos</p>
-                <p className="text-xs sm:text-sm text-gray-400">Ve a Presupuestos para crear uno</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3">
-                {currentMonthBudgets.map((budget) => (
-                  <BudgetCard key={budget.id} budget={budget} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 mt-3 sm:mt-6">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="text-primary sm:w-6 sm:h-6" size={20} />
-              <h3 className="text-base sm:text-lg font-semibold">Evolución (6 meses)</h3>
-            </div>
-            <MonthlyTrendCards data={monthlyData} />
-          </div>
-        </>
-      )}
+      
 
       <footer className="mt-8 sm:mt-12 pt-4 sm:pt-8 border-t border-gray-200">
         <div className="text-center text-gray-500 text-xs sm:text-sm">

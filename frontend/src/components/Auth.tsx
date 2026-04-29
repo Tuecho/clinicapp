@@ -1,6 +1,5 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode, useCallback, useRef } from 'react';
 import { Lock, Eye, EyeOff, User, UserPlus, X, Check, Clock, Shield, AlertCircle } from 'lucide-react';
-import { useCompany } from '../i18n/CompanyContext';
 
 const STORAGE_KEY = 'clinica_auth';
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -49,7 +48,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   const [showLock, setShowLock] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetStep, setResetStep] = useState<'email' | 'code'>('email');
-  const { companyName } = useCompany();
+  const [companyName] = useState('Mi Clínica');
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -144,7 +143,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
     setResetLoading(false);
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -166,6 +165,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
         username: username.trim(),
         password: password,
         isAdmin: data.isAdmin,
+        role: data.role || 'worker',
         userId: data.userId,
         lastActivity 
       }));
@@ -786,9 +786,12 @@ export function AdminUsers() {
   );
 }
 
+type UserRole = 'admin' | 'administrative' | 'worker';
+
 interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
+  role: UserRole;
   login: () => void;
   logout: () => void;
   getAuth: () => { username: string; password: string } | null;
@@ -798,7 +801,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 function getStoredAuth() {
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) return { authenticated: false, isAdmin: false };
+  if (!stored) return { authenticated: false, isAdmin: false, role: 'worker' };
   const parsed = JSON.parse(stored);
   return parsed;
 }
@@ -810,6 +813,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [isAdmin, setIsAdmin] = useState(() => {
     return getStoredAuth().isAdmin;
+  });
+
+  const [role, setRole] = useState<UserRole>(() => {
+    return getStoredAuth().role || 'worker';
   });
 
   const logout = useCallback(async () => {
@@ -827,6 +834,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('clinica_lastPage');
     setIsAuthenticated(false);
     setIsAdmin(false);
+    setRole('worker');
     window.dispatchEvent(new Event('storage'));
   }, []);
 
@@ -835,6 +843,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const auth = getStoredAuth();
       setIsAuthenticated(auth.authenticated);
       setIsAdmin(auth.isAdmin);
+      setRole(auth.role || 'worker');
     };
     
     window.addEventListener('storage', checkAuth);
@@ -913,6 +922,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = getStoredAuth();
     setIsAdmin(!!stored.isAdmin);
     setIsAuthenticated(!!stored.authenticated);
+    setRole(stored.role || 'worker');
   };
 
   const getAuth = () => {
@@ -925,7 +935,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isAdmin, login, logout, getAuth }}>
+    <AuthContext.Provider value={{ isAuthenticated, isAdmin, role, login, logout, getAuth }}>
       {children}
     </AuthContext.Provider>
   );
